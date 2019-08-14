@@ -1,5 +1,8 @@
 package main
 
+// go install github.com/francoispqt/gojay/gojay
+// gojay -s .  -t s1 -o output.go
+
 import (
 	"encoding/json"
 	"fmt"
@@ -7,6 +10,9 @@ import (
 	"log"
 
 	// . "github.com/dave/jennifer/jen"
+	test2 "ago/x"
+
+	"github.com/francoispqt/gojay"
 	"github.com/wxio/tron-go/adl"
 )
 
@@ -17,8 +23,40 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v\n", err)
 	}
-	fj := ADL2Jen(amods["test2"])
-	fmt.Printf("%#v", fj)
+	// fj := ADL2Jen(amods["test2"])
+	// fmt.Printf("%#v", fj)
+	TemplADL(amods["test2"])
+
+	s1 := test2.NewS1_builder().
+		X(1).
+		Y("sdfa").
+		S1()
+
+	by, err := gojay.MarshalJSONObject(s1)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(by))
+
+	s11 := test2.NewS1(0, "")
+	err = gojay.Unmarshal(by, s11)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("%v\n", s11)
+
+	// var out []byte
+	// // var err error
+	// if out, err = json.MarshalIndent(&s1, "", "  "); err != nil {
+	// 	fmt.Printf("error : %v\n", err)
+	// } else {
+	// 	fmt.Printf("'%v'\n", string(out))
+	// }
+	// if s1_1, err := S1_UnmarshalJSON(out); err != nil {
+	// 	fmt.Printf("unmarshal error : %v\n", err)
+	// } else {
+	// 	fmt.Printf("'%+v'\n", s1_1)
+	// }
 
 	// f := NewFile("main")
 	// f.Type().Id("s1").Struct(

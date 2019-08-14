@@ -1,7 +1,10 @@
 package main
 
 import (
+	"sort"
 	"strings"
+
+	"github.com/golangq/q"
 
 	"github.com/dave/jennifer/jen"
 	"github.com/wxio/tron-go/adl"
@@ -9,17 +12,42 @@ import (
 
 func ADL2Jen(amod *adl.Module) *jen.File {
 	jf := jen.NewFile(amod.Name)
-	for name, decl := range amod.Decls {
+	names := []string{}
+	for name, _ := range amod.Decls {
+		names = append(names, name)
+	}
+	sort.Sort(sort.StringSlice(names))
+	for _, name := range names {
+		q.Q(name)
+		decl := amod.Decls[name]
 		lname := strings.ToLower(name)
 		uname := strings.ToUpper(name)
 		if decl.Type.Struct != nil {
+			code := []jen.Code{}
+			for _, fld := range decl.Type.Struct.Field {
+				q.Q(fld)
+				jf := jen.Id(strings.ToUpper(fld.Name)).Params()
+				if fld.TypeExpr.TypeRef.Primitive != nil {
+					// fmt.Printf("%+v\n", fld.TypeExpr.TypeRef)
+					switch *fld.TypeExpr.TypeRef.Primitive {
+					case "Int32":
+						q.Q("0", fld.Name, *fld.TypeExpr.TypeRef.Primitive)
+						code = append(code, jf.Int32())
+					case "String":
+						q.Q("1", fld.Name, *fld.TypeExpr.TypeRef.Primitive)
+						code = append(code, jf.String())
+					default:
+						q.Q("2", fld.Name, *fld.TypeExpr.TypeRef.Primitive)
+					}
+				}
+			}
+			jf.Type().Id(uname).Interface(code...)
+
+			// jen.Id("X").Params().Int32(),
+			// jen.Id("Y").Params().String(),
 			jf.Type().Id(lname).Struct(
 				jen.Id("x").Int32(),
 				jen.Id("y").String(),
-			)
-			jf.Type().Id(uname).Interface(
-				jen.Id("X").Params().Int32(),
-				jen.Id("Y").Params().String(),
 			)
 			jf.Var().Id("_").Id(uname).Op("=").Id(lname).Block()
 
