@@ -10,18 +10,39 @@ pub fn run_cli() -> i32 {
     let r = match opts.command {
         None => {
             println!("{}", CliOptions::self_usage(&opts));
-            Ok(())
+            return 0;
         }
-        Some(Command::Verify(opts)) => verify::verify(&opts),
-        Some(Command::Ast(opts)) => ast::ast(&opts),
+        Some(Command::Verify(opts)) => {
+            if opts.modules.len() == 0 {
+                println!("{}", VerifyOpts::self_usage(&opts));
+                return 1;
+            } else {
+                match verify::verify(&opts) {
+                    Ok(_) => 0,
+                    Err(_err) => 2,
+                }
+            }
+        }
+        Some(Command::Ast(opts)) => {
+            if opts.modules.len() == 0 {
+                println!("{}", AstOpts::self_usage(&opts));
+                return 1;
+            } else {
+                match ast::ast(&opts) {
+                    Ok(_) => 0,
+                    Err(_err) => 2,
+                }
+            }
+        }
     };
-    match r {
-        Ok(_) => 0,
-        Err(err) => {
-            log::error!("{}", err);
-            1
-        }
-    }
+    return r;
+    // match r {
+    //     Ok(_) => 0,
+    //     Err(err) => {
+    //         log::error!("{}", err);
+    //         1
+    //     }
+    // }
 }
 
 // Define options for the program.
@@ -43,6 +64,8 @@ pub enum Command {
 
 #[derive(Debug, Options)]
 pub struct VerifyOpts {
+    #[options(help = "print help message")]
+    pub help: bool,
     #[options(help = "adds the given directory to the ADL search path", meta = "I")]
     pub searchdir: Vec<PathBuf>,
     #[options(free)]
@@ -51,6 +74,8 @@ pub struct VerifyOpts {
 
 #[derive(Debug, Options)]
 pub struct AstOpts {
+    #[options(help = "print help message")]
+    pub help: bool,
     #[options(help = "adds the given directory to the ADL search path", meta = "I")]
     pub searchdir: Vec<PathBuf>,
 
