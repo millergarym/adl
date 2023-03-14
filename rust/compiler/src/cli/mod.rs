@@ -43,20 +43,24 @@ pub enum Command {
 
 #[derive(Debug, Options)]
 pub struct VerifyOpts {
+    #[options(help = "print help message")]
+    pub help: bool,
     #[options(help = "adds the given directory to the ADL search path", meta = "I")]
     pub searchdir: Vec<PathBuf>,
-    #[options(free)]
+    #[options(free, required)]
     pub modules: Vec<String>,
 }
 
 #[derive(Debug, Options)]
 pub struct AstOpts {
+    #[options(help = "print help message")]
+    pub help: bool,
     #[options(help = "adds the given directory to the ADL search path", meta = "I")]
     pub searchdir: Vec<PathBuf>,
 
     #[options(help = "writes the AST to the specified file", meta = "O")]
     pub outfile: Option<PathBuf>,
 
-    #[options(free)]
+    #[options(free, required)]
     pub modules: Vec<String>,
 }
