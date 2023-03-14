@@ -15,11 +15,16 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
             Err(e) => return Err(anyhow!("Failed to load module {}: {:?}", m, e)),
         }
     }
-    let modules: Vec<&Module1> = resolver
-        .get_module_names()
-        .into_iter()
-        .map(|mn| resolver.get_module(&mn).unwrap())
-        .collect();
-    println!("{}", serde_json::to_string_pretty(&modules).unwrap());
+    for mn in &opts.modules {
+        if let Some(m) = resolver.get_module(mn) {
+            println!("// gern {}", m.name);
+        }
+    }
+    // let modules: Vec<&Module1> = resolver
+    //     .get_module_names()
+    //     .into_iter()
+    //     .map(|mn| resolver.get_module(&mn).unwrap())
+    //     .collect();
+    // println!("{}", serde_json::to_string_pretty(&modules).unwrap());
     Ok(())
 }
