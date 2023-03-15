@@ -146,6 +146,7 @@ impl<TE> NewType<TE> {
 }
 
 #[derive(Debug,Deserialize,PartialEq,Serialize)]
+#[serde(tag="kind", content = "value")]
 pub enum DeclType<TE> {
   #[serde(rename="struct_")]
   Struct(Struct<TE>),
@@ -312,6 +313,7 @@ pub enum PrimitiveType {
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+#[serde(tag="kind", content = "value")]
 pub enum TypeRef {
   #[serde(rename="scopedName")]
   ScopedName(ScopedName),

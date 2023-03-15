@@ -1,10 +1,16 @@
 use super::TsOpts;
 
-use anyhow::anyhow;
+use std::collections::HashMap;
 
-use crate::adlgen::sys::adlast2::{Module, TypeExpr, TypeRef};
+use anyhow::anyhow;
+use genco::prelude::js::Import;
+use genco::tokens::{Item, ItemStr};
+
+use crate::adlgen::sys::adlast2::{
+    Decl, DeclType, Module, NewType, ScopedDecl, Struct, TypeDef, TypeExpr, TypeRef, Union,
+};
 use crate::processing::loader::loader_from_search_paths;
-use crate::processing::resolver::{Resolver};
+use crate::processing::resolver::Resolver;
 use genco::fmt;
 use genco::prelude::*;
 
@@ -34,10 +40,18 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
     Ok(())
 }
 
+struct Imports {
+    adlr: Import,
+    map: HashMap<String, Import>,
+}
 
 fn gen_module(m: &Module<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
     let mut tokens = js::Tokens::new();
-    let adlr = &js::import("./runtime/adl", "ADL").into_wildcard();
+    let imports = Imports {
+        adlr: js::import("./runtime/adl", "ADL").into_wildcard(),
+        map: HashMap::new(),
+    };
+    // let adlr = &js::import("./runtime/adl", "ADL").into_wildcard();
 
     // println!("// gen {}", m.name);
 
@@ -47,14 +61,31 @@ fn gen_module(m: &Module<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
     };
 
     for (name, decl) in m.decls.iter() {
-        quote_in! { tokens =>
-            export type $name;
-
-            const $(name)_AST : $adlr.ScopedDecl
-            export const sn$(name): $adlr.ScopedName = {moduleName:"test5", name:"U1"};
-            $['\n']
+        // let scopedDecl = ScopedDecl::new(m.name.clone(), decl);
+        // let scopedDecl = ScopedDecl {
+        //     module_name: m.name.clone(),
+        //     decl: *decl,
+        // };
+        let r = match &decl.r#type {
+            DeclType::Struct(d) => Ok(()),
+            DeclType::Union(d) => gen_union(&mut tokens, &imports, m.name.clone(), decl, name, d),
+            DeclType::Newtype(d) => Ok(()),
+            DeclType::Type(d) => Ok(()),
+        };
+        if let Err(_) = r {
+            return r;
         }
     }
+
+    tokens.append(Item::Literal(ItemStr::Static(
+        "export const _AST_MAP: { [key: string]: ADL.ScopedDecl } = {\n",
+    )));
+    for (name, _decl) in m.decls.iter() {
+        quote_in! { tokens =>
+            $[' ']$[' ']$("\"")$(m.name.clone()).$(name)$("\"") : $(name)_AST,$['\r']
+        }
+    }
+    tokens.append(Item::Literal(ItemStr::Static("}")));
 
     let stdout = std::io::stdout();
     let mut w = fmt::IoWriter::new(stdout.lock());
@@ -66,84 +97,103 @@ fn gen_module(m: &Module<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn gen_struct(
+    tokens: &mut Tokens<JavaScript>,
+    imports: &Imports,
+    name: &String,
+    m: &Struct<TypeExpr<TypeRef>>,
+) -> anyhow::Result<()> {
+    quote_in! { *tokens =>
+        $("// struct")
+        // export type $name;
 
-fn gencoexample() -> anyhow::Result<()> {
-    let adlr = &js::import("./runtime/adl", "ADL").into_wildcard();
-    let react = &js::import("react", "React").into_default();
-    let display = &js::import("./Display", "Display").into_default();
-    let button_panel = &js::import("./ButtonPanel", "ButtonPanel").into_default();
-    let calculate = &js::import("../logic/calculate", "calculate").into_default();
-
-    let tokens = quote! {
-$adlr
-
-export type U1 = 'v';
-export const valuesU1 : U1[] = ['v'];
-
-const U1_AST : ADL.ScopedDecl =
-  {"moduleName":"test5","decl":{"annotations":[],"type_":{"kind":"union_","value":{"typeParams":[],"fields":[{"annotations":[],"serializedName":"v","default":{"kind":"nothing"},"name":"v","typeExpr":{"typeRef":{"kind":"primitive","value":"Void"},"parameters":[]}}]}},"name":"U1","version":{"kind":"nothing"}}};
-
-export const snU1: ADL.ScopedName = {moduleName:"test5", name:"U1"};
-
-export function texprU1(): ADL.ATypeExpr<U1> {
-  return {value : {typeRef : {kind: "reference", value : snU1}, parameters : []}};
+        // const $(name)_AST : $(&imports.adlr).ScopedDecl
+        // export const sn$(name): $(&imports.adlr).ScopedName = {moduleName:"test5", name:"U1"};
+        $['\n']
+    }
+    Ok(())
 }
 
-export interface U2_V {
-  kind: 'v';
-  value: number;
+fn rust_type<TE>(te: &TypeExpr<TE>) -> String {
+    return "number".to_string();
 }
 
-export const _AST_MAP: { [key: string]: ADL.ScopedDecl } = {
-  "test5.U1" : U1_AST,
-  "test5.U2" : U2_AST,
-  "test5.U3" : U3_AST,
-  "test5.S1" : S1_AST,
-  "test5.U4" : U4_AST,
-  "test5.U5" : U5_AST,
-  "test5.U6" : U6_AST,
-  "test5.U7" : U7_AST,
-  "test5.U8" : U8_AST,
-  "test5.U9" : U9_AST,
-  "test5.S" : S_AST,
-  "test5.List" : List_AST,
-  "test5.Cell" : Cell_AST,
-  "test5.U10" : U10_AST,
-  "test5.S10" : S10_AST,
-  "test5.U11" : U11_AST,
-  "test5.S11" : S11_AST
-};
-
-        export type U2 = U2_V;
-
-        export default class App extends $react.Component {
-            state = {
-                total: null,
-                next: null,
-                operation: null,
-            };
-
-            handleClick = buttonName => {
-                this.setState($calculate(this.state, buttonName));
-            };
-
-            render() {
-                return (
-                    <div className="component-app">
-                        <$display value={this.state.next || this.state.total || "0"} />
-                        <$button_panel clickHandler={this.handleClick} />
-                    </div>
-                );
-            }
+fn gen_union(
+    tokens: &mut Tokens<JavaScript>,
+    imports: &Imports,
+    mname: String,
+    decl: &Decl<TypeExpr<TypeRef>>,
+    name: &String,
+    m: &Union<TypeExpr<TypeRef>>,
+) -> anyhow::Result<()> {
+    // let scopedDecl = ScopedDecl::new(mname.clone(), *decl);
+    // let scopedDecl = ScopedDecl {
+    //     module_name: mname.clone(),
+    //     decl: *(decl.clone()),
+    // };
+    // TODO this is wireformat need TS format 
+    // TODO sys.annotations::SerializedName needs to be embedded
+    let astDecl = serde_json::to_string(decl).unwrap();
+    tokens.append(Item::Literal(ItemStr::Static("// union \n")));
+    // let ast = serde_json::to_string(&scopedDecl).unwrap();
+    let mut bNames = vec![];
+    let mut opts = vec![];
+    for b in m.fields.iter() {
+        let bname = b.name.clone();
+        let bName = b.name.to_uppercase();
+        bNames.push(bName.clone());
+        let rtype = rust_type(&b.type_expr);
+        opts.push((bname.clone(), rtype.clone()));
+        quote_in! { *tokens =>
+            export interface $(name)_$(bName) {
+                kind: $("'")$(bname)$("'");
+                value: $(rtype);
+            }$['\r']
         }
-    };
+    }
+    quote_in! { *tokens =>
+        $['\n']
+        export type $name = $(for n in bNames join ( | ) => $(name)_$n);
 
-    let stdout = std::io::stdout();
-    let mut w = fmt::IoWriter::new(stdout.lock());
+        export interface $(name)Opts {
+          $(for opt in opts => $(opt.0): $(opt.1);$['\r'])
+        }$['\n']
 
-    let fmt = fmt::Config::from_lang::<JavaScript>();
-    let config = js::Config::default();
+        export function make$(name)<K extends keyof $(name)Opts>(kind: K, value: $(name)Opts[K]) { return {kind, value}; }
 
-    tokens.format_file(&mut w.as_formatter(&fmt), &config)?;
+        const $(name)_AST : $(&imports.adlr).ScopedDecl =
+          { "moduleName": $("\"")$(mname.clone())$("\""), $("\"")decl$("\""): $astDecl}
+
+        export const sn$(name): $(&imports.adlr).ScopedName = {moduleName:$("\"")$mname$("\""), name:$("\"")$name$("\"")};
+
+        export function texpr$(name)(): ADL.ATypeExpr<$(name)> {
+            return {value : {typeRef : {kind: "reference", value : sn$(name)}, parameters : []}};
+        }
+        $['\n']
+    }
+    Ok(())
+}
+
+fn gen_newtype(
+    tokens: &mut Tokens<JavaScript>,
+    imports: &Imports,
+    name: &String,
+    m: &NewType<TypeExpr<TypeRef>>,
+) -> anyhow::Result<()> {
+    quote_in! { *tokens =>
+        $("// newtype")
+    }
+    Ok(())
+}
+
+fn gen_type(
+    tokens: &mut Tokens<JavaScript>,
+    imports: &Imports,
+    name: &String,
+    m: &TypeDef<TypeExpr<TypeRef>>,
+) -> anyhow::Result<()> {
+    quote_in! { *tokens =>
+        $("// type")
+    }
     Ok(())
 }
