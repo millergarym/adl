@@ -146,7 +146,6 @@ impl<TE> NewType<TE> {
 }
 
 #[derive(Debug,Deserialize,PartialEq,Serialize)]
-#[serde(tag="kind", content = "value")]
 pub enum DeclType<TE> {
   #[serde(rename="struct_")]
   Struct(Struct<TE>),
@@ -212,21 +211,19 @@ pub enum Import {
   ScopedName(ScopedName),
 }
 
-use indexmap::IndexMap as HashMap;
-
 #[derive(Debug,Deserialize,PartialEq,Serialize)]
 pub struct Module<TE> {
   pub name: ModuleName,
 
   pub imports: Vec<Import>,
 
-  pub decls: HashMap<String,Decl<TE>>,
+  pub decls: std::collections::HashMap<String,Decl<TE>>,
 
   pub annotations: Annotations,
 }
 
 impl<TE> Module<TE> {
-  pub fn new(name: ModuleName, imports: Vec<Import>, decls: HashMap<String,Decl<TE>>, annotations: Annotations) -> Module<TE> {
+  pub fn new(name: ModuleName, imports: Vec<Import>, decls: std::collections::HashMap<String,Decl<TE>>, annotations: Annotations) -> Module<TE> {
     Module {
       name: name,
       imports: imports,
@@ -313,7 +310,6 @@ pub enum PrimitiveType {
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-#[serde(tag="kind", content = "value")]
 pub enum TypeRef {
   #[serde(rename="scopedName")]
   ScopedName(ScopedName),

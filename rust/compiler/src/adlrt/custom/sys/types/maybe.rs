@@ -45,7 +45,6 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Maybe<T> {
 }
 
 #[derive(Deserialize,Serialize)]
-#[serde(tag="kind", content = "value")]
 enum MaybeImpl<T> {
   #[serde(rename="nothing")]
   Nothing,
