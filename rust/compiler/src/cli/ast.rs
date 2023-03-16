@@ -18,7 +18,7 @@ pub fn ast(opts: &AstOpts) -> anyhow::Result<()> {
     let modules: Vec<&Module1> = resolver
         .get_module_names()
         .into_iter()
-        .map(|mn| resolver.get_module(dbg!(&mn)).unwrap())
+        .map(|mn| resolver.get_module(&mn).unwrap())
         .collect();
     println!("{}", serde_json::to_string_pretty(&modules).unwrap());
     Ok(())
