@@ -60,7 +60,7 @@ fn gen_module(m: &Module<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
         $['\n']
     };
 
-    for (name, decl) in m.decls.iter() {
+    for decl in m.decls.iter() {
         // let scopedDecl = ScopedDecl::new(m.name.clone(), decl);
         // let scopedDecl = ScopedDecl {
         //     module_name: m.name.clone(),
@@ -68,7 +68,7 @@ fn gen_module(m: &Module<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
         // };
         let r = match &decl.r#type {
             DeclType::Struct(d) => Ok(()),
-            DeclType::Union(d) => gen_union(&mut tokens, &imports, m.name.clone(), decl, name, d),
+            DeclType::Union(d) => gen_union(&mut tokens, &imports, m.name.clone(), decl, d),
             DeclType::Newtype(d) => Ok(()),
             DeclType::Type(d) => Ok(()),
         };
@@ -80,9 +80,9 @@ fn gen_module(m: &Module<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
     tokens.append(Item::Literal(ItemStr::Static(
         "export const _AST_MAP: { [key: string]: ADL.ScopedDecl } = {\n",
     )));
-    for (name, _decl) in m.decls.iter() {
+    for decl in m.decls.iter() {
         quote_in! { tokens =>
-            $[' ']$[' ']$("\"")$(m.name.clone()).$(name)$("\"") : $(name)_AST,$['\r']
+            $[' ']$[' ']$("\"")$(m.name.clone()).$(&decl.name)$("\"") : $(&decl.name)_AST,$['\r']
         }
     }
     tokens.append(Item::Literal(ItemStr::Static("}")));
@@ -123,7 +123,6 @@ fn gen_union(
     imports: &Imports,
     mname: String,
     decl: &Decl<TypeExpr<TypeRef>>,
-    name: &String,
     m: &Union<TypeExpr<TypeRef>>,
 ) -> anyhow::Result<()> {
     // let scopedDecl = ScopedDecl::new(mname.clone(), *decl);
@@ -134,6 +133,7 @@ fn gen_union(
     // TODO this is wireformat need TS format 
     // TODO sys.annotations::SerializedName needs to be embedded
     let astDecl = serde_json::to_string(decl).unwrap();
+    let name = &decl.name;
     tokens.append(Item::Literal(ItemStr::Static("// union \n")));
     // let ast = serde_json::to_string(&scopedDecl).unwrap();
     let mut bNames = vec![];

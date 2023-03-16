@@ -180,15 +180,16 @@ pub fn raw_module0(i: Input) -> Res<Input, RawModule> {
         ),
         wtag("}"),
     )(i)?;
-    let mut decls: HashMap<String, adlast::Decl<TypeExpr0>> = HashMap::new();
+    let mut decls: Vec<adlast::Decl<TypeExpr0>> = vec![];
     let mut explicit_annotations: Vec<ExplicitAnnotation> = Vec::new();
     for da in decls_or_annotations {
         match da {
             DeclOrAnnotation::DADecl(decl) => {
                 let dname = decl.name.clone();
-                if let Some(_) = decls.insert(dname.clone(), decl) {
+                if let Some(_) = decls.iter().find(|d| d.name == dname) {
                     return Err(custom_error(i, format!("found duplicate decl: {}", dname)));
                 }
+                decls.push(decl);
             }
             DeclOrAnnotation::DAAnnotation(ann) => {
                 explicit_annotations.push(ann);
