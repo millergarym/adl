@@ -8,8 +8,8 @@ use genco::prelude::js::Import as JsImport;
 use genco::tokens::{Item, ItemStr};
 
 use crate::adlgen::sys::adlast2::{
-    Decl, DeclType, Field, Ident, Import, Module, NewType, ScopedName, Struct, TypeDef, TypeExpr,
-    TypeRef, Union,
+    Decl, DeclType, Field, Ident, Import, Module, NewType, PrimitiveType, ScopedName, Struct,
+    TypeDef, TypeExpr, TypeRef, Union,
 };
 use crate::adlrt::custom::sys::types::map::Map;
 use crate::adlrt::custom::sys::types::maybe::Maybe;
@@ -32,9 +32,9 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
         if let Some(m) = resolver.get_module(mn) {
             // TODO sys.annotations::SerializedName needs to be embedded
             let mut tokens = js::Tokens::new();
-            let mut mgen = TsGenVisitor{
+            let mut mgen = TsGenVisitor {
                 adlr: js::import("./runtime/adl", "ADL").into_wildcard(),
-                map: HashMap::new(),    
+                map: HashMap::new(),
                 tokens: &mut tokens,
             };
             mgen.gen_module(m);
@@ -213,7 +213,7 @@ impl TsGenVisitor<'_> {
         for decl in m.decls.iter() {
             let r = match &decl.r#type {
                 DeclType::Struct(d) => Ok(()),
-                DeclType::Union(d) => self.gen_union(m.name.clone(), decl, d),
+                DeclType::Union(d) => self.gen_union(d, GenUnionPayload(decl, m.name.clone())),
                 DeclType::Newtype(d) => Ok(()),
                 DeclType::Type(d) => Ok(()),
             };
@@ -232,12 +232,10 @@ impl TsGenVisitor<'_> {
         self.tokens.append(Item::Literal(ItemStr::Static("}")));
         Ok(())
     }
+}
 
-    fn gen_struct(
-        &mut self,
-        name: &String,
-        m: &Struct<TypeExpr<TypeRef>>,
-    ) -> anyhow::Result<()> {
+impl TsGenVisitor<'_> {
+    fn gen_struct(&mut self, name: &String, m: &Struct<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
         quote_in! { self.tokens =>
             $("// struct")
             // export type $name;
@@ -248,40 +246,75 @@ impl TsGenVisitor<'_> {
         }
         Ok(())
     }
+}
 
+struct GenUnionPayload<'a>(&'a Decl<TypeExpr<TypeRef>>, String);
+
+impl TsGenVisitor<'_> {
     fn gen_union(
         &mut self,
-        mname: String,
-        decl: &Decl<TypeExpr<TypeRef>>,
         m: &Union<TypeExpr<TypeRef>>,
+        payload: GenUnionPayload,
     ) -> anyhow::Result<()> {
-        let name = &decl.name;
-        self.tokens.append(Item::Literal(ItemStr::Static("// union \n")));
-        let mut bnames_up = vec![];
-        let mut opts = vec![];
-        for b in m.fields.iter() {
-            let bname = b.name.clone();
-            let bname_up = b.name.to_uppercase();
-            bnames_up.push(bname_up.clone());
-            let rtype = rust_type(&b.type_expr);
-            opts.push((bname.clone(), rtype.clone()));
+        let (decl, name, mname) = (payload.0, &payload.0.name, payload.1);
+        self.tokens
+            .append(Item::Literal(ItemStr::Static("// union \n")));
+        let is_enum = m
+            .fields
+            .iter()
+            .find(|f| match &f.type_expr.type_ref {
+                TypeRef::ScopedName(_) => true,
+                TypeRef::LocalName(_) => true,
+                TypeRef::TypeParam(_) => true,
+                TypeRef::Primitive(p) => match p {
+                    PrimitiveType::Void => false,
+                    _ => true,
+                },
+            })
+            .is_none();
+        if !is_enum {
+            let mut bnames_up = vec![];
+            let mut opts = vec![];
+            for b in m.fields.iter() {
+                let bname = b.name.clone();
+                let bname_up = b.name.to_uppercase();
+                bnames_up.push(bname_up.clone());
+                let rtype = rust_type(&b.type_expr);
+                opts.push((bname.clone(), rtype.clone()));
+                quote_in! { self.tokens =>
+                    export interface $(name)_$(bname_up) {
+                        kind: $("'")$(bname)$("'");
+                        value: $(rtype);
+                    }$['\r']
+                }
+            }
             quote_in! { self.tokens =>
-                export interface $(name)_$(bname_up) {
-                    kind: $("'")$(bname)$("'");
-                    value: $(rtype);
-                }$['\r']
+                $['\n']
+                export type $name = $(for n in bnames_up join ( | ) => $(name)_$n);
+
+                export interface $(name)Opts {
+                  $(for opt in opts => $(opt.0): $(opt.1);$['\r'])
+                }$['\n']
+
+                export function make$(name)<K extends keyof $(name)Opts>(kind: K, value: $(name)Opts[K]) { return {kind, value}; }$['\n']
+            }
+        } else { // enum
+            let b_names: Vec<&String> = m.fields.iter().map(|f| &f.name).collect();
+            let b_len = b_names.len();
+            let b1 = if b_len > 0 { b_names[0] } else { "" };
+            quote_in! { self.tokens =>
+                $['\n']
+                export type $name = $(for n in b_names join ( | ) => $("'")$(n)$("'"));
+                $['\r']
+            }
+            // TODO not sure what this is for -- duplicating existing ts
+            if b_len == 1 {
+                quote_in! { self.tokens => export const values$name : $name[] = [$("'")$(b1)$("'")];$['\r'] }
             }
         }
+
         quote_in! { self.tokens =>
             $['\n']
-            export type $name = $(for n in bnames_up join ( | ) => $(name)_$n);
-
-            export interface $(name)Opts {
-              $(for opt in opts => $(opt.0): $(opt.1);$['\r'])
-            }$['\n']
-
-            export function make$(name)<K extends keyof $(name)Opts>(kind: K, value: $(name)Opts[K]) { return {kind, value}; }
-
             const $(name)_AST : $(&self.adlr).ScopedDecl =
               {"moduleName":$("\"")$(mname.clone())$("\""),"decl":$(ref tok => {
                 let mut sdg = TsScopedDeclGenVisitor{module_name: &mname.clone(), tokens: tok};
