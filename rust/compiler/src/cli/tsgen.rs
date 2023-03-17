@@ -312,13 +312,11 @@ impl TsGenVisitor<'_> {
             .fields
             .iter()
             .find(|f| match &f.type_expr.type_ref {
-                TypeRef::ScopedName(_) => true,
-                TypeRef::LocalName(_) => true,
-                TypeRef::TypeParam(_) => true,
                 TypeRef::Primitive(p) => match p {
                     PrimitiveType::Void => false,
                     _ => true,
                 },
+                _ => true,
             })
             .is_none();
         if !is_enum {
