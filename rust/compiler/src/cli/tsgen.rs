@@ -457,6 +457,11 @@ pub fn capitalize_first(input: &String) -> String {
     }
 }
 
-fn rust_type<TE>(_te: &TypeExpr<TE>) -> String {
-    return "number".to_string();
+fn rust_type(te: &TypeExpr<TypeRef>) -> String {
+    match &te.type_ref {
+        TypeRef::ScopedName(n) => todo!(),
+        TypeRef::LocalName(n) => todo!(),
+        TypeRef::Primitive(n) => "number".to_string(),
+        TypeRef::TypeParam(n) => todo!(),
+    }
 }
