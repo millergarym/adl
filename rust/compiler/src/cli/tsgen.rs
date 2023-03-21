@@ -2,6 +2,7 @@ use super::TsOpts;
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::io::Write;
 
 use anyhow::anyhow;
 use genco::prelude::js::Import as JsImport;
@@ -336,6 +337,7 @@ impl TsGenVisitor<'_> {
             export interface $(name_up) $OC$['\r']
         }
 
+        // m.fields.iter().try_fold(init, f)
         let mut has_make = true;
         for f in m.fields.iter() {
             self.gen_doc_comment(&f.annotations);
@@ -359,7 +361,7 @@ impl TsGenVisitor<'_> {
                     $(ref tok => struct_field_make_return(tok, &m.fields))
                   };
                 }
-            }    
+            }
         }
         Ok(())
     }
@@ -478,10 +480,39 @@ pub fn capitalize_first(input: &String) -> String {
 fn rust_type(te: &TypeExpr<TypeRef>) -> Result<(bool, String), String> {
     match &te.type_ref {
         TypeRef::ScopedName(_n) => todo!(),
-        TypeRef::LocalName(_n) => todo!(),
+        TypeRef::LocalName(n) => tstype_from_local_name(n, &te.parameters),
         TypeRef::Primitive(n) => tstype_from_prim(n, &te.parameters),
-        TypeRef::TypeParam(_n) => todo!(),
+        TypeRef::TypeParam(n) => Ok((true, n.clone())),
     }
+}
+
+fn tstype_from_local_name(
+    local_name: &String,
+    params: &Vec<TypeExpr<TypeRef>>,
+) -> Result<(bool, String), String> {
+    if params.len() > 0 {
+        let mut tperr = vec![];
+        let tps: Vec<String> = params
+            .iter()
+            .filter_map(|p| {
+                let r = rust_type(p);
+                match r {
+                    Ok((_, t)) => Some(t),
+                    Err(e) => {
+                        tperr.push(e);
+                        return None;
+                    }
+                }
+            })
+            .collect();
+        if tperr.len() != 0 {
+            let msg = tperr.join("\n\t");
+            return Err(format!("Error constructing type param: {}", msg));
+        }
+        let tpstr = format!("{}<{}>", local_name.clone(), tps.join(","));
+        return Ok((true, tpstr));
+    }
+    Ok((true, local_name.clone()))
 }
 
 fn tstype_from_prim(
@@ -518,9 +549,7 @@ fn tstype_from_prim(
                     format!("{}[key: string]: {}{}", "{", param_type.1, "}"),
                 )),
                 PrimitiveType::Nullable => Ok((param_type.0, format!("({}|null)", param_type.1))),
-                PrimitiveType::TypeToken => {
-                    Ok((false, format!("ADL.ATypeExpr<{}>", param_type.1)))
-                }
+                PrimitiveType::TypeToken => Ok((false, format!("ADL.ATypeExpr<{}>", param_type.1))),
                 _ => Err(format!("unknown primitive {:?}", prim)),
             }
         }
