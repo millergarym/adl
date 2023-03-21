@@ -8,8 +8,8 @@ use genco::prelude::js::Import as JsImport;
 use genco::tokens::{Item, ItemStr};
 
 use crate::adlgen::sys::adlast2::{
-    Annotations, Decl, DeclType, Field, Ident, Module, NewType, PrimitiveType, ScopedName,
-    Struct, TypeDef, TypeExpr, TypeRef, Union,
+    Annotations, Decl, DeclType, Field, Ident, Module, NewType, PrimitiveType, ScopedName, Struct,
+    TypeDef, TypeExpr, TypeRef, Union,
 };
 use crate::adlrt::custom::sys::types::maybe::Maybe;
 use crate::parser::docstring_scoped_name;
@@ -183,6 +183,7 @@ impl TsScopedDeclGenVisitor<'_> {
         self.lit(",");
         quote_in! { self.toks =>  "name":$("\"")$(&f.name)$("\"")};
         self.lit(",");
+        quote_in! { self.toks =>  "typeExpr":}
         self.visit_type_expr(&f.type_expr);
         self.lit("}");
     }
@@ -200,7 +201,7 @@ impl TsScopedDeclGenVisitor<'_> {
         quote_in! { self.toks =>  $("}")};
     }
     fn visit_type_expr(&mut self, te: &TypeExpr<TypeRef>) {
-        quote_in! { self.toks =>  "typeExpr":$("{")}
+        quote_in! { self.toks =>  $("{")}
         self.visit_type_ref(&te.type_ref);
         quote_in! { self.toks => ,"parameters":$("[")}
         te.parameters.iter().fold(false, |rest, p| {
@@ -223,8 +224,9 @@ impl TsScopedDeclGenVisitor<'_> {
                 quote_in! { self.toks =>  "kind":"reference","value":{"moduleName":$("\""):$(self.module_name)$("\""),"name":$("\"")$(n)$("\"")}};
             }
             TypeRef::Primitive(n) => {
-                let p = &serde_json::to_string(n).unwrap();
-                quote_in! { self.toks =>  "kind":"primitive","value":$p};
+                let p = crate::processing::primitives::str_from_prim(n.clone());
+                // let p = &serde_json::to_string(n).unwrap();
+                quote_in! { self.toks =>  "kind":"primitive","value":$DQ$p$DQ};
             }
             TypeRef::TypeParam(n) => {
                 quote_in! { self.toks =>  "kind":"typeParam","value":$("\"")$n$("\"")};
@@ -298,12 +300,17 @@ impl TsGenVisitor<'_> {
             }
         }
         self.lit("export const _AST_MAP: { [key: string]: ADL.ScopedDecl } = {\n");
-        for decl in m.decls.iter() {
-            quote_in! { self.toks =>
-                $[' ']$[' ']$("\"")$(m.name.clone()).$(&decl.name)$("\"") : $(capitalize_first(&decl.name))_AST,$['\r']
+        m.decls.iter().fold(false, |rest, decl| {
+            if rest {
+                self.lit(",\n")
             }
-        }
-        self.lit("}");
+            self.lit("  ");
+            quote_in! { self.toks =>
+                $("\"")$(m.name.clone()).$(&decl.name)$("\"") : $(capitalize_first(&decl.name))_AST
+            };
+            true
+        });
+        self.lit("\n};");
         Ok(())
     }
 }
@@ -331,8 +338,9 @@ impl TsGenVisitor<'_> {
 
         for f in m.fields.iter() {
             self.gen_doc_comment(&f.annotations);
+            let rt = rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
             quote_in! { self.toks =>
-                $SP$SP$(&f.name): $(rust_type(&f.type_expr));$['\r']
+                $SP$SP$(&f.name): $(rt);$['\r']
             }
         }
         quote_in! { self.toks =>
@@ -341,7 +349,7 @@ impl TsGenVisitor<'_> {
         quote_in! { self.toks =>
             export function make$(name_up)(
               input: {
-                $(ref tok => struct_field_make_input(tok, &m.fields))
+                $(ref tok => struct_field_make_input(tok, &m.fields)?)
               }
             ): $(name_up) {
               return {
@@ -353,18 +361,23 @@ impl TsGenVisitor<'_> {
     }
 }
 
-fn struct_field_make_input(toks: &mut Tokens<JavaScript>, fs: &Vec<Field<TypeExpr<TypeRef>>>) {
+fn struct_field_make_input(
+    toks: &mut Tokens<JavaScript>,
+    fs: &Vec<Field<TypeExpr<TypeRef>>>,
+) -> anyhow::Result<()> {
     for f in fs {
+        let rt = rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
         quote_in! { *toks =>
-          $(&f.name): $(rust_type(&f.type_expr)),
+          $(&f.name): $(rt),$['\r']
         }
     }
+    Ok(())
 }
 
 fn struct_field_make_return(toks: &mut Tokens<JavaScript>, fs: &Vec<Field<TypeExpr<TypeRef>>>) {
     for f in fs {
         quote_in! { *toks =>
-          $(&f.name): input.$(&f.name),
+          $(&f.name): input.$(&f.name),$['\r']
         }
     }
 }
@@ -398,7 +411,7 @@ impl TsGenVisitor<'_> {
                 let bname = b.name.clone();
                 let bname_up = capitalize_first(&b.name);
                 bnames_up.push(bname_up.clone());
-                let rtype = rust_type(&b.type_expr);
+                let rtype = rust_type(&b.type_expr).map_err(|s| anyhow!(s))?;
                 opts.push((bname.clone(), rtype.clone()));
                 quote_in! { self.toks =>
                     export interface $(name)_$(bname_up) {
@@ -457,11 +470,49 @@ pub fn capitalize_first(input: &String) -> String {
     }
 }
 
-fn rust_type(te: &TypeExpr<TypeRef>) -> String {
+fn rust_type(te: &TypeExpr<TypeRef>) -> Result<String, String> {
     match &te.type_ref {
-        TypeRef::ScopedName(n) => todo!(),
-        TypeRef::LocalName(n) => todo!(),
-        TypeRef::Primitive(n) => "number".to_string(),
-        TypeRef::TypeParam(n) => todo!(),
+        TypeRef::ScopedName(_n) => todo!(),
+        TypeRef::LocalName(_n) => todo!(),
+        TypeRef::Primitive(n) => tstype_from_prim(n, &te.parameters),
+        TypeRef::TypeParam(_n) => todo!(),
+    }
+}
+
+fn tstype_from_prim(
+    prim: &PrimitiveType,
+    params: &Vec<TypeExpr<TypeRef>>,
+) -> Result<String, String> {
+    match prim {
+        PrimitiveType::Void => Ok("null".to_string()),
+        PrimitiveType::Bool => Ok("boolean".to_string()),
+        PrimitiveType::Int8 => Ok("number".to_string()),
+        PrimitiveType::Int16 => Ok("number".to_string()),
+        PrimitiveType::Int32 => Ok("number".to_string()),
+        PrimitiveType::Int64 => Ok("number".to_string()),
+        PrimitiveType::Word8 => Ok("number".to_string()),
+        PrimitiveType::Word16 => Ok("number".to_string()),
+        PrimitiveType::Word32 => Ok("number".to_string()),
+        PrimitiveType::Word64 => Ok("number".to_string()),
+        PrimitiveType::Float => Ok("number".to_string()),
+        PrimitiveType::Double => Ok("number".to_string()),
+        PrimitiveType::Json => Ok("{}|null".to_string()),
+        PrimitiveType::ByteVector => Ok("Uint8Array".to_string()),
+        PrimitiveType::String => Ok("string".to_string()),
+        _ => {
+            if params.len() != 1 {
+                return Err(format!( "Primitive parameterized type require 1 and only one param. Type {:?} provided with {}", prim, params.len() ))
+            }
+            let param_type = rust_type(&params[0])?;
+            match prim {
+                PrimitiveType::Vector => {
+                    return Ok(format!("{}[]", param_type));
+                }
+                PrimitiveType::StringMap => Ok(format!("{}[key: string]: {}{}", "{", param_type, "}")),
+                PrimitiveType::Nullable => Ok(format!("({}|null)", param_type)),
+                PrimitiveType::TypeToken => Ok(format!("ADL.ATypeExpr<{}>", param_type)),
+                _ => Err(format!( "unknown primitive {:?}", prim ))
+            }
+        }
     }
 }

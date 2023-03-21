@@ -279,7 +279,7 @@ pub fn merge_annotations(
         hm.insert(docstring_scoped_name(), serde_json::Value::from(ds));
     };
 
-    Ok((Map(hm)))
+    Ok(Map(hm))
 }
 
 pub fn docstring_scoped_name() -> adlast::ScopedName {
