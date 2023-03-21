@@ -1,4 +1,4 @@
-use crate::adlgen::sys::adlast2::{self as adlast, ScopedName};
+use crate::adlgen::sys::adlast2::{self as adlast};
 use crate::adlgen::sys::adlast2::Spanned;
 use std::iter::repeat;
 use std::collections::HashMap;

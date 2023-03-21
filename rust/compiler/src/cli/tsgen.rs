@@ -2,18 +2,15 @@ use super::TsOpts;
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::error::Error;
-use std::str::Chars;
 
 use anyhow::anyhow;
 use genco::prelude::js::Import as JsImport;
 use genco::tokens::{Item, ItemStr};
 
 use crate::adlgen::sys::adlast2::{
-    Annotations, Decl, DeclType, Field, Ident, Import, Module, NewType, PrimitiveType, ScopedName,
+    Annotations, Decl, DeclType, Field, Ident, Module, NewType, PrimitiveType, ScopedName,
     Struct, TypeDef, TypeExpr, TypeRef, Union,
 };
-use crate::adlrt::custom::sys::types::map::Map;
 use crate::adlrt::custom::sys::types::maybe::Maybe;
 use crate::parser::docstring_scoped_name;
 use crate::processing::loader::loader_from_search_paths;
@@ -37,10 +34,10 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
             let mut tokens = js::Tokens::new();
             let mut mgen = TsGenVisitor {
                 adlr: js::import("./runtime/adl", "ADL").into_wildcard(),
-                map: HashMap::new(),
+                _map: HashMap::new(),
                 toks: &mut tokens,
             };
-            mgen.gen_module(m);
+            mgen.gen_module(m)?;
             let stdout = std::io::stdout();
             let mut w = fmt::IoWriter::new(stdout.lock());
             let fmt = fmt::Config::from_lang::<JavaScript>();
@@ -70,22 +67,6 @@ struct TsScopedDeclGenVisitor<'a> {
 impl TsScopedDeclGenVisitor<'_> {
     fn lit(&mut self, s: &'static str) {
         self.toks.append(Item::Literal(ItemStr::Static(s)));
-    }
-}
-
-fn ScopedNameCompare(a: &ScopedName, b: &ScopedName) -> std::cmp::Ordering {
-    if &a.module_name == &b.module_name {
-        if a.name == b.name {
-            Ordering::Equal
-        } else if a.name > b.name {
-            Ordering::Greater
-        } else {
-            Ordering::Less
-        }
-    } else if a.module_name > b.module_name {
-        Ordering::Greater
-    } else {
-        Ordering::Less
     }
 }
 
@@ -182,11 +163,11 @@ impl TsScopedDeclGenVisitor<'_> {
         self.lit("]");
         self.lit("}");
     }
-    fn visit_newtype(&mut self, dt: &NewType<TypeExpr<TypeRef>>) {
+    fn visit_newtype(&mut self, _dt: &NewType<TypeExpr<TypeRef>>) {
         // TODO
         println!("newtype: ");
     }
-    fn visit_typealias(&mut self, dt: &TypeDef<TypeExpr<TypeRef>>) {
+    fn visit_typealias(&mut self, _dt: &TypeDef<TypeExpr<TypeRef>>) {
         // TODO
         println!("type: ");
     }
@@ -256,53 +237,28 @@ impl TsScopedDeclGenVisitor<'_> {
 struct TsGenVisitor<'a> {
     toks: &'a mut Tokens<JavaScript>,
     adlr: JsImport,
-    map: HashMap<String, JsImport>,
+    _map: HashMap<String, JsImport>,
 }
-
-// struct TsComment<'a> {
-//     toks: &'a mut Tokens<JavaScript>,
-// }
-
-// impl std::io::Write for TsComment<'_> {
-//     fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-//         // buf.to
-//         // let string = String::from_utf8_lossy(buf).;
-//         // let string = unsafe {
-//         //     // We do not emit invalid UTF-8.
-//         //     String::from
-//         //     String::from_utf8_unchecked(buf)
-//         // };
-//         // quote_in! { self.toks => $(string)}
-//         return Ok(buf.len());
-//     }
-
-//     fn flush(&mut self) -> std::io::Result<()> {
-//         todo!()
-//     }
-// }
 
 impl TsGenVisitor<'_> {
     fn lit(&mut self, s: &'static str) {
         self.toks.append(Item::Literal(ItemStr::Static(s)));
     }
-    // fn to_comment(&mut self, val: &serde_json::Value) {
-    //     serde_json::to_writer(TsComment { toks: self.toks }, val);
-    // }
 }
 
 impl TsGenVisitor<'_> {
-    fn gen_doc_comment(&mut self, annotations: &Annotations) -> anyhow::Result<()> {
+    fn gen_doc_comment(&mut self, annotations: &Annotations) {
         if let Some(ds) = annotations.0.get(&docstring_scoped_name()) {
             self.lit("/**\n");
             for c in ds.as_array().unwrap().iter() {
                 if let Ok(x) = serde_json::to_string(&c.clone()) {
+                    // TODO should this be trimmed? or should the output be "*$y" ie no space
                     let y = x[1..x.len() - 1].trim();
                     quote_in! {self.toks => $[' ']* $(y)$['\r']};
                 }
             }
             self.lit(" */\n");
         }
-        Ok(())
     }
     fn gen_module(&mut self, m: &Module<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
         quote_in! { self.toks =>
@@ -421,7 +377,7 @@ impl TsGenVisitor<'_> {
         m: &Union<TypeExpr<TypeRef>>,
         payload: DeclPayload,
     ) -> anyhow::Result<()> {
-        let (name) = (&payload.0.name);
+        let name = &payload.0.name;
         self.lit("// union \n");
         let is_enum = m
             .fields
@@ -478,14 +434,14 @@ impl TsGenVisitor<'_> {
         Ok(())
     }
 
-    fn gen_newtype(&mut self, m: &NewType<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
+    fn gen_newtype(&mut self, _m: &NewType<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
         quote_in! { self.toks =>
             $("// newtype")
         }
         Ok(())
     }
 
-    fn gen_type(&mut self, m: &TypeDef<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
+    fn gen_type(&mut self, _m: &TypeDef<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
         quote_in! { self.toks =>
             $("// type")
         }
@@ -501,6 +457,6 @@ pub fn capitalize_first(input: &String) -> String {
     }
 }
 
-fn rust_type<TE>(te: &TypeExpr<TE>) -> String {
+fn rust_type<TE>(_te: &TypeExpr<TE>) -> String {
     return "number".to_string();
 }
