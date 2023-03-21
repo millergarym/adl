@@ -19,8 +19,19 @@ struct Abc {
     Nullable<Int64> p;
 };
 
+// def is not constructable because it contains a TypeToken
+// e.g. in TS no `export function makeDef`
 struct def {
     TypeToken<Int64> q;
+};
+
+// def02 is not constructable because it transitively contains a TypeToken
+// e.g. in TS no `export function makeDef02`
+//
+// Current adlc generates make
+// Current adlc doesn't title case the type in 'ADL.ATypeExpr<xxx>'
+struct def02 {
+    Vector<TypeToken<Int64>> q;
 };
 
 struct hij {

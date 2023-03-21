@@ -287,9 +287,9 @@ impl TsGenVisitor<'_> {
                     sdg.visit_decl(decl);
                   })};
 
-                export const sn$(name): $(&self.adlr).ScopedName = {moduleName:$("\"")$mname$("\""), name:$("\"")$name$("\"")};
+                export const sn$(capitalize_first(name)): $(&self.adlr).ScopedName = {moduleName:$("\"")$mname$("\""), name:$("\"")$name$("\"")};
 
-                export function texpr$(name)(): ADL.ATypeExpr<$(name)> {
+                export function texpr$(capitalize_first(name))(): ADL.ATypeExpr<$(capitalize_first(name))> {
                     return {value : {typeRef : {kind: "reference", value : sn$(name)}, parameters : []}};
                 }
                 $['\n']
@@ -336,26 +336,30 @@ impl TsGenVisitor<'_> {
             export interface $(name_up) $OC$['\r']
         }
 
+        let mut has_make = true;
         for f in m.fields.iter() {
             self.gen_doc_comment(&f.annotations);
             let rt = rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
+            has_make = has_make && rt.0;
             quote_in! { self.toks =>
-                $SP$SP$(&f.name): $(rt);$['\r']
+                $SP$SP$(&f.name): $(rt.1);$['\r']
             }
         }
         quote_in! { self.toks =>
             $CC$['\r']$['\n']
         }
-        quote_in! { self.toks =>
-            export function make$(name_up)(
-              input: {
-                $(ref tok => struct_field_make_input(tok, &m.fields)?)
-              }
-            ): $(name_up) {
-              return {
-                $(ref tok => struct_field_make_return(tok, &m.fields))
-              };
-            }
+        if has_make {
+            quote_in! { self.toks =>
+                export function make$(name_up)(
+                  input: {
+                    $(ref tok => struct_field_make_input(tok, &m.fields)?)
+                  }
+                ): $(name_up) {
+                  return {
+                    $(ref tok => struct_field_make_return(tok, &m.fields))
+                  };
+                }
+            }    
         }
         Ok(())
     }
@@ -368,7 +372,7 @@ fn struct_field_make_input(
     for f in fs {
         let rt = rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
         quote_in! { *toks =>
-          $(&f.name): $(rt),$['\r']
+          $(&f.name): $(rt.1),$['\r']
         }
     }
     Ok(())
@@ -412,11 +416,11 @@ impl TsGenVisitor<'_> {
                 let bname_up = capitalize_first(&b.name);
                 bnames_up.push(bname_up.clone());
                 let rtype = rust_type(&b.type_expr).map_err(|s| anyhow!(s))?;
-                opts.push((bname.clone(), rtype.clone()));
+                opts.push((bname.clone(), rtype.clone().1));
                 quote_in! { self.toks =>
                     export interface $(name)_$(bname_up) {
                         kind: $("'")$(bname)$("'");
-                        value: $(rtype);
+                        value: $(rtype.1);
                     }$['\r']
                 }
             }
@@ -470,7 +474,8 @@ pub fn capitalize_first(input: &String) -> String {
     }
 }
 
-fn rust_type(te: &TypeExpr<TypeRef>) -> Result<String, String> {
+/// returns (has_make_function,ts type)
+fn rust_type(te: &TypeExpr<TypeRef>) -> Result<(bool, String), String> {
     match &te.type_ref {
         TypeRef::ScopedName(_n) => todo!(),
         TypeRef::LocalName(_n) => todo!(),
@@ -482,36 +487,41 @@ fn rust_type(te: &TypeExpr<TypeRef>) -> Result<String, String> {
 fn tstype_from_prim(
     prim: &PrimitiveType,
     params: &Vec<TypeExpr<TypeRef>>,
-) -> Result<String, String> {
+) -> Result<(bool, String), String> {
     match prim {
-        PrimitiveType::Void => Ok("null".to_string()),
-        PrimitiveType::Bool => Ok("boolean".to_string()),
-        PrimitiveType::Int8 => Ok("number".to_string()),
-        PrimitiveType::Int16 => Ok("number".to_string()),
-        PrimitiveType::Int32 => Ok("number".to_string()),
-        PrimitiveType::Int64 => Ok("number".to_string()),
-        PrimitiveType::Word8 => Ok("number".to_string()),
-        PrimitiveType::Word16 => Ok("number".to_string()),
-        PrimitiveType::Word32 => Ok("number".to_string()),
-        PrimitiveType::Word64 => Ok("number".to_string()),
-        PrimitiveType::Float => Ok("number".to_string()),
-        PrimitiveType::Double => Ok("number".to_string()),
-        PrimitiveType::Json => Ok("{}|null".to_string()),
-        PrimitiveType::ByteVector => Ok("Uint8Array".to_string()),
-        PrimitiveType::String => Ok("string".to_string()),
+        PrimitiveType::Void => Ok((true, "null".to_string())),
+        PrimitiveType::Bool => Ok((true, "boolean".to_string())),
+        PrimitiveType::Int8 => Ok((true, "number".to_string())),
+        PrimitiveType::Int16 => Ok((true, "number".to_string())),
+        PrimitiveType::Int32 => Ok((true, "number".to_string())),
+        PrimitiveType::Int64 => Ok((true, "number".to_string())),
+        PrimitiveType::Word8 => Ok((true, "number".to_string())),
+        PrimitiveType::Word16 => Ok((true, "number".to_string())),
+        PrimitiveType::Word32 => Ok((true, "number".to_string())),
+        PrimitiveType::Word64 => Ok((true, "number".to_string())),
+        PrimitiveType::Float => Ok((true, "number".to_string())),
+        PrimitiveType::Double => Ok((true, "number".to_string())),
+        PrimitiveType::Json => Ok((true, "{}|null".to_string())),
+        PrimitiveType::ByteVector => Ok((true, "Uint8Array".to_string())),
+        PrimitiveType::String => Ok((true, "string".to_string())),
         _ => {
             if params.len() != 1 {
-                return Err(format!( "Primitive parameterized type require 1 and only one param. Type {:?} provided with {}", prim, params.len() ))
+                return Err(format!( "Primitive parameterized type require 1 and only one param. Type {:?} provided with {}", prim, params.len() ));
             }
             let param_type = rust_type(&params[0])?;
             match prim {
                 PrimitiveType::Vector => {
-                    return Ok(format!("{}[]", param_type));
+                    return Ok((param_type.0, format!("{}[]", param_type.1)));
                 }
-                PrimitiveType::StringMap => Ok(format!("{}[key: string]: {}{}", "{", param_type, "}")),
-                PrimitiveType::Nullable => Ok(format!("({}|null)", param_type)),
-                PrimitiveType::TypeToken => Ok(format!("ADL.ATypeExpr<{}>", param_type)),
-                _ => Err(format!( "unknown primitive {:?}", prim ))
+                PrimitiveType::StringMap => Ok((
+                    param_type.0,
+                    format!("{}[key: string]: {}{}", "{", param_type.1, "}"),
+                )),
+                PrimitiveType::Nullable => Ok((param_type.0, format!("({}|null)", param_type.1))),
+                PrimitiveType::TypeToken => {
+                    Ok((false, format!("ADL.ATypeExpr<{}>", param_type.1)))
+                }
+                _ => Err(format!("unknown primitive {:?}", prim)),
             }
         }
     }
