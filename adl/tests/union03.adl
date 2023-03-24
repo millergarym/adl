@@ -4,13 +4,14 @@ struct Abc<T> {
     T a;
 };
 
-union Def<S,T> {
-    Vector<T> B;
-    Abc<S> C;
+union Def {
+    Vector<Int64> B;
+    Abc<String> C;
 };
 
 struct Ghi {
-    Def<String,Int64> d = {"B":[1,2,3]};
+    Def d = {"B":[1,2,3]};
+    Abc<String> e = {"a":"asfds"};
 };
 
 };
