@@ -1,4 +1,5 @@
 use serde_json::Value;
+use anyhow::anyhow;
 
 use crate::adlgen::sys::adlast2::{
     DeclType, Field, Module, PrimitiveType, ScopedName, TypeExpr, TypeRef,
@@ -17,12 +18,13 @@ impl TsDefaultValue<'_> {
     pub fn gen_default_value(
         &self,
         t: &mut Tokens<JavaScript>,
+        name: &String,
         f: &Field<TypeExpr<TypeRef>>,
     ) -> anyhow::Result<()> {
         if let Some(val) = &f.default.0 {
             match &f.type_expr.type_ref {
-                TypeRef::ScopedName(d) => self.gen_default_scope_name(t, d, val)?,
-                TypeRef::LocalName(d) => self.gen_default_local_name(t, d, val)?,
+                TypeRef::ScopedName(d) => self.gen_default_scope_name(t, f, d, val)?,
+                TypeRef::LocalName(d) => self.gen_default_local_name(t, name, f, d, val)?,
                 TypeRef::Primitive(d) => self.gen_default_primitive(t, d, val)?,
                 TypeRef::TypeParam(d) => self.gen_default_type_param(t, d, val)?,
             }
@@ -36,6 +38,7 @@ impl TsDefaultValue<'_> {
     fn gen_default_scope_name(
         &self,
         t: &mut Tokens<JavaScript>,
+        f: &Field<TypeExpr<TypeRef>>,
         d: &ScopedName,
         val: &Value,
     ) -> anyhow::Result<()> {
@@ -47,6 +50,8 @@ impl TsDefaultValue<'_> {
     fn gen_default_local_name(
         &self,
         t: &mut Tokens<JavaScript>,
+        decl_name: &String,
+        f: &Field<TypeExpr<TypeRef>>,
         d: &String,
         val: &Value,
     ) -> anyhow::Result<()> {
@@ -58,8 +63,13 @@ impl TsDefaultValue<'_> {
             .unwrap();
         match &decl.r#type {
             DeclType::Struct(ty) => {
-                let x = serde_json::to_string(val).unwrap();
-                quote_in! { *t => $x };
+                if let Some(obj) = val.as_object() {
+                    let x = serde_json::to_string(val).unwrap();
+                    quote_in! { *t => $x };
+                } else {
+                    let x = serde_json::to_string(val).unwrap();
+                    return Err(anyhow!(anyhow!( "default value does not match. Expected object for {}.{}::{} received '{}'", self.module.name, decl_name, &f.name, x)));
+                }
             }
             DeclType::Union(ty) => {
                 let x = val.as_object().unwrap();

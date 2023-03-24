@@ -291,7 +291,7 @@ impl TsGenVisitor<'_> {
                                 module: self.module,
                                 resolver: self.resolver,
                             };
-                            dvg.gen_default_value(t, &f)?;
+                            dvg.gen_default_value(t, &name, &f)?;
                             quote_in! { *t => $[' ']: input.$(&f.name),$['\r'] }
                         } else {
                             quote_in! { *t => $(&f.name): input.$(&f.name),$['\r'] }
