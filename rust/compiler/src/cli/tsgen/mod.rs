@@ -5,10 +5,9 @@ use std::collections::HashMap;
 use anyhow::anyhow;
 use genco::prelude::js::Import as JsImport;
 use genco::tokens::{Item, ItemStr};
-use serde_json::Value;
 
 use crate::adlgen::sys::adlast2::{
-    Annotations, Decl, DeclType, Field, Module, NewType, PrimitiveType, ScopedName, Struct,
+    Annotations, Decl, DeclType, Module, NewType, PrimitiveType, Struct,
     TypeDef, TypeExpr, TypeRef, Union,
 };
 use crate::parser::docstring_scoped_name;
@@ -18,9 +17,17 @@ use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
 mod astgen;
+mod defaultval;
 
 const SP: &str = " ";
-const DQ: &str = "\"";
+
+struct TsGenVisitor<'a> {
+    module: &'a Module<TypeExpr<TypeRef>>,
+    // t: &'a mut Tokens<JavaScript>,
+    resolver: &'a Resolver,
+    adlr: JsImport,
+    _map: &'a mut HashMap<String, JsImport>,
+}
 
 pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
     let loader = loader_from_search_paths(&opts.search.path);
@@ -65,13 +72,6 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
     Ok(())
 }
 
-struct TsGenVisitor<'a> {
-    module: &'a Module<TypeExpr<TypeRef>>,
-    // t: &'a mut Tokens<JavaScript>,
-    resolver: &'a Resolver,
-    adlr: JsImport,
-    _map: &'a mut HashMap<String, JsImport>,
-}
 
 struct RttiPayload<'a> {
     mname: String,
@@ -287,7 +287,11 @@ impl TsGenVisitor<'_> {
                     $(for f in &m.fields => $(ref t => {
                         if let Some(_) = f.default.0 {
                             quote_in! { *t => $(&f.name): input.$(&f.name) === undefined ?$[' '] }
-                            self.gen_default_value(t, &f)?;
+                            let dvg = defaultval::TsDefaultValue{
+                                module: self.module,
+                                resolver: self.resolver,
+                            };
+                            dvg.gen_default_value(t, &f)?;
                             quote_in! { *t => $[' ']: input.$(&f.name),$['\r'] }
                         } else {
                             quote_in! { *t => $(&f.name): input.$(&f.name),$['\r'] }
@@ -309,86 +313,7 @@ impl TsGenVisitor<'_> {
     }
 }
 
-impl TsGenVisitor<'_> {
-    fn gen_default_value(
-        &mut self,
-        t: &mut Tokens<JavaScript>,
-        f: &Field<TypeExpr<TypeRef>>,
-    ) -> anyhow::Result<()> {
-        if let Some(val) = &f.default.0 {
-            match &f.type_expr.type_ref {
-                TypeRef::ScopedName(d) => self.gen_default_scope_name(t, d, val)?,
-                TypeRef::LocalName(d) => self.gen_default_local_name(t, d, val)?,
-                TypeRef::Primitive(d) => self.gen_default_primitive(t, d, val)?,
-                TypeRef::TypeParam(d) => self.gen_default_type_param(t, d, val)?,
-            }
-        } else {
-            // find out how to unwrap the default.0
-            todo!()
-        }
-        Ok(())
-    }
 
-    fn gen_default_scope_name(
-        &mut self,
-        t: &mut Tokens<JavaScript>,
-        d: &ScopedName,
-        val: &Value,
-    ) -> anyhow::Result<()> {
-        // let decl = self.resolver.get_decl(d).unwrap();
-        quote_in! { *t => {} };
-        Ok(())
-    }
-
-    fn gen_default_local_name(
-        &mut self,
-        t: &mut Tokens<JavaScript>,
-        d: &String,
-        val: &Value,
-    ) -> anyhow::Result<()> {
-        let decl = self
-            .module
-            .decls
-            .iter()
-            .find(|decl| decl.name == *d)
-            .unwrap();
-        match &decl.r#type {
-            DeclType::Struct(ty) => {
-                let x = serde_json::to_string(val).unwrap();
-                quote_in! { *t => $x };
-            },
-            DeclType::Union(ty) => {
-                let x = val.as_object().unwrap();
-                let y: Vec<&String> = x.keys().collect();
-                let x = serde_json::to_string(&x.get(y[0])).unwrap();
-                quote_in! { *t => { kind: $DQ$(y[0])$DQ, value: $x} };
-            },
-            DeclType::Type(ty) => todo!(),
-            DeclType::Newtype(ty) => todo!(),
-        };
-        Ok(())
-    }
-
-    fn gen_default_primitive(
-        &mut self,
-        t: &mut Tokens<JavaScript>,
-        d: &PrimitiveType,
-        val: &Value,
-    ) -> anyhow::Result<()> {
-        let x = serde_json::to_string(d).unwrap();
-        quote_in! { *t => $x };
-        Ok(())
-    }
-
-    fn gen_default_type_param(
-        &mut self,
-        t: &mut Tokens<JavaScript>,
-        d: &String,
-        val: &Value,
-    ) -> anyhow::Result<()> {
-        todo!()
-    }
-}
 
 // struct DeclPayload<'a>(&'a Decl<TypeExpr<TypeRef>>);
 struct DeclPayload<'a> {
