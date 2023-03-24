@@ -10,7 +10,7 @@ union Def<S,T> {
 };
 
 struct Ghi {
-    Def<String,Int64> d;
+    Def<String,Int64> d = {"B":[1,2,3]};
 };
 
 };
