@@ -21,7 +21,7 @@ struct Abc {
 
 // def is not constructable because it contains a TypeToken
 // e.g. in TS no `export function makeDef`
-struct def {
+struct Def {
     TypeToken<Int64> q;
 };
 
@@ -30,11 +30,11 @@ struct def {
 //
 // Current adlc generates make
 // Current adlc doesn't title case the type in 'ADL.ATypeExpr<xxx>'
-struct def02 {
+struct Def02 {
     Vector<TypeToken<Int64>> q;
 };
 
-struct hij {
+struct Hij {
     Vector<Vector<Int64>> r;
     Vector<StringMap<Nullable<Int64>>> s;
 };
