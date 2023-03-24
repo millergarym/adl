@@ -574,8 +574,9 @@ impl TsGenVisitor<'_> {
         quote_in! { self.t =>
             $("// newtype")$['\n']
         }
+        let used = used_type_params(&vec![m.type_expr.clone()]);
         quote_in! { self.t =>
-            export type $name =  $(rtype.1.clone());
+            export type $name$(gen_type_params_(&used, &m.type_params)) =  $(rtype.1.clone());
         }
         self.gen_rtti(
             payload.decl,
@@ -601,8 +602,9 @@ impl TsGenVisitor<'_> {
         quote_in! { self.t =>
             $("// type")$['\n']
         }
+        let used = used_type_params(&vec![m.type_expr.clone()]);
         quote_in! { self.t =>
-            export type $name =  $(rtype.1.clone());
+            export type $name$(gen_type_params_(&used, &m.type_params)) =  $(rtype.1.clone());
         }
         self.gen_rtti(
             payload.decl,
@@ -673,7 +675,7 @@ fn tstype_from_local_name(
             let msg = tperr.join("\n\t");
             return Err(format!("Error constructing type param: {}", msg));
         }
-        let tpstr = format!("{}<{}>", local_name.clone(), tps.join(","));
+        let tpstr = format!("{}<{}>", local_name.clone(), tps.join(", "));
         return Ok((true, tpstr));
     }
     Ok((true, local_name.clone()))
