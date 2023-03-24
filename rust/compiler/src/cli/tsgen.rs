@@ -1,7 +1,7 @@
 use super::TsOpts;
 
 use std::cmp::Ordering;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
 use anyhow::anyhow;
 use genco::prelude::js::Import as JsImport;
@@ -28,6 +28,7 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
             Err(e) => return Err(anyhow!("Failed to load module {}: {:?}", m, e)),
         }
     }
+
     for mn in &opts.modules {
         if let Some(m) = resolver.get_module(mn) {
             // TODO sys.annotations::SerializedName needs to be embedded
@@ -163,13 +164,23 @@ impl TsScopedDeclGenVisitor<'_> {
         self.lit("]");
         self.lit("}");
     }
-    fn visit_newtype(&mut self, _dt: &NewType<TypeExpr<TypeRef>>) {
-        // TODO
-        println!("newtype: ");
+    fn visit_newtype(&mut self, dt: &NewType<TypeExpr<TypeRef>>) {
+        quote_in! { self.t => "kind":"newtype_","value":$("{") }
+        self.visit_type_params(&dt.type_params);
+        self.lit(",");
+        self.visit_default(&dt.default);
+        self.lit(",");
+        quote_in! { self.t =>  "typeExpr":}
+        self.visit_type_expr(&dt.type_expr);
+        self.lit("}");
     }
-    fn visit_typealias(&mut self, _dt: &TypeDef<TypeExpr<TypeRef>>) {
-        // TODO
-        println!("type: ");
+    fn visit_typealias(&mut self, dt: &TypeDef<TypeExpr<TypeRef>>) {
+        quote_in! { self.t => "kind":"type_","value":$("{") }
+        self.visit_type_params(&dt.type_params);
+        self.lit(",");
+        quote_in! { self.t =>  "typeExpr":}
+        self.visit_type_expr(&dt.type_expr);
+        self.lit("}");
     }
     fn visit_type_params(&mut self, tps: &Vec<Ident>) {
         quote_in! { self.t => "typeParams":[$(for tp in tps join (,) => $DQ$tp$DQ)]}
@@ -287,7 +298,7 @@ impl TsGenVisitor<'_> {
 
             export const sn$(cap_or__(name)): $(&self.adlr).ScopedName = {moduleName:$("\"")$mname$("\""), name:$("\"")$name$("\"")};
 
-            export function texpr$(cap_or__(name))<$(for tp in payload.type_params join (, ) => $tp)>($(ref t => texpr_args(t, &payload.type_params))): ADL.ATypeExpr<$(name)<$(for tp in payload.type_params join (, ) => $tp)>> {
+            export function texpr$(cap_or__(name))$(gen_type_params(payload.type_params))($(ref t => texpr_args(t, &payload.type_params))): ADL.ATypeExpr<$(name)$(gen_type_params(payload.type_params))> {
                 return {value:{typeRef:{kind:"reference",value:sn$(cap_or__(name))},parameters:[$(ref t => texpr_params(t, &payload.type_params))]}};
             }
             $['\n']
@@ -303,23 +314,15 @@ impl TsGenVisitor<'_> {
         let mname = &m.name;
         for decl in m.decls.iter() {
             self.gen_doc_comment(&decl.annotations);
+            let payload = DeclPayload {
+                decl: decl,
+                mname: &mname.clone(),
+            };
             let r = match &decl.r#type {
-                DeclType::Struct(d) => self.gen_struct(
-                    d,
-                    DeclPayload {
-                        decl: decl,
-                        mname: &mname.clone(),
-                    },
-                ),
-                DeclType::Union(d) => self.gen_union(
-                    d,
-                    DeclPayload {
-                        decl: decl,
-                        mname: &mname.clone(),
-                    },
-                ),
-                DeclType::Newtype(d) => self.gen_newtype(d),
-                DeclType::Type(d) => self.gen_type(d),
+                DeclType::Struct(d) => self.gen_struct(d, payload),
+                DeclType::Union(d) => self.gen_union(d, payload),
+                DeclType::Newtype(d) => self.gen_newtype(d, payload),
+                DeclType::Type(d) => self.gen_type(d, payload),
             };
             if let Err(_) = r {
                 return r;
@@ -349,19 +352,27 @@ const SP: &str = " ";
 // fn lit(t: &mut Tokens<JavaScript>, s: &'static str) {
 //     t.append(Item::Literal(ItemStr::Static(s)));
 // }
+fn gen_type_params<'a>(type_params: &'a Vec<String>) -> impl FormatInto<JavaScript> + 'a {
+    quote_fn! {
+        $(if type_params.len() > 0 => <$(for tp in type_params join (, ) => $tp)>)
+    }
+}
 
-fn gen_type_params__<'a>(mut t: &mut Tokens<JavaScript>, used: &Vec<String>, type_params: &'a Vec<String>) {
-    if type_params.len() > 0 {
-        type_params.iter().fold(false, |rest, p| {
-            if rest {
-                quote_in! { t => ,$[' '] }
-            }
-            if !used.contains(p) {
-                quote_in! { t => _ }
-            }
-            quote_in! { t => $p }
-            true
-        });
+fn gen_type_params_<'a>(
+    used: &'a Vec<String>,
+    type_params: &'a Vec<String>,
+) -> impl FormatInto<JavaScript> + 'a {
+    quote_fn! {
+        $(if type_params.len() > 0 => <$(for tp in type_params join (, ) => $(if !used.contains(tp) => _)$tp)>)
+    }
+}
+
+fn gen_raw_type_params_<'a>(
+    used: &'a Vec<String>,
+    type_params: &'a Vec<String>,
+) -> impl FormatInto<JavaScript> + 'a {
+    quote_fn! {
+        $(if type_params.len() > 0 => $(for tp in type_params join (, ) => $(if !used.contains(tp) => _)$tp),$[' '])
     }
 }
 
@@ -412,7 +423,7 @@ impl TsGenVisitor<'_> {
         let te_trs: Vec<TypeExpr<TypeRef>> = m.fields.iter().map(|f| f.type_expr.clone()).collect();
         let fnames = used_type_params(&te_trs);
         quote_in! { self.t =>
-            export interface $(name)<$(ref t => gen_type_params__(t, &fnames, &m.type_params))> $OC$['\r']
+            export interface $(name)$(gen_type_params_(&fnames, &m.type_params)) $OC$['\r']
         }
         let mut has_make = true;
         for f in m.fields.iter() {
@@ -428,11 +439,11 @@ impl TsGenVisitor<'_> {
         }
         if has_make {
             quote_in! { self.t =>
-                export function make$(cap_or__(name))<$(ref t => gen_type_params__(t, &fnames, &m.type_params))>(
+                export function make$(cap_or__(name))$(gen_type_params_(&fnames, &m.type_params))(
                   $(if m.fields.len() == 0 => _)input: {
                     $(ref tok => struct_field_make_input(tok, &m.fields)?)
                   }
-                ): $(name)<$(ref t => gen_type_params__(t, &fnames, &m.type_params))> {
+                ): $(name)$(gen_type_params_(&fnames, &m.type_params)) {
                   return {
                     $(ref tok => struct_field_make_return(tok, &m.fields))
                   };
@@ -509,23 +520,24 @@ impl TsGenVisitor<'_> {
 
                 opts.push((bname.clone(), rtype.clone().1));
                 quote_in! { self.t =>
-                    export interface $(name)_$(bname.clone())<$(ref t => gen_type_params__(t, &used, &m.type_params))> {
+                    export interface $(name)_$(bname.clone())$(gen_type_params_(&used, &m.type_params)) {
                         kind: $("'")$(bname.clone())$("'");
                         value: $(rtype.1.clone());
                     }$['\r']
                 }
             }
-            let te_trs: Vec<TypeExpr<TypeRef>> = m.fields.iter().map(|f| f.type_expr.clone()).collect();
+            let te_trs: Vec<TypeExpr<TypeRef>> =
+                m.fields.iter().map(|f| f.type_expr.clone()).collect();
             let tp_names = used_type_params(&te_trs);
             quote_in! { self.t =>
                 $['\n']
-                export type $name<$(ref t => gen_type_params__(t, &tp_names, &m.type_params))> = $(for n in m.fields.iter().map(|b| &b.name) join ( | ) => $(name)_$n<$(ref t => gen_type_params__(t, &tp_names, &m.type_params))>);
+                export type $name$(gen_type_params_(&tp_names, &m.type_params)) = $(for n in m.fields.iter().map(|b| &b.name) join ( | ) => $(name)_$n$(gen_type_params_(&tp_names, &m.type_params)));
 
-                export interface $(name)Opts<$(ref t => gen_type_params__(t, &tp_names, &m.type_params))> {
+                export interface $(name)Opts$(gen_type_params_(&tp_names, &m.type_params)) {
                   $(for opt in opts => $(opt.0): $(opt.1);$['\r'])
                 }$['\n']
 
-                export function make$(name)<$(ref t => gen_type_params__(t, &tp_names, &m.type_params))$(if m.type_params.len() > 0 => ,$[' '] )K extends keyof $(name)Opts<$(ref t => gen_type_params__(t, &tp_names, &m.type_params))>>(kind: K, value: $(name)Opts<$(ref t => gen_type_params__(t, &tp_names, &m.type_params))>[K]) { return {kind, value}; }$['\n']
+                export function make$(name)<$(gen_raw_type_params_(&tp_names, &m.type_params))K extends keyof $(name)Opts$(gen_type_params_(&tp_names, &m.type_params))>(kind: K, value: $(name)Opts$(gen_type_params_(&tp_names, &m.type_params))[K]) { return {kind, value}; }$['\n']
             }
         } else {
             let b_names: Vec<&String> = m.fields.iter().map(|f| &f.name).collect();
@@ -551,16 +563,56 @@ impl TsGenVisitor<'_> {
         Ok(())
     }
 
-    fn gen_newtype(&mut self, _m: &NewType<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
+    fn gen_newtype(
+        &mut self,
+        m: &NewType<TypeExpr<TypeRef>>,
+        payload: DeclPayload,
+    ) -> anyhow::Result<()> {
+        let name = &payload.decl.name;
+        let rtype = rust_type(&m.type_expr).map_err(|s| anyhow!(s))?;
+
         quote_in! { self.t =>
-            $("// newtype")
+            $("// newtype")$['\n']
+        }
+        quote_in! { self.t =>
+            export type $name =  $(rtype.1.clone());
+        }
+        self.gen_rtti(
+            payload.decl,
+            &RttiPayload {
+                mname: payload.mname.clone(),
+                type_params: &m.type_params,
+            },
+        )?;
+        quote_in! { self.t =>
+            $['\n']
         }
         Ok(())
     }
 
-    fn gen_type(&mut self, _m: &TypeDef<TypeExpr<TypeRef>>) -> anyhow::Result<()> {
+    fn gen_type(
+        &mut self,
+        m: &TypeDef<TypeExpr<TypeRef>>,
+        payload: DeclPayload,
+    ) -> anyhow::Result<()> {
+        let name = &payload.decl.name;
+        let rtype = rust_type(&m.type_expr).map_err(|s| anyhow!(s))?;
+
         quote_in! { self.t =>
-            $("// type")
+            $("// type")$['\n']
+        }
+        quote_in! { self.t =>
+            export type $name =  $(rtype.1.clone());
+        }
+        self.gen_rtti(
+            payload.decl,
+            &RttiPayload {
+                mname: payload.mname.clone(),
+                type_params: &m.type_params,
+            },
+        )?;
+        quote_in! { self.t =>
+            $['\n']
         }
         Ok(())
     }
@@ -576,7 +628,7 @@ pub fn cap_or__(input: &String) -> String {
             } else {
                 return "_".to_string() + input;
             }
-        },
+        }
     }
 }
 
