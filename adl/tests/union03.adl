@@ -1,0 +1,16 @@
+module union03 {
+
+struct Abc<T> {
+    T a;
+};
+
+union Def<S,T> {
+    Vector<T> B;
+    Abc<S> C;
+};
+
+struct Ghi {
+    Def<String,Int64> d;
+};
+
+};

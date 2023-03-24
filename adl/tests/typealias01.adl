@@ -1,0 +1,7 @@
+module typealias01 {
+
+type MyS = String;
+
+newtype MyT = String = "abc";
+
+};
