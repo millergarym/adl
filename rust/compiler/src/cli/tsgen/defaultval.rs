@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::error::Error;
 
 use anyhow::anyhow;
 use serde_json::Value;
@@ -29,73 +28,53 @@ pub struct TsDefaultValue<'a> {
 }
 
 impl TsDefaultValue<'_> {
-    fn create_wrapped_err(
-        &self,
-        decl_name: &String,
-        f_name: &String,
-        msg: String,
-    ) -> anyhow::Result<()> {
+    fn create_wrapped_err(&self, f_name: &String, msg: String) -> anyhow::Result<()> {
         return Err(anyhow!(
             "Error in {}.{}::{}.\n\t{}",
             self.ctx.module.name,
-            decl_name,
+            self.decl.name,
             f_name,
             msg,
         ));
     }
 
-    fn create_err_union(
-        &self,
-        decl_name: &String,
-        f_name: &String,
-        val: &Value,
-    ) -> anyhow::Result<()> {
+    fn create_err_union(&self, f_name: &String, val: &Value) -> anyhow::Result<()> {
         let x = serde_json::to_string(val).unwrap();
         // todo!();
         return Err(anyhow!(
             "Union expected a JSON object with one elememnt. For {}.{}::{} received '{}'",
             self.ctx.module.name,
-            decl_name,
+            self.decl.name,
             f_name,
             x
         ));
     }
 
-    fn create_err_union_te(
-        &self,
-        decl_name: &String,
-        b_name: &String,
-    ) -> anyhow::Result<()> {
+    fn create_err_union_te(&self, b_name: &String) -> anyhow::Result<()> {
         return Err(anyhow!(
             "Union branch with serialized_name not found. For {}.{} branch name '{}'",
             self.ctx.module.name,
-            decl_name,
+            self.decl.name,
             b_name
         ));
     }
 
-    fn create_err(
-        &self,
-        typename: &str,
-        decl_name: &String,
-        f_name: &String,
-        val: &Value,
-    ) -> anyhow::Result<()> {
+    fn create_err(&self, typename: &str, f_name: &String, val: &Value) -> anyhow::Result<()> {
         let x = serde_json::to_string(val).unwrap();
         // todo!();
         return Err(anyhow!(
             "default value does not match. Expected '{}' for {}.{}::{} received '{}'",
             typename,
             self.ctx.module.name,
-            decl_name,
+            self.decl.name,
             f_name,
             x
         ));
     }
+
     fn create_err_msg(
         &self,
         typename: &str,
-        decl_name: &String,
         f_name: &String,
         val: &Value,
         msg: String,
@@ -105,12 +84,13 @@ impl TsDefaultValue<'_> {
             "default value does not match. Expected '{}' for {}.{}::{} received '{}'\n{}",
             typename,
             self.ctx.module.name,
-            decl_name,
+            self.decl.name,
             f_name,
             x,
             msg,
         ));
     }
+
     fn create_err_mismatch_type_params(
         &self,
         decl_name: &String,
@@ -125,28 +105,26 @@ impl TsDefaultValue<'_> {
             expected,
         ));
     }
-    fn create_err_missing_val(&self, decl_name: &String, f_name: &String) -> anyhow::Result<()> {
+
+    fn create_err_missing_val(&self, f_name: &String) -> anyhow::Result<()> {
         return Err(anyhow!(
             "Missing value or default value. {}.{}::{}",
             self.ctx.module.name,
-            decl_name,
+            self.decl.name,
             f_name,
         ));
     }
-    fn create_err_missing_type_param(
-        &self,
-        decl_name: &String,
-        f_name: &String,
-        tp: &String,
-    ) -> anyhow::Result<()> {
+
+    fn create_err_missing_type_param(&self, f_name: &String, tp: &String) -> anyhow::Result<()> {
         return Err(anyhow!(
             "Missing type param. {}.{}::{}<{}>",
             self.ctx.module.name,
-            decl_name,
+            self.decl.name,
             f_name,
             tp,
         ));
     }
+
     fn find_local_decl(&self, name: &String) -> &Decl<TypeExpr<TypeRef>> {
         self.ctx
             .module
@@ -167,7 +145,7 @@ impl TsDefaultValue<'_> {
             None => match &field.default.0 {
                 Some(v) => v,
                 None => {
-                    return self.create_err_missing_val(&self.decl.name, &field.name);
+                    return self.create_err_missing_val(&field.name);
                 }
             },
         };
@@ -222,7 +200,7 @@ impl TsDefaultValue<'_> {
                 // tsgen_te.gen_type_ref(t, &f_name, val)?;
                 let inner = tsgen_te.gen_type_ref(t, &f_name, val);
                 if let Err(e) = inner {
-                    return self.create_wrapped_err(&self.decl.name, f_name, e.to_string());
+                    return self.create_wrapped_err(f_name, e.to_string());
                 }
 
                 quote_in! { *t => $CC };
@@ -238,7 +216,7 @@ impl TsDefaultValue<'_> {
                 if let Some(te) = self.type_map.get(d) {
                     self.gen_type_expr(t, f_name, te, val)?;
                 } else {
-                    return self.create_err_missing_type_param(&self.decl.name, &f_name, d);
+                    return self.create_err_missing_type_param(&f_name, d);
                 }
             }
         }
@@ -271,18 +249,18 @@ impl TsDefaultValue<'_> {
                         dvg.gen_default_value(t, &f0, obj.get(&f0.serialized_name))?;
                         // let inner =  dvg.gen_default_value(t, &f0, obj.get(&f0.serialized_name));
                         // if let Err(e) = inner {
-                        //     return self.create_wrapped_err(&self.decl.name, f_name, e.to_string());
+                        //     return self.create_wrapped_err( f_name, e.to_string());
                         // }
                     }
                 } else {
-                    return self.create_err("object", &self.decl.name, f_name, val);
+                    return self.create_err("object", f_name, val);
                 }
             }
             DeclType::Union(ty) => {
                 if let Some(obj) = val.as_object() {
                     let y: Vec<&String> = obj.keys().collect();
                     if y.len() != 1 {
-                        return self.create_err_union(&self.decl.name, f_name, val);
+                        return self.create_err_union(f_name, val);
                     }
                     let b_name = y[0];
                     let b_val = obj.get(y[0]);
@@ -293,10 +271,10 @@ impl TsDefaultValue<'_> {
                         self.gen_default_value(t, te0, b_val)?;
                         // quote_in! { *t => $CC };
                     } else {
-                        return self.create_err_union_te(&self.decl.name, b_name);
+                        return self.create_err_union_te(b_name);
                     }
                 } else {
-                    return self.create_err("object", &self.decl.name, f_name, val);
+                    return self.create_err("object", f_name, val);
                 }
             }
             DeclType::Type(_ty) => todo!(),
@@ -318,7 +296,7 @@ impl TsDefaultValue<'_> {
                 if let Some(_) = val.as_null() {
                     quote_in! { *t => null }
                 } else {
-                    return self.create_err("Void", &self.decl.name, f_name, val);
+                    return self.create_err("Void", f_name, val);
                 }
             }
             PrimitiveType::Bool => {
@@ -329,7 +307,7 @@ impl TsDefaultValue<'_> {
                         quote_in! { *t => false }
                     }
                 } else {
-                    return self.create_err("Bool", &self.decl.name, f_name, val);
+                    return self.create_err("Bool", f_name, val);
                 }
             }
             PrimitiveType::Int8 => {
@@ -337,7 +315,7 @@ impl TsDefaultValue<'_> {
                     // TODO check bounds
                     quote_in! { *t => $(v) }
                 } else {
-                    return self.create_err("Int8", &self.decl.name, f_name, val);
+                    return self.create_err("Int8", f_name, val);
                 }
             }
             PrimitiveType::Int16 => {
@@ -345,7 +323,7 @@ impl TsDefaultValue<'_> {
                     // TODO check bounds
                     quote_in! { *t => $(v) }
                 } else {
-                    return self.create_err("Int16", &self.decl.name, f_name, val);
+                    return self.create_err("Int16", f_name, val);
                 }
             }
             PrimitiveType::Int32 => {
@@ -353,7 +331,7 @@ impl TsDefaultValue<'_> {
                     // TODO check bounds
                     quote_in! { *t => $(v) }
                 } else {
-                    return self.create_err("Int32", &self.decl.name, f_name, val);
+                    return self.create_err("Int32", f_name, val);
                 }
             }
             PrimitiveType::Int64 => {
@@ -361,7 +339,7 @@ impl TsDefaultValue<'_> {
                     // TODO check bounds
                     quote_in! { *t => $(v) }
                 } else {
-                    return self.create_err("Int64", &self.decl.name, f_name, val);
+                    return self.create_err("Int64", f_name, val);
                 }
             }
             PrimitiveType::Word8 => {
@@ -369,7 +347,7 @@ impl TsDefaultValue<'_> {
                     // TODO check bounds
                     quote_in! { *t => $(v) }
                 } else {
-                    return self.create_err("Word8", &self.decl.name, f_name, val);
+                    return self.create_err("Word8", f_name, val);
                 }
             }
             PrimitiveType::Word16 => {
@@ -377,7 +355,7 @@ impl TsDefaultValue<'_> {
                     // TODO check bounds
                     quote_in! { *t => $(v) }
                 } else {
-                    return self.create_err("Word8", &self.decl.name, f_name, val);
+                    return self.create_err("Word8", f_name, val);
                 }
             }
             PrimitiveType::Word32 => {
@@ -385,7 +363,7 @@ impl TsDefaultValue<'_> {
                     // TODO check bounds
                     quote_in! { *t => $(v) }
                 } else {
-                    return self.create_err("Word8", &self.decl.name, f_name, val);
+                    return self.create_err("Word8", f_name, val);
                 }
             }
             PrimitiveType::Word64 => {
@@ -393,7 +371,7 @@ impl TsDefaultValue<'_> {
                     // TODO check bounds
                     quote_in! { *t => $(v) }
                 } else {
-                    return self.create_err("Word8", &self.decl.name, f_name, val);
+                    return self.create_err("Word8", f_name, val);
                 }
             }
             PrimitiveType::Float => {
@@ -402,7 +380,7 @@ impl TsDefaultValue<'_> {
                     let v = format!("{}", v);
                     quote_in! { *t => $(v) }
                 } else {
-                    return self.create_err("Float", &self.decl.name, f_name, val);
+                    return self.create_err("Float", f_name, val);
                 }
             }
             PrimitiveType::Double => {
@@ -410,7 +388,7 @@ impl TsDefaultValue<'_> {
                     let v = format!("{}", v);
                     quote_in! { *t => $(v) }
                 } else {
-                    return self.create_err("Float", &self.decl.name, f_name, val);
+                    return self.create_err("Float", f_name, val);
                 }
             }
             PrimitiveType::Json => match serde_json::to_string(val) {
@@ -418,13 +396,7 @@ impl TsDefaultValue<'_> {
                     quote_in! { *t => $x };
                 }
                 Err(e) => {
-                    return self.create_err_msg(
-                        "Json",
-                        &self.decl.name,
-                        f_name,
-                        val,
-                        e.to_string(),
-                    );
+                    return self.create_err_msg("Json", f_name, val, e.to_string());
                 }
             },
             PrimitiveType::ByteVector => {
@@ -435,14 +407,14 @@ impl TsDefaultValue<'_> {
                 if let Some(v) = val.as_str() {
                     quote_in! { *t => b64.toByteArray($DQ$(v)$DQ) }
                 } else {
-                    return self.create_err("Bytes", &self.decl.name, f_name, val);
+                    return self.create_err("Bytes", f_name, val);
                 }
             }
             PrimitiveType::String => {
                 if let Some(v) = val.as_str() {
                     quote_in! { *t => $DQ$(v)$DQ }
                 } else {
-                    return self.create_err("String", &self.decl.name, f_name, val);
+                    return self.create_err("String", f_name, val);
                 }
             }
             PrimitiveType::Vector => {
@@ -460,7 +432,7 @@ impl TsDefaultValue<'_> {
                     }
                     quote_in! { *t =>  $CSB }
                 } else {
-                    return self.create_err("Vector", &self.decl.name, f_name, val);
+                    return self.create_err("Vector", f_name, val);
                 }
             }
             PrimitiveType::StringMap => {
@@ -481,7 +453,7 @@ impl TsDefaultValue<'_> {
                     }
                     quote_in! { *t =>  $CC }
                 } else {
-                    return self.create_err("StringMap", &self.decl.name, f_name, val);
+                    return self.create_err("StringMap", f_name, val);
                 }
             }
             PrimitiveType::Nullable => {
@@ -503,7 +475,7 @@ impl TsDefaultValue<'_> {
                 if let Some(_) = val.as_null() {
                     quote_in! { *t => null }
                 } else {
-                    return self.create_err("TypeToken", &self.decl.name, f_name, val);
+                    return self.create_err("TypeToken", f_name, val);
                 }
             }
         }
