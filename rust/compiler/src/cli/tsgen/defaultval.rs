@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::error::Error;
 
 use anyhow::anyhow;
 use serde_json::Value;
@@ -28,6 +29,51 @@ pub struct TsDefaultValue<'a> {
 }
 
 impl TsDefaultValue<'_> {
+    fn create_wrapped_err(
+        &self,
+        decl_name: &String,
+        f_name: &String,
+        msg: String,
+    ) -> anyhow::Result<()> {
+        return Err(anyhow!(
+            "Error in {}.{}::{}.\n\t{}",
+            self.ctx.module.name,
+            decl_name,
+            f_name,
+            msg,
+        ));
+    }
+
+    fn create_err_union(
+        &self,
+        decl_name: &String,
+        f_name: &String,
+        val: &Value,
+    ) -> anyhow::Result<()> {
+        let x = serde_json::to_string(val).unwrap();
+        // todo!();
+        return Err(anyhow!(
+            "Union expected a JSON object with one elememnt. For {}.{}::{} received '{}'",
+            self.ctx.module.name,
+            decl_name,
+            f_name,
+            x
+        ));
+    }
+
+    fn create_err_union_te(
+        &self,
+        decl_name: &String,
+        b_name: &String,
+    ) -> anyhow::Result<()> {
+        return Err(anyhow!(
+            "Union branch with serialized_name not found. For {}.{} branch name '{}'",
+            self.ctx.module.name,
+            decl_name,
+            b_name
+        ));
+    }
+
     fn create_err(
         &self,
         typename: &str,
@@ -36,6 +82,7 @@ impl TsDefaultValue<'_> {
         val: &Value,
     ) -> anyhow::Result<()> {
         let x = serde_json::to_string(val).unwrap();
+        // todo!();
         return Err(anyhow!(
             "default value does not match. Expected '{}' for {}.{}::{} received '{}'",
             typename,
@@ -172,7 +219,12 @@ impl TsDefaultValue<'_> {
                     // depth: Box::new(0),
                 };
                 quote_in! { *t => $OC };
-                tsgen_te.gen_type_ref(t, &f_name, val)?;
+                // tsgen_te.gen_type_ref(t, &f_name, val)?;
+                let inner = tsgen_te.gen_type_ref(t, &f_name, val);
+                if let Err(e) = inner {
+                    return self.create_wrapped_err(&self.decl.name, f_name, e.to_string());
+                }
+
                 quote_in! { *t => $CC };
             }
             TypeRef::Primitive(d) => {
@@ -217,16 +269,32 @@ impl TsDefaultValue<'_> {
                         }
                         quote_in! { *t => $(&f0.serialized_name) :$[' ']}
                         dvg.gen_default_value(t, &f0, obj.get(&f0.serialized_name))?;
+                        // let inner =  dvg.gen_default_value(t, &f0, obj.get(&f0.serialized_name));
+                        // if let Err(e) = inner {
+                        //     return self.create_wrapped_err(&self.decl.name, f_name, e.to_string());
+                        // }
                     }
                 } else {
                     return self.create_err("object", &self.decl.name, f_name, val);
                 }
             }
-            DeclType::Union(_ty) => {
+            DeclType::Union(ty) => {
                 if let Some(obj) = val.as_object() {
                     let y: Vec<&String> = obj.keys().collect();
-                    let x = serde_json::to_string(&obj.get(y[0])).unwrap();
-                    quote_in! { *t => { kind: $DQ$(y[0])$DQ, value: $x} };
+                    if y.len() != 1 {
+                        return self.create_err_union(&self.decl.name, f_name, val);
+                    }
+                    let b_name = y[0];
+                    let b_val = obj.get(y[0]);
+                    let te = ty.fields.iter().find(|f| f.serialized_name == *b_name);
+                    if let Some(te0) = te {
+                        // quote_in! { *t => $OC };
+                        quote_in! { *t => kind : $DQ$(y[0])$DQ, value :$[' ']};
+                        self.gen_default_value(t, te0, b_val)?;
+                        // quote_in! { *t => $CC };
+                    } else {
+                        return self.create_err_union_te(&self.decl.name, b_name);
+                    }
                 } else {
                     return self.create_err("object", &self.decl.name, f_name, val);
                 }
@@ -392,7 +460,7 @@ impl TsDefaultValue<'_> {
                     }
                     quote_in! { *t =>  $CSB }
                 } else {
-                    return self.create_err("String", &self.decl.name, f_name, val);
+                    return self.create_err("Vector", &self.decl.name, f_name, val);
                 }
             }
             PrimitiveType::StringMap => {
@@ -413,7 +481,7 @@ impl TsDefaultValue<'_> {
                     }
                     quote_in! { *t =>  $CC }
                 } else {
-                    return self.create_err("String", &self.decl.name, f_name, val);
+                    return self.create_err("StringMap", &self.decl.name, f_name, val);
                 }
             }
             PrimitiveType::Nullable => {
