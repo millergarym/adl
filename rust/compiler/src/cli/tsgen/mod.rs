@@ -7,8 +7,8 @@ use genco::prelude::js::Import as JsImport;
 use genco::tokens::{Item, ItemStr};
 
 use crate::adlgen::sys::adlast2::{
-    Annotations, Decl, DeclType, Module, NewType, PrimitiveType, Struct,
-    TypeDef, TypeExpr, TypeRef, Union,
+    Annotations, Decl, DeclType, Module, NewType, PrimitiveType, Struct, TypeDef, TypeExpr,
+    TypeRef, Union,
 };
 use crate::parser::docstring_scoped_name;
 use crate::processing::loader::loader_from_search_paths;
@@ -72,7 +72,6 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
     Ok(())
 }
 
-
 struct RttiPayload<'a> {
     mname: String,
     type_params: &'a Vec<String>,
@@ -111,7 +110,7 @@ impl TsGenVisitor<'_> {
         &mut self,
         t: &mut Tokens<JavaScript>,
         decl: &Decl<TypeExpr<TypeRef>>,
-        payload: &RttiPayload,
+        payload: &RttiPayload<'_>,
     ) -> anyhow::Result<()> {
         // Generation AST holder
         let name = &decl.name;
@@ -247,7 +246,7 @@ impl TsGenVisitor<'_> {
         &mut self,
         t: &mut Tokens<JavaScript>,
         m: &Struct<TypeExpr<TypeRef>>,
-        payload: DeclPayload,
+        payload: DeclPayload<'_>,
     ) -> anyhow::Result<()> {
         let (decl, name) = (payload.decl, &payload.decl.name);
         // let name_up = &title(name);
@@ -288,10 +287,14 @@ impl TsGenVisitor<'_> {
                         if let Some(_) = f.default.0 {
                             quote_in! { *t => $(&f.name): input.$(&f.name) === undefined ?$[' '] }
                             let dvg = defaultval::TsDefaultValue{
-                                module: self.module,
-                                resolver: self.resolver,
+                                ctx: &defaultval::ResolverModule {
+                                    module: self.module,
+                                    resolver: self.resolver
+                                },
+                                decl: decl,
+                                type_map: &HashMap::new(),
                             };
-                            dvg.gen_default_value(t, &name, &f)?;
+                            dvg.gen_default_value(t, &f, None)?;
                             quote_in! { *t => $[' ']: input.$(&f.name),$['\r'] }
                         } else {
                             quote_in! { *t => $(&f.name): input.$(&f.name),$['\r'] }
@@ -313,8 +316,6 @@ impl TsGenVisitor<'_> {
     }
 }
 
-
-
 // struct DeclPayload<'a>(&'a Decl<TypeExpr<TypeRef>>);
 struct DeclPayload<'a> {
     decl: &'a Decl<TypeExpr<TypeRef>>,
@@ -326,7 +327,7 @@ impl TsGenVisitor<'_> {
         &mut self,
         t: &mut Tokens<JavaScript>,
         m: &Union<TypeExpr<TypeRef>>,
-        payload: DeclPayload,
+        payload: DeclPayload<'_>,
     ) -> anyhow::Result<()> {
         let name = &payload.decl.name;
         // lit(t, "// union \n");
@@ -402,7 +403,7 @@ impl TsGenVisitor<'_> {
         &mut self,
         t: &mut Tokens<JavaScript>,
         m: &NewType<TypeExpr<TypeRef>>,
-        payload: DeclPayload,
+        payload: DeclPayload<'_>,
     ) -> anyhow::Result<()> {
         let name = &payload.decl.name;
         let rtype = rust_type(&m.type_expr).map_err(|s| anyhow!(s))?;
@@ -432,7 +433,7 @@ impl TsGenVisitor<'_> {
         &mut self,
         t: &mut Tokens<JavaScript>,
         m: &TypeDef<TypeExpr<TypeRef>>,
-        payload: DeclPayload,
+        payload: DeclPayload<'_>,
     ) -> anyhow::Result<()> {
         let name = &payload.decl.name;
         let rtype = rust_type(&m.type_expr).map_err(|s| anyhow!(s))?;
