@@ -2,16 +2,19 @@ module union03 {
 
 struct Abc<T> {
     T a;
+    String b = "abc!!";
 };
 
-union Def {
-    Vector<Int64> B;
-    Abc<String> C;
-};
+// union Def {
+//     Vector<Int64> B;
+//     Abc<String> C;
+// };
 
 struct Ghi {
-    Def d = {"B":[1,2,3]};
+    // Def d = {"B":[1,2,3]};
     Abc<String> e = {"a":"asfds"};
+    Void f = null;
+    // Abc<String> e = 1;
 };
 
 };

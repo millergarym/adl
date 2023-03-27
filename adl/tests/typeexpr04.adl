@@ -1,0 +1,56 @@
+module typeexpr04 {
+
+struct Abc {
+    Void a = null;
+    Bool b = true;
+    Int8 c = -2;
+    Int32 d = 1024;
+    Int64 e = 3000000000;
+    Word8 f = 2;
+    Word32 g = 1024;
+    Word64 h = 1234567890;
+    Float i = 1.1;
+    Double j = 2.2;
+    Json k = {"a":1};
+    Bytes l = "dsfa";
+    String m = "sdfa";
+    Vector<Int64> n = [1,2,3];
+    StringMap<Int64> o = {"b":2,"a":1,"a":3};
+    Nullable<Int64> p = null;
+    Nullable<Int64> q = 1;
+    Nullable<Hij> r = {"r": [[1,2,3],[4,5,65]], "s": [{"a": null, "b": 2}]};
+};
+
+// def is not constructable because it contains a TypeToken
+// e.g. in TS no `export function makeDef`
+struct Def {
+    TypeToken<Int64> q = null;
+};
+
+// def02 is not constructable because it transitively contains a TypeToken
+// e.g. in TS no `export function makeDef02`
+//
+// Current adlc generates make
+// Current adlc doesn't title case the type in 'ADL.ATypeExpr<xxx>'
+struct Def02 {
+    Vector<TypeToken<Int64>> q = [null];
+    Vector<TypeToken<Hij>> r = [null];
+};
+
+struct Hij {
+    Vector<Vector<Int64>> r;
+    Vector<StringMap<Nullable<Int64>>> s;
+};
+
+struct Klm<A,B,C> {
+    Nullable<Klm<C,A,B>> mlk;
+    A a;
+    B b;
+    C c;
+};
+
+struct X {
+    Klm<String,Int64,Bool> klm = {"mlk": {"mlk": null, "a": true, "b": "sadf", "c": 42}, "a": "sadfsadf", "b": 12, "c": false};
+};
+
+};
