@@ -5,16 +5,21 @@ struct Abc<T> {
     String b = "abc!!";
 };
 
-// union Def {
-//     Vector<Int64> B;
-//     Abc<String> C;
-// };
+union A<T> {
+    Vector<Int64> B;
+    Abc<T> C;
+    B a;
+};
+
+union B {
+    Int64 a;
+    Int64 b;
+};
 
 struct Ghi {
-    // Def d = {"B":[1,2,3]};
-    Abc<String> e = {"a":"asfds"};
-    Void f = null;
-    // Abc<String> e = 1;
+    A<String> x = {"B": [1,2,3]};
+    A<String> y = {"C": {"a": "zyx"}};
+    A<String> z = {"a": {"a": 123}};
 };
 
 };

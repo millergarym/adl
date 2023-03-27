@@ -1,0 +1,17 @@
+module typeexpr07 {
+
+struct X<A> {
+    // Nullable<X<A>> x;
+    A x1;
+};
+
+struct Y<B> {
+    X<B> y;
+    B b;
+};
+
+struct Z {
+    Y<String> y = {"y": {"x1": "sadf"}, "b": "sadfs"};
+};
+
+};

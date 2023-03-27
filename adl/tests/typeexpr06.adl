@@ -1,0 +1,17 @@
+module typeexpr06 {
+
+struct BinaryTree {
+    Nullable<BinaryTree> left;
+    Nullable<BinaryTree> right;
+};
+
+struct RoseTree {
+    Vector<RoseTree> children;
+};
+
+struct X {
+    RoseTree a = { "children": [{ "children": []}] };
+    BinaryTree b = {"left": {"left":null, "right": null}, "right": null};
+};
+
+};

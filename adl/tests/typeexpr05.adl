@@ -1,0 +1,13 @@
+module typeexpr05 {
+
+struct BinaryTree {
+    Nullable<BinaryTree> left;
+    Nullable<BinaryTree> right;
+};
+
+struct RoseTree {
+    Vector<RoseTree> children;
+};
+
+
+};
