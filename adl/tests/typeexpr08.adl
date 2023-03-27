@@ -1,0 +1,14 @@
+module typeexpr08 {
+
+struct Klm<A,B,C> {
+    Nullable<Klm<C,A,B>> mlk;
+    A a;
+    B b;
+    C c;
+};
+
+struct X {
+    Klm<String,Int64,Bool> klm = {"mlk": {"mlk": null, "a": true, "b": "sadf", "c": 42}, "a": "sadfsadf", "b": 12, "c": false};
+};
+
+};
