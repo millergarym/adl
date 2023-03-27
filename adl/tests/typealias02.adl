@@ -1,0 +1,14 @@
+module typealias02 {
+
+struct Abc<S,T> {
+    S a;
+    T b;
+};
+
+type MyAbc<S,T> = Abc<T,S>;
+
+struct Def {
+    MyAbc<String,Int64> c;
+};
+
+};
