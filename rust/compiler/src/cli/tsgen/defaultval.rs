@@ -24,16 +24,8 @@ pub struct TsDefaultValue<'a> {
     pub ctx: &'a ResolverModule<'a>,
     pub decl: &'a Decl<TypeExpr<TypeRef>>,
     pub type_map: &'a HashMap<String, &'a TypeExpr<TypeRef>>,
-    // pub field: &'a Field<TypeExpr<TypeRef>>,
+    // pub depth: Box<i64>,
 }
-
-// pub struct TsDefaultTypeExpr<'a> {
-//     pub ctx: &'a ResolverModule<'a>,
-
-//     pub decl: &'a Decl<TypeExpr<TypeRef>>,
-//     pub type_map: HashMap<String, &'a TypeExpr<TypeRef>>,
-//     // pub type_expr: &'a TypeExpr<TypeRef>,
-// }
 
 impl TsDefaultValue<'_> {
     fn create_err(
@@ -118,7 +110,7 @@ impl TsDefaultValue<'_> {
     }
 
     pub fn gen_default_value(
-        &self,
+        &mut self,
         t: &mut Tokens<JavaScript>,
         field: &Field<TypeExpr<TypeRef>>,
         val: Option<&Value>,
@@ -137,14 +129,14 @@ impl TsDefaultValue<'_> {
     }
 
     pub fn gen_type_expr(
-        &self,
+        &mut self,
         t: &mut Tokens<JavaScript>,
         f_name: &String,
         type_expr: &TypeExpr<TypeRef>,
         val: &Value,
     ) -> anyhow::Result<()> {
         match &type_expr.type_ref {
-            TypeRef::ScopedName(d) => {
+            TypeRef::ScopedName(_d) => {
                 quote_in! { *t => {} };
             }
             TypeRef::LocalName(d) => {
@@ -160,23 +152,37 @@ impl TsDefaultValue<'_> {
                 }
                 let mut type_map: HashMap<String, &TypeExpr<TypeRef>> = HashMap::new();
                 for (i, tp) in type_params.iter().enumerate() {
-                    let te_p = type_expr.parameters.get(i).unwrap();
+                    let mut te_p = type_expr.parameters.get(i).unwrap();
+                    // TODO is this enough, or does it need to be in a loop?
+                    // I don't think so, but ...
+                    // loop {
+                    if let TypeRef::TypeParam(tp0) = &te_p.type_ref {
+                        te_p = self.type_map.get(tp0).unwrap();
+                    }
+                    //     else {
+                    //         break;
+                    //     }
+                    // }
                     type_map.insert(tp.to_string(), te_p);
                 }
-                let tsgen_te = TsDefaultValue {
+                let tsgen_te = &mut TsDefaultValue {
                     ctx: self.ctx,
                     type_map: &type_map,
                     decl,
+                    // depth: Box::new(0),
                 };
                 quote_in! { *t => $OC };
                 tsgen_te.gen_type_ref(t, &f_name, val)?;
                 quote_in! { *t => $CC };
-                // self.gen_default_decl(t, name, decl, f, d, val)?;
             }
             TypeRef::Primitive(d) => {
                 self.gen_primitive(t, &f_name, d, val, &type_expr.parameters)?;
             }
             TypeRef::TypeParam(d) => {
+                // if self.depth.to_be() > 30 {
+                //     todo!()
+                // }
+                // self.depth = Box::new(self.depth.to_be()+1);
                 if let Some(te) = self.type_map.get(d) {
                     self.gen_type_expr(t, f_name, te, val)?;
                 } else {
@@ -184,11 +190,11 @@ impl TsDefaultValue<'_> {
                 }
             }
         }
-        Ok(())
+        return Ok(());
     }
 
     fn gen_type_ref(
-        &self,
+        &mut self,
         t: &mut Tokens<JavaScript>,
         f_name: &String,
         val: &Value,
@@ -198,10 +204,11 @@ impl TsDefaultValue<'_> {
                 if let Some(obj) = val.as_object() {
                     let mut rest = false;
                     for f0 in &ty.fields {
-                        let dvg = TsDefaultValue {
+                        let dvg = &mut TsDefaultValue {
                             ctx: self.ctx,
                             decl: self.decl,
                             type_map: &self.type_map,
+                            // depth: Box::new(0),
                         };
                         if rest {
                             quote_in! { *t => ,$[' '] };
@@ -211,8 +218,6 @@ impl TsDefaultValue<'_> {
                         quote_in! { *t => $(&f0.serialized_name) :$[' ']}
                         dvg.gen_default_value(t, &f0, obj.get(&f0.serialized_name))?;
                     }
-                    // let x = serde_json::to_string(val).unwrap();
-                    // quote_in! { *t => $x };
                 } else {
                     return self.create_err("object", &self.decl.name, f_name, val);
                 }
@@ -233,7 +238,7 @@ impl TsDefaultValue<'_> {
     }
 
     fn gen_primitive(
-        &self,
+        &mut self,
         t: &mut Tokens<JavaScript>,
         f_name: &String,
         type_: &PrimitiveType,
@@ -419,6 +424,8 @@ impl TsDefaultValue<'_> {
                 }
             }
             PrimitiveType::TypeToken => {
+                // TODO should this be a 'todo!()' ?
+
                 // This is not quite correct but it is never used since 'makeXXX' are not created if there is a tokentype field (the check is transitive).
                 // In the Haskell adlc the check isn't transitive.
                 // The actual output should be;

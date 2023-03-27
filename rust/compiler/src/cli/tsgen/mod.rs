@@ -286,13 +286,14 @@ impl TsGenVisitor<'_> {
                     $(for f in &m.fields => $(ref t => {
                         if let Some(_) = f.default.0 {
                             quote_in! { *t => $(&f.name): input.$(&f.name) === undefined ?$[' '] }
-                            let dvg = defaultval::TsDefaultValue{
+                            let dvg = &mut defaultval::TsDefaultValue{
                                 ctx: &defaultval::ResolverModule {
                                     module: self.module,
-                                    resolver: self.resolver
+                                    resolver: self.resolver,
                                 },
                                 decl: decl,
                                 type_map: &HashMap::new(),
+                                // depth: Box::new(0),
                             };
                             dvg.gen_default_value(t, &f, None)?;
                             quote_in! { *t => $[' ']: input.$(&f.name),$['\r'] }
