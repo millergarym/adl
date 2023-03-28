@@ -2,18 +2,22 @@ use super::TsOpts;
 
 use convert_case::{Case, Casing};
 use std::collections::HashMap;
+use std::path::PathBuf;
 
+use crate::adlgen::sys::adlast2::{self as adlast};
 use anyhow::anyhow;
+
 use genco::prelude::js::Import as JsImport;
 use genco::tokens::{Item, ItemStr};
 
 use crate::adlgen::sys::adlast2::{
-    Annotations, Decl, DeclType, Module, NewType, PrimitiveType, ScopedName, Struct, TypeDef,
-    TypeExpr, TypeRef, Union,
+    Annotations, Decl, DeclType, Module, Module1, NewType, PrimitiveType, ScopedName, Struct,
+    TypeDef, TypeExpr, TypeRef, Union,
 };
 use crate::parser::docstring_scoped_name;
 use crate::processing::loader::loader_from_search_paths;
 use crate::processing::resolver::Resolver;
+use crate::processing::writer::TreeWriter;
 use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
@@ -96,37 +100,59 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
         }
     }
 
-    for mn in &opts.modules {
-        if let Some(m) = resolver.get_module(mn) {
-            // TODO sys.annotations::SerializedName needs to be embedded
-            let tokens = &mut js::Tokens::new();
-            let mut mgen = TsGenVisitor {
-                module: m,
-                resolver: &resolver,
-                adlr: js::import(rel_import(&m.name, &"runtime.adl".to_string()), "ADL")
-                    .into_wildcard(),
-                map: &mut HashMap::new(),
-            };
-            mgen.gen_module(tokens, m)?;
-            let stdout = std::io::stdout();
-            let mut w = fmt::IoWriter::new(stdout.lock());
-            let fmt = fmt::Config::from_lang::<JavaScript>();
-            let fmt = fmt::Config::with_indentation(fmt, Indentation::Space(2));
+    let modules: Vec<&Module1> = resolver
+        .get_module_names()
+        .into_iter()
+        .map(|mn| resolver.get_module(&mn).unwrap())
+        .collect();
 
-            let config = js::Config::default();
-            // let config = js::Config{
-            //     ..Default::default()
-            // };
-            tokens.format_file(&mut w.as_formatter(&fmt), &config)?;
-        }
+    let mut writer = TreeWriter::new(opts.output.outdir.clone(), opts.output.manifest.clone())?;
+
+    for m in modules {
+        let path = path_from_module_name(opts, m.name.to_owned());
+        let code = gen_ts_module(m, &resolver)?;
+        writer.write(path.as_path(), code)?;
     }
-    // let modules: Vec<&Module1> = resolver
-    //     .get_module_names()
-    //     .into_iter()
-    //     .map(|mn| resolver.get_module(&mn).unwrap())
-    //     .collect();
-    // println!("{}", serde_json::to_string_pretty(&modules).unwrap());
+
     Ok(())
+}
+
+fn path_from_module_name(opts: &TsOpts, mname: adlast::ModuleName) -> PathBuf {
+    let mut path = PathBuf::new();
+    // path.push(opts.module.clone());
+    for el in mname.split(".") {
+        path.push(el);
+    }
+    path.set_extension("ts");
+    return path;
+}
+
+fn gen_ts_module(m: &Module<TypeExpr<TypeRef>>, resolver: &Resolver) -> anyhow::Result<String> {
+    // TODO sys.annotations::SerializedName needs to be embedded
+    let tokens = &mut js::Tokens::new();
+    let mut mgen = TsGenVisitor {
+        module: m,
+        resolver: resolver,
+        adlr: js::import(rel_import(&m.name, &"runtime.adl".to_string()), "ADL").into_wildcard(),
+        map: &mut HashMap::new(),
+    };
+    mgen.gen_module(tokens, m)?;
+    // let stdout = std::io::stdout();
+    let mut w = fmt::IoWriter::new(Vec::<u8>::new());
+    // let mut w = fmt::IoWriter::new(stdout.lock());
+    let fmt = fmt::Config::from_lang::<JavaScript>();
+    let fmt = fmt::Config::with_indentation(fmt, Indentation::Space(2));
+
+    let config = js::Config::default();
+    // let config = js::Config{
+    //     ..Default::default()
+    // };
+    tokens.format_file(&mut w.as_formatter(&fmt), &config)?;
+    let vector = w.into_inner();
+    let code = std::str::from_utf8(&vector)?;
+    // let code = tokens.to_file_string()?;
+    // tokens.format_file(out, config);
+    Ok(code.to_string())
 }
 
 struct RttiPayload<'a> {
