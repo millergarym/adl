@@ -1,0 +1,12 @@
+module scopedname.abc {
+
+struct Abc {
+    String a;
+};
+
+
+struct Abc02<T> {
+    T a;
+};
+
+};

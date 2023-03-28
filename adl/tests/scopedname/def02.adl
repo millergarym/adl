@@ -1,0 +1,15 @@
+module scopedname.def02 {
+
+import scopedname.abc.*;
+
+struct Def<T> {
+    String a;
+    Abc02<T> b;
+    T c;
+};
+
+struct Ghi {
+    Abc02<scopedname.def.Def> b;
+};
+
+};
