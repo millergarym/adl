@@ -1,0 +1,10 @@
+module scopedname.def {
+
+import scopedname.abc.Abc;
+
+struct Def {
+    String a;
+    Abc b;
+};
+
+};
