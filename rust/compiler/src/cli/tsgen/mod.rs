@@ -20,6 +20,8 @@ mod astgen;
 mod defaultval;
 
 const SP: &str = " ";
+const OA: &str = "<";
+const CA: &str = ">";
 
 struct TsGenVisitor<'a> {
     module: &'a Module<TypeExpr<TypeRef>>,
@@ -263,7 +265,7 @@ impl TsGenVisitor<'_> {
                     let rt = rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
                     has_make = has_make && rt.0;
                     quote_in! { *t =>
-                        $SP$SP$(&f.name): $(rt.1);$['\r']
+                        $SP$SP$(&f.name): $(ref t => rt.1.as_ref().clone().format_into(t));$['\r']
                     }
                 })
             )}$['\r']$['\n']
@@ -278,7 +280,7 @@ impl TsGenVisitor<'_> {
                         if let Some(_) = f.default.0 {
                             has_default = true;
                         }
-                        quote_in! { *t => $(&f.name)$(if has_default => ?): $(rt.1),$['\r']}
+                        quote_in! { *t => $(&f.name)$(if has_default => ?): $(ref t => rt.1.as_ref().format_into(t)),$['\r']}
                     }))
                   }
                 ): $(name)$(gen_type_params_(&fnames, &m.type_params)) {
@@ -354,11 +356,11 @@ impl TsGenVisitor<'_> {
                 // &vec![rtype.1.clone()]
                 let used = used_type_params(&vec![b.type_expr.clone()]);
 
-                opts.push((bname.clone(), rtype.clone().1));
+                opts.push((bname.clone(), rtype.1));
                 quote_in! { *t =>
                     export interface $(name)_$(bname.clone())$(gen_type_params_(&used, &m.type_params)) {
                         kind: $("'")$(bname.clone())$("'");
-                        value: $(rtype.1.clone());
+                        value: $(ref t => rtype.1.as_ref().format_into(t));
                     }$['\r']
                 }
             }
@@ -370,7 +372,7 @@ impl TsGenVisitor<'_> {
                 export type $name$(gen_type_params_(&tp_names, &m.type_params)) = $(for n in m.fields.iter().map(|b| &b.name) join ( | ) => $(name)_$n$(gen_type_params_(&tp_names, &m.type_params)));
 
                 export interface $(name)Opts$(gen_type_params_(&tp_names, &m.type_params)) {
-                  $(for opt in opts => $(opt.0): $(opt.1);$['\r'])
+                  $(for opt in opts => $(opt.0): $(ref t => opt.1.as_ref().format_into(t));$['\r'])
                 }$['\n']
 
                 export function make$(name)<$(gen_raw_type_params_(&tp_names, &m.type_params))K extends keyof $(name)Opts$(gen_type_params_(&tp_names, &m.type_params))>(kind: K, value: $(name)Opts$(gen_type_params_(&tp_names, &m.type_params))[K]) { return {kind, value}; }$['\n']
@@ -414,7 +416,7 @@ impl TsGenVisitor<'_> {
         }
         let used = used_type_params(&vec![m.type_expr.clone()]);
         quote_in! { *t =>
-            export type $name$(gen_type_params_(&used, &m.type_params)) =  $(rtype.1.clone());
+            export type $name$(gen_type_params_(&used, &m.type_params)) =  $(ref t => rtype.1.as_ref().format_into(t));
         }
         self.gen_rtti(
             t,
@@ -443,17 +445,17 @@ impl TsGenVisitor<'_> {
             $("// type")$['\n']
         }
         let used = used_type_params(&vec![m.type_expr.clone()]);
+        // rtype.1.into().format_into(t);s
+        // rtype.1.into()
+        // <std::boxed::Box<dyn genco::prelude::FormatInto<genco::lang::JavaScript>> as std::convert::Into<_>>::into(rtype.1).format_into(t);
         quote_in! { *t =>
-            export type $name$(gen_type_params_(&used, &m.type_params)) =  $(rtype.1.clone());
+            export type $name$(gen_type_params_(&used, &m.type_params)) = $(ref t => rtype.1.as_ref().format_into(t));
         }
-        self.gen_rtti(
-            t,
-            payload.decl,
-            &RttiPayload {
-                mname: payload.mname.clone(),
-                type_params: &m.type_params,
-            },
-        )?;
+        let rtti = &RttiPayload {
+            mname: payload.mname.clone(),
+            type_params: &m.type_params,
+        };
+        self.gen_rtti(t, payload.decl, rtti)?;
         quote_in! { *t =>
             $['\n']
         }
@@ -484,22 +486,45 @@ pub fn to_title(input: &String) -> String {
 }
 
 /// returns (has_make_function,ts type)
-fn rust_type(te: &TypeExpr<TypeRef>) -> Result<(bool, String), String> {
+fn rust_type(te: &TypeExpr<TypeRef>) -> Result<(bool, Box<dyn MyFormatInto>), String> {
     match &te.type_ref {
         TypeRef::ScopedName(_n) => todo!(),
         TypeRef::LocalName(n) => tstype_from_local_name(n, &te.parameters),
         TypeRef::Primitive(n) => tstype_from_prim(n, &te.parameters),
-        TypeRef::TypeParam(n) => Ok((true, n.clone())),
+        TypeRef::TypeParam(n) => Ok((true, B::new(move |t| quote_in! { t => $(n.clone()) }))),
+    }
+}
+
+pub trait MyFormatInto {
+    fn format_into(&self, tokens: &mut Tokens<JavaScript>);
+}
+
+struct B {
+    f: Box<dyn MyFormatInto>,
+}
+
+impl MyFormatInto for B {
+    fn format_into(&self, tokens: &mut Tokens<JavaScript>) {
+        quote_in! { *tokens => $(ref t => self.f.format_into(t) ) }
+    }
+}
+
+impl B {
+    fn new<F>(f: F) -> B
+    where
+        F: MyFormatInto,
+    {
+        B { f: Box::new(f) }
     }
 }
 
 fn tstype_from_local_name(
     local_name: &String,
     params: &Vec<TypeExpr<TypeRef>>,
-) -> Result<(bool, String), String> {
+) -> Result<(bool, Box<dyn MyFormatInto>), String> {
     if params.len() > 0 {
         let mut tperr = vec![];
-        let tps: Vec<String> = params
+        let tps: Vec<Box<dyn MyFormatInto>> = params
             .iter()
             .filter_map(|p| {
                 let r = rust_type(p);
@@ -516,32 +541,46 @@ fn tstype_from_local_name(
             let msg = tperr.join("\n\t");
             return Err(format!("Error constructing type param: {}", msg));
         }
-        let tpstr = format!("{}<{}>", local_name.clone(), tps.join(", "));
-        return Ok((true, tpstr));
+        let tpfn = Box::new(
+            quote_fn! { $local_name<$(for tp in tps join(, ) => $(ref t => tp.as_ref().format_into(t)))> },
+        );
+        // let tpstr = format!("{}<{}>", local_name.clone(), tps.join(", "));
+        return Ok((true, tpfn));
     }
-    Ok((true, local_name.clone()))
+    let r = Box::new(quote_fn! { $local_name });
+    Ok((true, r))
+    // Ok((true, local_name.clone()))
 }
 
-fn tstype_from_prim(
-    prim: &PrimitiveType,
-    params: &Vec<TypeExpr<TypeRef>>,
-) -> Result<(bool, String), String> {
+// fn prim_void<'a>() -> dyn FormatInto<JavaScript> + 'a {
+//     quote_fn! { null }
+// }
+
+fn tstype_from_prim<'a>(
+    prim: &'a PrimitiveType,
+    params: &'a Vec<TypeExpr<TypeRef>>,
+) -> Result<(bool, Box<dyn MyFormatInto>), String> {
+    // let f2 = quote_fn! { null };
+    // return Ok((true, f2));
+
     match prim {
-        PrimitiveType::Void => Ok((true, "null".to_string())),
-        PrimitiveType::Bool => Ok((true, "boolean".to_string())),
-        PrimitiveType::Int8 => Ok((true, "number".to_string())),
-        PrimitiveType::Int16 => Ok((true, "number".to_string())),
-        PrimitiveType::Int32 => Ok((true, "number".to_string())),
-        PrimitiveType::Int64 => Ok((true, "number".to_string())),
-        PrimitiveType::Word8 => Ok((true, "number".to_string())),
-        PrimitiveType::Word16 => Ok((true, "number".to_string())),
-        PrimitiveType::Word32 => Ok((true, "number".to_string())),
-        PrimitiveType::Word64 => Ok((true, "number".to_string())),
-        PrimitiveType::Float => Ok((true, "number".to_string())),
-        PrimitiveType::Double => Ok((true, "number".to_string())),
-        PrimitiveType::Json => Ok((true, "{}|null".to_string())),
-        PrimitiveType::ByteVector => Ok((true, "Uint8Array".to_string())),
-        PrimitiveType::String => Ok((true, "string".to_string())),
+        // PrimitiveType::Void => Ok((true, prim_void)),
+        PrimitiveType::Void => Ok((true, Box::new(quote_fn! { null }))),
+        // PrimitiveType::Bool => Ok((true, f2)),
+        PrimitiveType::Bool => Ok((true, Box::new(quote_fn! { boolean }))),
+        PrimitiveType::Int8 => Ok((true, Box::new(quote_fn! { number }))),
+        PrimitiveType::Int16 => Ok((true, Box::new(quote_fn! { number }))),
+        PrimitiveType::Int32 => Ok((true, Box::new(quote_fn! { number }))),
+        PrimitiveType::Int64 => Ok((true, Box::new(quote_fn! { number }))),
+        PrimitiveType::Word8 => Ok((true, Box::new(quote_fn! { number }))),
+        PrimitiveType::Word16 => Ok((true, Box::new(quote_fn! { number }))),
+        PrimitiveType::Word32 => Ok((true, Box::new(quote_fn! { number }))),
+        PrimitiveType::Word64 => Ok((true, Box::new(quote_fn! { number }))),
+        PrimitiveType::Float => Ok((true, Box::new(quote_fn! { number }))),
+        PrimitiveType::Double => Ok((true, Box::new(quote_fn! { number }))),
+        PrimitiveType::Json => Ok((true, Box::new(quote_fn! { {}|null }))),
+        PrimitiveType::ByteVector => Ok((true, Box::new(quote_fn! { Uint8Array }))),
+        PrimitiveType::String => Ok((true, Box::new(quote_fn! { string }))),
         _ => {
             if params.len() != 1 {
                 return Err(format!( "Primitive parameterized type require 1 and only one param. Type {:?} provided with {}", prim, params.len() ));
@@ -549,14 +588,37 @@ fn tstype_from_prim(
             let param_type = rust_type(&params[0])?;
             match prim {
                 PrimitiveType::Vector => {
-                    return Ok((param_type.0, format!("{}[]", param_type.1)));
+                    let pt1 = param_type.1.as_ref();
+                    // format!("{}[]", param_type.1)
+                    return Ok((
+                        param_type.0,
+                        Box::new(quote_fn! { []$(ref t => pt1.format_into(t)) }),
+                    ));
                 }
-                PrimitiveType::StringMap => Ok((
-                    param_type.0,
-                    format!("{}[key: string]: {}{}", "{", param_type.1, "}"),
-                )),
-                PrimitiveType::Nullable => Ok((param_type.0, format!("({}|null)", param_type.1))),
-                PrimitiveType::TypeToken => Ok((false, format!("ADL.ATypeExpr<{}>", param_type.1))),
+                PrimitiveType::StringMap => {
+                    let pt1 = param_type.1.as_ref();
+                    Ok((
+                        param_type.0,
+                        // format!("{}[key: string]: {}{}", "{", param_type.1, "}"),
+                        Box::new(quote_fn! { {[key: string]: $(ref t => pt1.format_into(t))} }),
+                    ))
+                }
+                PrimitiveType::Nullable => {
+                    let pt1 = param_type.1.as_ref();
+                    Ok((
+                        param_type.0,
+                        // format!("({}|null)", param_type.1))
+                        Box::new(quote_fn! { ($(ref t => pt1.format_into(t))|null) }),
+                    ))
+                }
+                PrimitiveType::TypeToken => {
+                    let pt1 = param_type.1.as_ref();
+                    Ok((
+                        false,
+                        // format!("ADL.ATypeExpr<{}>", param_type.1)
+                        Box::new(quote_fn! { ADL.ATypeExpr<$(ref t => pt1.format_into(t))> }),
+                    ))
+                }
                 _ => Err(format!("unknown primitive {:?}", prim)),
             }
         }
