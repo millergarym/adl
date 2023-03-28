@@ -1,5 +1,12 @@
+/// trhis is saf df
 module struct01 {
 
-struct Abc {};
+/// sadfasdfd sdafsd dfsdf
+///    sdafsd  adsfdsaf
+struct Abc {
+    /// sdaf asdfasd asdfsdfdfsad asddfghjkl345678
+    /// hhhhhsdaf
+    Int64 x;
+};
 
 };
