@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use serde_json::Value;
 
 use crate::adlgen::sys::adlast2::{
-    Decl, DeclType, Field, Module, PrimitiveType, TypeExpr, TypeRef,
+    Decl, DeclType, Field, Module, PrimitiveType, TypeExpr, TypeRef, Union,
 };
 use crate::processing::resolver::Resolver;
 use genco::prelude::*;
@@ -53,6 +53,15 @@ impl TsDefaultValue<'_> {
     fn create_err_union_te(&self, b_name: &String) -> anyhow::Result<()> {
         return Err(anyhow!(
             "Union branch with serialized_name not found. For {}.{} branch name '{}'",
+            self.ctx.module.name,
+            self.decl.name,
+            b_name
+        ));
+    }
+
+    fn create_err_union_void_branch(&self, b_name: &String) -> anyhow::Result<()> {
+        return Err(anyhow!(
+            "Union branch type Void expected. For {}.{} branch name '{}'",
             self.ctx.module.name,
             self.decl.name,
             b_name
@@ -196,14 +205,10 @@ impl TsDefaultValue<'_> {
                     decl,
                     // depth: Box::new(0),
                 };
-                quote_in! { *t => $OC };
-                // tsgen_te.gen_type_ref(t, &f_name, val)?;
                 let inner = tsgen_te.gen_type_ref(t, &f_name, val);
                 if let Err(e) = inner {
                     return self.create_wrapped_err(f_name, e.to_string());
                 }
-
-                quote_in! { *t => $CC };
             }
             TypeRef::Primitive(d) => {
                 self.gen_primitive(t, &f_name, d, val, &type_expr.parameters)?;
@@ -232,6 +237,7 @@ impl TsDefaultValue<'_> {
         match &self.decl.r#type {
             DeclType::Struct(ty) => {
                 if let Some(obj) = val.as_object() {
+                    quote_in! { *t => $OC };
                     let mut rest = false;
                     for f0 in &ty.fields {
                         let dvg = &mut TsDefaultValue {
@@ -252,29 +258,56 @@ impl TsDefaultValue<'_> {
                         //     return self.create_wrapped_err( f_name, e.to_string());
                         // }
                     }
+                    quote_in! { *t => $CC };
                 } else {
                     return self.create_err("object", f_name, val);
                 }
             }
             DeclType::Union(ty) => {
-                if let Some(obj) = val.as_object() {
-                    let y: Vec<&String> = obj.keys().collect();
-                    if y.len() != 1 {
-                        return self.create_err_union(f_name, val);
+                match val {
+                    Value::String(b_name) => {
+                        if is_enum(ty) {
+                            quote_in! { *t => $DQ$(b_name)$DQ };
+                            return Ok(());
+                        }
+                        let te = ty.fields.iter().find(|f| f.serialized_name == *b_name);
+                        if let Some(te0) = te {
+                            match &te0.type_expr.type_ref {
+                                TypeRef::Primitive(p) => match p {
+                                    PrimitiveType::Void => {}
+                                    _ => {
+                                        return self.create_err_union_void_branch(b_name);
+                                    }
+                                },
+                                _ => {
+                                    return self.create_err_union_void_branch(b_name);
+                                }
+                            }
+                            quote_in! { *t => $OC };
+                            quote_in! { *t => kind : $DQ$(b_name)$DQ };
+                            quote_in! { *t => $CC };
+                        } else {
+                            return self.create_err_union_te(b_name);
+                        }
                     }
-                    let b_name = y[0];
-                    let b_val = obj.get(y[0]);
-                    let te = ty.fields.iter().find(|f| f.serialized_name == *b_name);
-                    if let Some(te0) = te {
-                        // quote_in! { *t => $OC };
-                        quote_in! { *t => kind : $DQ$(y[0])$DQ, value :$[' ']};
-                        self.gen_default_value(t, te0, b_val)?;
-                        // quote_in! { *t => $CC };
-                    } else {
-                        return self.create_err_union_te(b_name);
+                    Value::Object(obj) => {
+                        let y: Vec<&String> = obj.keys().collect();
+                        if y.len() != 1 {
+                            return self.create_err_union(f_name, val);
+                        }
+                        let b_name = y[0];
+                        let b_val = obj.get(y[0]);
+                        let te = ty.fields.iter().find(|f| f.serialized_name == *b_name);
+                        if let Some(te0) = te {
+                            quote_in! { *t => $OC };
+                            quote_in! { *t => kind : $DQ$(y[0])$DQ, value :$[' ']};
+                            self.gen_default_value(t, te0, b_val)?;
+                            quote_in! { *t => $CC };
+                        } else {
+                            return self.create_err_union_te(b_name);
+                        }
                     }
-                } else {
-                    return self.create_err("object", f_name, val);
+                    _ => return self.create_err("object or string", f_name, val),
                 }
             }
             DeclType::Type(_ty) => todo!(),
@@ -482,4 +515,17 @@ impl TsDefaultValue<'_> {
 
         Ok(())
     }
+}
+
+pub fn is_enum(m: &Union<TypeExpr<TypeRef>>) -> bool {
+    m.fields
+        .iter()
+        .find(|f| match &f.type_expr.type_ref {
+            TypeRef::Primitive(p) => match p {
+                PrimitiveType::Void => false,
+                _ => true,
+            },
+            _ => true,
+        })
+        .is_none()
 }
