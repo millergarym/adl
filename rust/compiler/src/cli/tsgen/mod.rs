@@ -1,5 +1,6 @@
 use super::TsOpts;
 
+use convert_case::{Case, Casing};
 use std::collections::HashMap;
 
 use anyhow::anyhow;
@@ -7,8 +8,8 @@ use genco::prelude::js::Import as JsImport;
 use genco::tokens::{Item, ItemStr};
 
 use crate::adlgen::sys::adlast2::{
-    Annotations, Decl, DeclType, Module, NewType, PrimitiveType, Struct, TypeDef, TypeExpr,
-    TypeRef, Union,
+    Annotations, Decl, DeclType, Module, NewType, PrimitiveType, ScopedName, Struct, TypeDef,
+    TypeExpr, TypeRef, Union,
 };
 use crate::parser::docstring_scoped_name;
 use crate::processing::loader::loader_from_search_paths;
@@ -23,10 +24,65 @@ const SP: &str = " ";
 
 struct TsGenVisitor<'a> {
     module: &'a Module<TypeExpr<TypeRef>>,
-    // t: &'a mut Tokens<JavaScript>,
     resolver: &'a Resolver,
     adlr: JsImport,
-    _map: &'a mut HashMap<String, JsImport>,
+    map: &'a mut HashMap<ScopedName, (String, JsImport)>,
+}
+
+fn rel_import(src: &String, dst: &String) -> String {
+    let src_v: Vec<&str> = src.split(['.']).collect();
+    // strip off the name, only leave the path
+    let src_v = &src_v[..src_v.len() - 1];
+    let dst_v: Vec<&str> = dst.split(['.']).collect();
+    let mut common = 0;
+    let mut src_i = src_v.iter();
+    let mut dst_i = dst_v.iter();
+    let mut import = String::new();
+    import.push_str("./");
+    while let (Some(sel), Some(del)) = (&src_i.next(), &dst_i.next()) {
+        if sel != del {
+            break;
+        }
+        common += 1;
+    }
+    import.push_str("../".repeat(src_v.len() - common).as_str());
+    import.push_str(dst_v[common..].join("/").as_str());
+    import
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_relative_import() {
+        assert_eq!(
+            rel_import(&"abc".to_string(), &"runtime.adl".to_string()),
+            "./runtime/adl",
+            "test 00"
+        );
+
+        assert_eq!(
+            rel_import(&"scopedname.def".to_string(), &"scopedname.abc".to_string()),
+            "./abc",
+            "test 01"
+        );
+
+        assert_eq!(
+            rel_import(
+                &"scopedname.def".to_string(),
+                &"scopedname.def.abc".to_string()
+            ),
+            "./def/abc",
+            "test 02"
+        );
+
+        assert_eq!(
+            rel_import(&"scopedname.def".to_string(), &"runtime.adl".to_string()),
+            "./../runtime/adl",
+            "test 03"
+        );
+    }
 }
 
 pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
@@ -47,8 +103,9 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
             let mut mgen = TsGenVisitor {
                 module: m,
                 resolver: &resolver,
-                adlr: js::import("./runtime/adl", "ADL").into_wildcard(),
-                _map: &mut HashMap::new(),
+                adlr: js::import(rel_import(&m.name, &"runtime.adl".to_string()), "ADL")
+                    .into_wildcard(),
+                map: &mut HashMap::new(),
             };
             mgen.gen_module(tokens, m)?;
             let stdout = std::io::stdout();
@@ -175,6 +232,10 @@ impl TsGenVisitor<'_> {
             true
         });
         lit(t, "\n};");
+        for (_, v) in self.map.iter() {
+            let imp = &v.1;
+            quote_in! {*t => $(register (imp))}
+        }
         Ok(())
     }
 }
@@ -260,7 +321,7 @@ impl TsGenVisitor<'_> {
             $(for f in m.fields.iter() =>
                 $(ref t => {
                     gen_doc_comment(t, &f.annotations);
-                    let rt = rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
+                    let rt = self.rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
                     has_make = has_make && rt.0;
                     quote_in! { *t =>
                         $SP$SP$(&f.name): $(rt.1);$['\r']
@@ -273,7 +334,7 @@ impl TsGenVisitor<'_> {
                 export function make$(cap_or__(name))$(gen_type_params_(&fnames, &m.type_params))(
                   $(if m.fields.len() == 0 => _)input: {
                     $(for f in &m.fields => $(ref t => {
-                        let rt = rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
+                        let rt = self.rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
                         let mut has_default = false;
                         if let Some(_) = f.default.0 {
                             has_default = true;
@@ -287,7 +348,7 @@ impl TsGenVisitor<'_> {
                         if let Some(_) = f.default.0 {
                             quote_in! { *t => $(&f.name): input.$(&f.name) === undefined ?$[' '] }
                             let dvg = &mut defaultval::TsDefaultValue{
-                                ctx: &defaultval::ResolverModule {
+                                ctx: &defaultval:: ResolverModule {
                                     module: self.module,
                                     resolver: self.resolver,
                                 },
@@ -350,7 +411,7 @@ impl TsGenVisitor<'_> {
                 self.gen_doc_comment(t, &b.annotations);
                 let bname = b.name.clone();
                 // let bname_up = title(&b.name);
-                let rtype = rust_type(&b.type_expr).map_err(|s| anyhow!(s))?;
+                let rtype = self.rust_type(&b.type_expr).map_err(|s| anyhow!(s))?;
                 // &vec![rtype.1.clone()]
                 let used = used_type_params(&vec![b.type_expr.clone()]);
 
@@ -407,7 +468,7 @@ impl TsGenVisitor<'_> {
         payload: DeclPayload<'_>,
     ) -> anyhow::Result<()> {
         let name = &payload.decl.name;
-        let rtype = rust_type(&m.type_expr).map_err(|s| anyhow!(s))?;
+        let rtype = self.rust_type(&m.type_expr).map_err(|s| anyhow!(s))?;
 
         quote_in! { *t =>
             $("// newtype")$['\n']
@@ -437,7 +498,7 @@ impl TsGenVisitor<'_> {
         payload: DeclPayload<'_>,
     ) -> anyhow::Result<()> {
         let name = &payload.decl.name;
-        let rtype = rust_type(&m.type_expr).map_err(|s| anyhow!(s))?;
+        let rtype = self.rust_type(&m.type_expr).map_err(|s| anyhow!(s))?;
 
         quote_in! { *t =>
             $("// type")$['\n']
@@ -458,6 +519,110 @@ impl TsGenVisitor<'_> {
             $['\n']
         }
         Ok(())
+    }
+
+    /// returns (has_make_function,ts type)
+    fn rust_type(&mut self, te: &TypeExpr<TypeRef>) -> Result<(bool, String), String> {
+        match &te.type_ref {
+            TypeRef::ScopedName(n) => self.tstype_from_scoped_name(n, &te.parameters),
+            TypeRef::LocalName(n) => self.tstype_from_local_name(n, &te.parameters),
+            TypeRef::Primitive(n) => self.tstype_from_prim(n, &te.parameters),
+            TypeRef::TypeParam(n) => Ok((true, n.clone())),
+        }
+    }
+
+    fn tstype_from_scoped_name(
+        &mut self,
+        scoped_name: &ScopedName,
+        params: &Vec<TypeExpr<TypeRef>>,
+    ) -> Result<(bool, String), String> {
+        let imp = self.map.entry(scoped_name.clone()).or_insert_with(|| {
+            let path = rel_import(&self.module.name, &scoped_name.module_name);
+            let i_name = scoped_name
+                .module_name
+                .replace(".", "_")
+                .to_case(Case::Snake);
+            let import = js::import(path, i_name.clone()).into_wildcard();
+            (i_name, import)
+        });
+        let local_name = format!("{}.{}", imp.0.to_string(), scoped_name.name);
+        self.tstype_from_local_name(&local_name, params)
+    }
+
+    fn tstype_from_local_name(
+        &mut self,
+        local_name: &String,
+        params: &Vec<TypeExpr<TypeRef>>,
+    ) -> Result<(bool, String), String> {
+        if params.len() > 0 {
+            let mut tperr = vec![];
+            let tps: Vec<String> = params
+                .iter()
+                .filter_map(|p| {
+                    let r = self.rust_type(p);
+                    match r {
+                        Ok((_, t)) => Some(t),
+                        Err(e) => {
+                            tperr.push(e);
+                            return None;
+                        }
+                    }
+                })
+                .collect();
+            if tperr.len() != 0 {
+                let msg = tperr.join("\n\t");
+                return Err(format!("Error constructing type param: {}", msg));
+            }
+            let tpstr = format!("{}<{}>", local_name.clone(), tps.join(", "));
+            return Ok((true, tpstr));
+        }
+        Ok((true, local_name.clone()))
+    }
+
+    fn tstype_from_prim(
+        &mut self,
+        prim: &PrimitiveType,
+        params: &Vec<TypeExpr<TypeRef>>,
+    ) -> Result<(bool, String), String> {
+        match prim {
+            PrimitiveType::Void => Ok((true, "null".to_string())),
+            PrimitiveType::Bool => Ok((true, "boolean".to_string())),
+            PrimitiveType::Int8 => Ok((true, "number".to_string())),
+            PrimitiveType::Int16 => Ok((true, "number".to_string())),
+            PrimitiveType::Int32 => Ok((true, "number".to_string())),
+            PrimitiveType::Int64 => Ok((true, "number".to_string())),
+            PrimitiveType::Word8 => Ok((true, "number".to_string())),
+            PrimitiveType::Word16 => Ok((true, "number".to_string())),
+            PrimitiveType::Word32 => Ok((true, "number".to_string())),
+            PrimitiveType::Word64 => Ok((true, "number".to_string())),
+            PrimitiveType::Float => Ok((true, "number".to_string())),
+            PrimitiveType::Double => Ok((true, "number".to_string())),
+            PrimitiveType::Json => Ok((true, "{}|null".to_string())),
+            PrimitiveType::ByteVector => Ok((true, "Uint8Array".to_string())),
+            PrimitiveType::String => Ok((true, "string".to_string())),
+            _ => {
+                if params.len() != 1 {
+                    return Err(format!( "Primitive parameterized type require 1 and only one param. Type {:?} provided with {}", prim, params.len() ));
+                }
+                let param_type = self.rust_type(&params[0])?;
+                match prim {
+                    PrimitiveType::Vector => {
+                        return Ok((param_type.0, format!("{}[]", param_type.1)));
+                    }
+                    PrimitiveType::StringMap => Ok((
+                        param_type.0,
+                        format!("{}[key: string]: {}{}", "{", param_type.1, "}"),
+                    )),
+                    PrimitiveType::Nullable => {
+                        Ok((param_type.0, format!("({}|null)", param_type.1)))
+                    }
+                    PrimitiveType::TypeToken => {
+                        Ok((false, format!("ADL.ATypeExpr<{}>", param_type.1)))
+                    }
+                    _ => Err(format!("unknown primitive {:?}", prim)),
+                }
+            }
+        }
     }
 }
 
@@ -480,85 +645,5 @@ pub fn to_title(input: &String) -> String {
     match c.next() {
         None => String::new(),
         Some(first) => first.to_uppercase().to_string() + &String::from(&input[1..]),
-    }
-}
-
-/// returns (has_make_function,ts type)
-fn rust_type(te: &TypeExpr<TypeRef>) -> Result<(bool, String), String> {
-    match &te.type_ref {
-        TypeRef::ScopedName(_n) => todo!(),
-        TypeRef::LocalName(n) => tstype_from_local_name(n, &te.parameters),
-        TypeRef::Primitive(n) => tstype_from_prim(n, &te.parameters),
-        TypeRef::TypeParam(n) => Ok((true, n.clone())),
-    }
-}
-
-fn tstype_from_local_name(
-    local_name: &String,
-    params: &Vec<TypeExpr<TypeRef>>,
-) -> Result<(bool, String), String> {
-    if params.len() > 0 {
-        let mut tperr = vec![];
-        let tps: Vec<String> = params
-            .iter()
-            .filter_map(|p| {
-                let r = rust_type(p);
-                match r {
-                    Ok((_, t)) => Some(t),
-                    Err(e) => {
-                        tperr.push(e);
-                        return None;
-                    }
-                }
-            })
-            .collect();
-        if tperr.len() != 0 {
-            let msg = tperr.join("\n\t");
-            return Err(format!("Error constructing type param: {}", msg));
-        }
-        let tpstr = format!("{}<{}>", local_name.clone(), tps.join(", "));
-        return Ok((true, tpstr));
-    }
-    Ok((true, local_name.clone()))
-}
-
-fn tstype_from_prim(
-    prim: &PrimitiveType,
-    params: &Vec<TypeExpr<TypeRef>>,
-) -> Result<(bool, String), String> {
-    match prim {
-        PrimitiveType::Void => Ok((true, "null".to_string())),
-        PrimitiveType::Bool => Ok((true, "boolean".to_string())),
-        PrimitiveType::Int8 => Ok((true, "number".to_string())),
-        PrimitiveType::Int16 => Ok((true, "number".to_string())),
-        PrimitiveType::Int32 => Ok((true, "number".to_string())),
-        PrimitiveType::Int64 => Ok((true, "number".to_string())),
-        PrimitiveType::Word8 => Ok((true, "number".to_string())),
-        PrimitiveType::Word16 => Ok((true, "number".to_string())),
-        PrimitiveType::Word32 => Ok((true, "number".to_string())),
-        PrimitiveType::Word64 => Ok((true, "number".to_string())),
-        PrimitiveType::Float => Ok((true, "number".to_string())),
-        PrimitiveType::Double => Ok((true, "number".to_string())),
-        PrimitiveType::Json => Ok((true, "{}|null".to_string())),
-        PrimitiveType::ByteVector => Ok((true, "Uint8Array".to_string())),
-        PrimitiveType::String => Ok((true, "string".to_string())),
-        _ => {
-            if params.len() != 1 {
-                return Err(format!( "Primitive parameterized type require 1 and only one param. Type {:?} provided with {}", prim, params.len() ));
-            }
-            let param_type = rust_type(&params[0])?;
-            match prim {
-                PrimitiveType::Vector => {
-                    return Ok((param_type.0, format!("{}[]", param_type.1)));
-                }
-                PrimitiveType::StringMap => Ok((
-                    param_type.0,
-                    format!("{}[key: string]: {}{}", "{", param_type.1, "}"),
-                )),
-                PrimitiveType::Nullable => Ok((param_type.0, format!("({}|null)", param_type.1))),
-                PrimitiveType::TypeToken => Ok((false, format!("ADL.ATypeExpr<{}>", param_type.1))),
-                _ => Err(format!("unknown primitive {:?}", prim)),
-            }
-        }
     }
 }
