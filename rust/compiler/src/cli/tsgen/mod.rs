@@ -25,6 +25,7 @@ mod astgen;
 mod defaultval;
 
 const SP: &str = " ";
+const SQ: &str = "'";
 
 struct TsGenVisitor<'a> {
     module: &'a Module<TypeExpr<TypeRef>>,
@@ -419,34 +420,36 @@ impl TsGenVisitor<'_> {
     ) -> anyhow::Result<()> {
         let name = &payload.decl.name;
         // lit(t, "// union \n");
-        let is_enum = m
-            .fields
-            .iter()
-            .find(|f| match &f.type_expr.type_ref {
-                TypeRef::Primitive(p) => match p {
-                    PrimitiveType::Void => false,
-                    _ => true,
-                },
-                _ => true,
-            })
-            .is_none();
-        if !is_enum {
-            // let bnames_up = m.fields.iter().map(|b| title(&b.name));
+        if !defaultval::is_enum(m) {
             let mut opts = vec![];
             for b in m.fields.iter() {
                 self.gen_doc_comment(t, &b.annotations);
                 let bname = b.name.clone();
-                // let bname_up = title(&b.name);
                 let rtype = self.rust_type(&b.type_expr).map_err(|s| anyhow!(s))?;
-                // &vec![rtype.1.clone()]
                 let used = used_type_params(&vec![b.type_expr.clone()]);
 
                 opts.push((bname.clone(), rtype.clone().1));
-                quote_in! { *t =>
-                    export interface $(name)_$(bname.clone())$(gen_type_params_(&used, &m.type_params)) {
-                        kind: $("'")$(bname.clone())$("'");
-                        value: $(rtype.1.clone());
-                    }$['\r']
+
+                let is_void = match &b.type_expr.type_ref {
+                    TypeRef::Primitive(p) => match p {
+                        PrimitiveType::Void => true,
+                        _ => false,
+                    },
+                    _ => false,
+                };
+                if is_void {
+                    quote_in! { *t =>
+                        export interface $(name)_$(bname.clone())$(gen_type_params_(&used, &m.type_params)) {
+                            kind: $SQ$(bname.clone())$SQ;
+                        }$['\r']
+                    }
+                } else {
+                    quote_in! { *t =>
+                        export interface $(name)_$(bname.clone())$(gen_type_params_(&used, &m.type_params)) {
+                            kind: $SQ$(bname.clone())$SQ;
+                            value: $(rtype.1.clone());
+                        }$['\r']
+                    }
                 }
             }
             let te_trs: Vec<TypeExpr<TypeRef>> =
@@ -464,16 +467,13 @@ impl TsGenVisitor<'_> {
             }
         } else {
             let b_names: Vec<&String> = m.fields.iter().map(|f| &f.name).collect();
-            let b_len = b_names.len();
-            let b1 = if b_len > 0 { b_names[0] } else { "" };
             quote_in! { *t =>
                 $['\n']
-                export type $name = $(for n in b_names join ( | ) => $("'")$(n)$("'"));
+                export type $name = $(for n in &b_names join ( | ) => $SQ$(*n)$SQ);
                 $['\r']
             }
-            // TODO not sure what this is for -- duplicating existing ts
-            if b_len == 1 {
-                quote_in! { *t => export const values$name : $name[] = [$("'")$(b1)$("'")];$['\r'] }
+            quote_in! { *t => export const values$name : $name[] =$[' ']
+                [$(for n in b_names join (, ) => $SQ$(n)$SQ)];$['\r']
             }
         }
         self.gen_rtti(
