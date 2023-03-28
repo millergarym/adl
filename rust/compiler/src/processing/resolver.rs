@@ -1,8 +1,8 @@
 use anyhow::anyhow;
-use std::collections::{HashSet};
 use std::collections::HashMap;
+use std::collections::HashSet;
 
-use crate::adlgen::sys::adlast2 as adlast;
+use crate::adlgen::sys::adlast2::{self as adlast, ScopedName};
 use crate::adlrt::custom::sys::types::map::Map;
 
 use super::loader::AdlLoader;
@@ -19,7 +19,12 @@ pub type ModuleName = adlast::ModuleName;
 
 pub struct Resolver {
     loader: Box<dyn AdlLoader>,
-    modules: HashMap<ModuleName, Module1>,
+    modules: HashMap<ModuleName, ResolvedModule>,
+}
+
+pub struct ResolvedModule {
+    module1: Module1,
+    decls: HashMap<String, Decl1>,
 }
 
 impl Resolver {
@@ -39,14 +44,18 @@ impl Resolver {
         self.modules.keys().cloned().collect()
     }
 
-    pub fn get_module(&self, module_name: &ModuleName) -> Option<&Module1> {
+    pub fn get_rmodule(&self, module_name: &ModuleName) -> Option<&ResolvedModule> {
         self.modules.get(module_name)
     }
 
+    pub fn get_module(&self, module_name: &ModuleName) -> Option<&Module1> {
+        self.modules.get(module_name).map(|rm| &rm.module1)
+    }
+
     pub fn get_decl(&mut self, scoped_name: &adlast::ScopedName) -> Option<&Decl1> {
-        match self.get_module(&scoped_name.module_name) {
+        match  self.modules.get(&scoped_name.module_name) {
             None => None,
-            Some(module1) => return module1.decls.iter().find(|d| d.name == scoped_name.name),
+            Some(rmodule) => return rmodule.decls.get(&scoped_name.name),
         }
     }
 
@@ -78,15 +87,26 @@ impl Resolver {
 
         let type_params = HashSet::new();
         let expanded_imports = self.get_expanded_imports(&module0);
+        let local_names = module0.decls.iter().map(|d| &(d.name) as &str).collect();
         let mut ctx = ResolveCtx {
             resolver: self,
             module0: &module0,
+            local_names: &local_names,
             expanded_imports: &expanded_imports,
             type_params,
         };
         let module1 = resolve_module(&mut ctx, &module0)?;
         check_module(&module1)?;
-        self.modules.insert(module_name.clone(), module1);
+        let decls : HashMap<String,Decl1> = module1.decls
+            .iter()
+            .map(|d| (d.name.clone(), d.clone()))
+            .collect();
+
+        let rmodule = ResolvedModule {
+            module1,
+            decls,
+        };
+        self.modules.insert(module_name.clone(), rmodule);
 
         in_progress.remove(module_name);
 
@@ -246,6 +266,7 @@ pub fn resolve_field(
     Ok(field1)
 }
 
+/// This function checks that each annotation refers to an actual declaration
 pub fn resolve_annotations(
     ctx: &ResolveCtx,
     annotations0: &adlast::Annotations,
@@ -255,13 +276,17 @@ pub fn resolve_annotations(
         .iter()
         .map(|(sn0, jv)| {
             let tr1 = ctx.resolve_type_ref(sn0)?;
-            if let TypeRef::ScopedName(sn1) = tr1 {
-                Ok((sn1, jv.clone()))
-            } else {
-                Err(anyhow!(
-                    "no decl {} found for explicit annotation",
-                    sn0.name
-                ))
+            match tr1 {
+                TypeRef::ScopedName(sn1) => Ok((sn1, jv.clone())),
+                TypeRef::LocalName(ln1) => Ok((
+                    ScopedName {
+                        module_name: ctx.module0.name.clone(),
+                        name: ln1,
+                    },
+                    jv.clone(),
+                )),
+                TypeRef::Primitive(_) => Err(anyhow!("primitives can't be annotations")),
+                TypeRef::TypeParam(_) => Err(anyhow!("typeparams can't be annotations")),
             }
         })
         .collect::<Result<HashMap<_, _>>>()?;
@@ -282,6 +307,7 @@ pub fn resolve_type_expr(ctx: &ResolveCtx, typeexpr0: &TypeExpr0) -> Result<Type
 pub struct ResolveCtx<'a> {
     resolver: &'a mut Resolver,
     module0: &'a Module0,
+    local_names: &'a HashSet<&'a str>,
     expanded_imports: &'a HashMap<adlast::Ident, adlast::ScopedName>,
     type_params: HashSet<String>,
 }
@@ -300,17 +326,17 @@ impl<'a> ResolveCtx<'a> {
             if let Some(ptype) = prim_from_str(&name) {
                 return Ok(TypeRef::Primitive(ptype));
             }
-            if let Some(_) = self.module0.decls.iter().find(|d| d.name == *name) {
+            if self.local_names.contains(&name as &str){
                 return Ok(TypeRef::LocalName(name.clone()));
             }
             if let Some(scoped_name) = self.expanded_imports.get(name) {
                 return Ok(TypeRef::ScopedName(scoped_name.clone()));
             }
-            Err(anyhow!("type {} not found", name))
+            Err(anyhow!("Local type {} not found", name))
         } else {
-            match self.find_module(&scoped_name0.module_name)? {
+            match self.resolver.get_rmodule(&scoped_name0.module_name) {
                 None => return Err(anyhow!("module {} not found", scoped_name0.module_name)),
-                Some(module1) => match module1.decls.iter().find(|d| d.name == scoped_name0.name) {
+                Some(rmodule) => match rmodule.decls.get(&scoped_name0.name) {
                     None => {
                         return Err(anyhow!(
                             "type {}.{} not found",
@@ -332,6 +358,7 @@ fn with_type_params<'a>(
     ResolveCtx {
         resolver: ctx0.resolver,
         module0: ctx0.module0,
+        local_names: ctx0.local_names,
         expanded_imports: ctx0.expanded_imports,
         type_params: type_params_set(type_params),
     }
