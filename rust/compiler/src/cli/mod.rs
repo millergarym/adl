@@ -100,8 +100,8 @@ pub struct TsOpts {
     #[clap(flatten)]
     pub search: AdlSearchOpts,
 
-    // #[clap(flatten)]
-    // pub output: OutputOpts,
+    #[clap(flatten)]
+    pub output: OutputOpts,
 
     /// Generate the runtime code
     #[arg(long)]
