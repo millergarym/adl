@@ -1,32 +1,25 @@
 use super::TsOpts;
 
-use convert_case::{Case, Casing};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::adlgen::sys::adlast2::{self as adlast};
 use anyhow::anyhow;
 
-use genco::prelude::js::Import as JsImport;
-use genco::tokens::{Item, ItemStr};
+use genco::fmt::{self, Indentation};
+use genco::prelude::*;
 
+use crate::adlgen::sys::adlast2::{self as adlast};
 use crate::adlgen::sys::adlast2::{
-    Annotations, Decl, DeclType, Module, Module1, NewType, PrimitiveType, ScopedName, Struct,
-    TypeDef, TypeExpr, TypeRef, Union,
+    Module, Module1, TypeExpr, TypeRef,
 };
-use crate::parser::docstring_scoped_name;
 use crate::processing::loader::loader_from_search_paths;
 use crate::processing::resolver::Resolver;
 use crate::processing::writer::TreeWriter;
-use genco::fmt::{self, Indentation};
-use genco::prelude::*;
 
 mod astgen;
 mod defaultval;
 mod generate;
 mod utils;
-
-
 
 pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
     let loader = loader_from_search_paths(&opts.search.path);
@@ -49,24 +42,14 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
 
     for m in modules {
         let path = path_from_module_name(opts, m.name.to_owned());
-        let code = gen_ts_module(m, &resolver)?;
+        let code = gen_ts_module(m, &resolver, opts)?;
         writer.write(path.as_path(), code)?;
     }
 
     Ok(())
 }
 
-fn path_from_module_name(opts: &TsOpts, mname: adlast::ModuleName) -> PathBuf {
-    let mut path = PathBuf::new();
-    // path.push(opts.module.clone());
-    for el in mname.split(".") {
-        path.push(el);
-    }
-    path.set_extension("ts");
-    return path;
-}
-
-fn gen_ts_module(m: &Module<TypeExpr<TypeRef>>, resolver: &Resolver) -> anyhow::Result<String> {
+fn gen_ts_module(m: &Module<TypeExpr<TypeRef>>, resolver: &Resolver, opts: &TsOpts) -> anyhow::Result<String> {
     // TODO sys.annotations::SerializedName needs to be embedded
     let tokens = &mut js::Tokens::new();
     let mut mgen = generate::TsGenVisitor {
@@ -74,6 +57,7 @@ fn gen_ts_module(m: &Module<TypeExpr<TypeRef>>, resolver: &Resolver) -> anyhow::
         resolver: resolver,
         adlr: js::import(utils::rel_import(&m.name, &"runtime.adl".to_string()), "ADL").into_wildcard(),
         map: &mut HashMap::new(),
+        opts,
     };
     mgen.gen_module(tokens, m)?;
     // let stdout = std::io::stdout();
@@ -94,7 +78,12 @@ fn gen_ts_module(m: &Module<TypeExpr<TypeRef>>, resolver: &Resolver) -> anyhow::
     Ok(code.to_string())
 }
 
-
-
-
-
+fn path_from_module_name(_opts: &TsOpts, mname: adlast::ModuleName) -> PathBuf {
+    let mut path = PathBuf::new();
+    // path.push(opts.module.clone());
+    for el in mname.split(".") {
+        path.push(el);
+    }
+    path.set_extension("ts");
+    return path;
+}
