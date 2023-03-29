@@ -1,0 +1,11 @@
+module testing_table {
+
+type TestFilesMetaData = Vector<TestFileMetaData>;
+
+struct TestFileMetaData {
+    String search_path;
+    Vector<String> modules;
+    Bool fail = false;
+};
+
+};
