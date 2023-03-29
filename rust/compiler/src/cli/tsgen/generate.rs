@@ -1,25 +1,18 @@
-use super::TsOpts;
-
 use convert_case::{Case, Casing};
 use std::collections::HashMap;
-use std::path::PathBuf;
 
-use crate::adlgen::sys::adlast2::{self as adlast};
 use anyhow::anyhow;
 
 use genco::prelude::js::Import as JsImport;
+use genco::prelude::*;
 use genco::tokens::{Item, ItemStr};
 
 use crate::adlgen::sys::adlast2::{
-    Annotations, Decl, DeclType, Module, Module1, NewType, PrimitiveType, ScopedName, Struct,
-    TypeDef, TypeExpr, TypeRef, Union,
+    Annotations, Decl, DeclType, Module, NewType, PrimitiveType, ScopedName, Struct, TypeDef,
+    TypeExpr, TypeRef, Union,
 };
 use crate::parser::docstring_scoped_name;
-use crate::processing::loader::loader_from_search_paths;
 use crate::processing::resolver::Resolver;
-use crate::processing::writer::TreeWriter;
-use genco::fmt::{self, Indentation};
-use genco::prelude::*;
 
 const SP: &str = " ";
 const SQ: &str = "'";
@@ -29,6 +22,7 @@ pub struct TsGenVisitor<'a> {
     pub resolver: &'a Resolver,
     pub adlr: JsImport,
     pub map: &'a mut HashMap<ScopedName, (String, JsImport)>,
+    pub opts: &'a crate::cli::TsOpts,
 }
 
 // struct DeclPayload<'a>(&'a Decl<TypeExpr<TypeRef>>);
@@ -110,7 +104,7 @@ impl TsGenVisitor<'_> {
             export interface $(name)$(gen_type_params_(&fnames, &m.type_params)) {$['\r']
             $(for f in m.fields.iter() =>
                 $(ref t => {
-                    gen_doc_comment(t, &f.annotations);
+                    self.gen_doc_comment(t, &f.annotations);
                     let rt = self.rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
                     has_make = has_make && rt.0;
                     quote_in! { *t =>
@@ -168,7 +162,6 @@ impl TsGenVisitor<'_> {
     }
 }
 
-
 impl TsGenVisitor<'_> {
     fn gen_union(
         &mut self,
@@ -178,11 +171,21 @@ impl TsGenVisitor<'_> {
     ) -> anyhow::Result<()> {
         let name = &payload.decl.name;
         // lit(t, "// union \n");
+
+        let type_suffix = |name0: &String| {
+            if self.opts.capitalize_branch_names_in_types {
+                to_title(name0)
+            } else {
+                name0.clone()
+            }
+        };
+
         if !crate::cli::tsgen::defaultval::is_enum(m) {
             let mut opts = vec![];
             for b in m.fields.iter() {
                 self.gen_doc_comment(t, &b.annotations);
                 let bname = b.name.clone();
+
                 let rtype = self.rust_type(&b.type_expr).map_err(|s| anyhow!(s))?;
                 let used = used_type_params(&vec![b.type_expr.clone()]);
 
@@ -197,13 +200,13 @@ impl TsGenVisitor<'_> {
                 };
                 if is_void {
                     quote_in! { *t =>
-                        export interface $(name)_$(bname.clone())$(gen_type_params_(&used, &m.type_params)) {
+                        export interface $(name)_$(type_suffix(&bname.clone()))$(gen_type_params_(&used, &m.type_params)) {
                             kind: $SQ$(bname.clone())$SQ;
                         }$['\r']
                     }
                 } else {
                     quote_in! { *t =>
-                        export interface $(name)_$(bname.clone())$(gen_type_params_(&used, &m.type_params)) {
+                        export interface $(name)_$(type_suffix(&bname.clone()))$(gen_type_params_(&used, &m.type_params)) {
                             kind: $SQ$(bname.clone())$SQ;
                             value: $(rtype.1.clone());
                         }$['\r']
@@ -215,7 +218,9 @@ impl TsGenVisitor<'_> {
             let tp_names = used_type_params(&te_trs);
             quote_in! { *t =>
                 $['\n']
-                export type $name$(gen_type_params_(&tp_names, &m.type_params)) = $(for n in m.fields.iter().map(|b| &b.name) join ( | ) => $(name)_$n$(gen_type_params_(&tp_names, &m.type_params)));
+                export type $name$(gen_type_params_(&tp_names, &m.type_params)) = $(for n in m.fields.iter().map(|b| &b.name) join ( | ) =>
+                        $(name)_$(type_suffix(n))$(gen_type_params_(&tp_names, &m.type_params))
+                    );
 
                 export interface $(name)Opts$(gen_type_params_(&tp_names, &m.type_params)) {
                   $(for opt in opts => $(opt.0): $(opt.1);$['\r'])
@@ -321,7 +326,8 @@ impl TsGenVisitor<'_> {
         params: &Vec<TypeExpr<TypeRef>>,
     ) -> Result<(bool, String), String> {
         let imp = self.map.entry(scoped_name.clone()).or_insert_with(|| {
-            let path = crate::cli::tsgen::utils::rel_import(&self.module.name, &scoped_name.module_name);
+            let path =
+                crate::cli::tsgen::utils::rel_import(&self.module.name, &scoped_name.module_name);
             let i_name = scoped_name
                 .module_name
                 .replace(".", "_")
@@ -410,7 +416,6 @@ impl TsGenVisitor<'_> {
     }
 }
 
-
 impl TsGenVisitor<'_> {
     fn gen_rtti(
         &mut self,
@@ -454,20 +459,6 @@ impl TsGenVisitor<'_> {
             }
             lit(t, " */\n");
         }
-    }
-}
-
-fn gen_doc_comment(t: &mut Tokens<JavaScript>, annotations: &Annotations) {
-    if let Some(ds) = annotations.0.get(&docstring_scoped_name()) {
-        lit(t, "/**\n");
-        for c in ds.as_array().unwrap().iter() {
-            if let Ok(x) = serde_json::to_string(&c.clone()) {
-                // TODO should this be trimmed? or should the output be "*$y" ie no space
-                let y = x[1..x.len() - 1].trim();
-                quote_in! {*t => $[' ']* $(y)$['\r']};
-            }
-        }
-        lit(t, " */\n");
     }
 }
 
