@@ -109,6 +109,13 @@ pub struct TsOpts {
 
     #[arg(value_name="ADLMODULE")]
     pub modules: Vec<String>,
+
+    /// If set capitalizes branch (field) name in the exported interfaces.
+    ///
+    /// Has a risk of creating name clashes between branches with only differ in case.
+    /// Set to true to preserve backward compatiblity.
+    #[arg(long)]
+    pub capitalize_branch_names_in_types: bool,
 }
 
 #[derive(Debug, Args)]
