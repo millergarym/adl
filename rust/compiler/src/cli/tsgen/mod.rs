@@ -20,6 +20,9 @@ mod astgen;
 mod defaultval;
 mod generate;
 mod utils;
+#[cfg(test)]
+mod tests;
+
 
 pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
     let loader = loader_from_search_paths(&opts.search.path);
