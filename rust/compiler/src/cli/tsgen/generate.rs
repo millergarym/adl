@@ -48,7 +48,7 @@ impl TsGenVisitor<'_> {
         };
         let mname = &m.name;
         for decl in m.decls.iter() {
-            self.gen_doc_comment(t, &decl.annotations);
+            self.gen_doc_comment(t, &decl.annotations)?;
             let payload = DeclPayload {
                 decl: decl,
                 mname: &mname.clone(),
@@ -95,7 +95,7 @@ impl TsGenVisitor<'_> {
     ) -> anyhow::Result<()> {
         let (decl, name) = (payload.decl, &payload.decl.name);
         // let name_up = &title(name);
-        self.gen_doc_comment(t, &decl.annotations);
+        self.gen_doc_comment(t, &decl.annotations)?;
         // let fnames: &Vec<String> = &m.fields.iter().map(|f| f.name.clone()).collect();
         let te_trs: Vec<TypeExpr<TypeRef>> = m.fields.iter().map(|f| f.type_expr.clone()).collect();
         let mut has_make = true;
@@ -104,7 +104,7 @@ impl TsGenVisitor<'_> {
             export interface $(name)$(gen_type_params_(&fnames, &m.type_params)) {$['\r']
             $(for f in m.fields.iter() =>
                 $(ref t => {
-                    self.gen_doc_comment(t, &f.annotations);
+                    self.gen_doc_comment(t, &f.annotations)?;
                     let rt = self.rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
                     has_make = has_make && rt.0;
                     quote_in! { *t =>
@@ -183,7 +183,7 @@ impl TsGenVisitor<'_> {
         if !crate::cli::tsgen::defaultval::is_enum(m) {
             let mut opts = vec![];
             for b in m.fields.iter() {
-                self.gen_doc_comment(t, &b.annotations);
+                self.gen_doc_comment(t, &b.annotations)?;
                 let bname = b.name.clone();
 
                 let rtype = self.rust_type(&b.type_expr).map_err(|s| anyhow!(s))?;
@@ -433,9 +433,9 @@ impl TsGenVisitor<'_> {
               {"moduleName":$("\"")$(mname.clone())$("\""),"decl":$(ref tok => {
                 let mut sdg = crate::cli::tsgen::astgen::TsScopedDeclGenVisitor{module_name: &mname.clone(), t: tok};
                 sdg.visit_decl(decl);
-              })};
+              })};$['\n']
 
-            export const sn$(cap_or__(name)): $(&self.adlr).ScopedName = {moduleName:$("\"")$mname$("\""), name:$("\"")$name$("\"")};
+            export const sn$(cap_or__(name)): $(&self.adlr).ScopedName = {moduleName:$("\"")$mname$("\""), name:$("\"")$name$("\"")};$['\n']
 
             export function texpr$(cap_or__(name))$(gen_type_params(payload.type_params))($(ref t => texpr_args(t, &payload.type_params))): ADL.ATypeExpr<$(name)$(gen_type_params(payload.type_params))> {
                 return {value:{typeRef:{kind:"reference",value:sn$(cap_or__(name))},parameters:[$(ref t => texpr_params(t, &payload.type_params))]}};
@@ -447,18 +447,34 @@ impl TsGenVisitor<'_> {
 }
 
 impl TsGenVisitor<'_> {
-    fn gen_doc_comment(&mut self, t: &mut Tokens<JavaScript>, annotations: &Annotations) {
+    fn gen_doc_comment(
+        &mut self,
+        t: &mut Tokens<JavaScript>,
+        annotations: &Annotations,
+    ) -> anyhow::Result<()> {
         if let Some(ds) = annotations.0.get(&docstring_scoped_name()) {
             lit(t, "/**\n");
-            for c in ds.as_array().unwrap().iter() {
-                if let Ok(x) = serde_json::to_string(&c.clone()) {
-                    // TODO should this be trimmed? or should the output be "*$y" ie no space
-                    let y = x[1..x.len() - 1].trim();
+            match ds {
+                serde_json::Value::String(y) => {
                     quote_in! { *t => $[' ']* $(y)$['\r'] };
+                },
+                serde_json::Value::Array(array) => {
+                    for c in array.iter() {
+                        if let Ok(x) = serde_json::to_string(&c.clone()) {
+                            // TODO should this be trimmed? or should the output be "*$y" ie no space
+                            let y = x[1..x.len() - 1].trim();
+                            quote_in! { *t => $[' ']* $(y)$['\r'] };
+                        }
+                    }
+                },
+                _ => {
+                    let j = serde_json::to_string(ds);
+                    return Err(anyhow!("error processing doc comment expect array received JSON '{}'", j.unwrap()));
                 }
             }
             lit(t, " */\n");
         }
+        Ok(())
     }
 }
 
