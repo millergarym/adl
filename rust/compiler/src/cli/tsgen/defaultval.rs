@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use serde_json::Value;
 
 use crate::adlgen::sys::adlast2::{
-    Decl, DeclType, Field, Module, PrimitiveType, TypeExpr, TypeRef, Union,
+    Decl, DeclType, Field, Module, PrimitiveType, ScopedName, TypeExpr, TypeRef, Union,
 };
 use crate::processing::resolver::Resolver;
 use genco::prelude::*;
@@ -134,17 +134,48 @@ impl TsDefaultValue<'_> {
         ));
     }
 
-    fn find_local_decl(&self, name: &String) -> &Decl<TypeExpr<TypeRef>> {
-        self.ctx
-            .module
-            .decls
-            .iter()
-            .find(|decl| decl.name == *name)
-            .unwrap()
+    fn create_err_resolve_scoped_name(
+        &self,
+        f_name: &String,
+        sn: &ScopedName,
+    ) -> anyhow::Result<()> {
+        return Err(anyhow!(
+            "Cannot resolve scoped name {}.{}. {}.{}::{}",
+            sn.module_name,
+            sn.name,
+            self.ctx.module.name,
+            self.decl.name,
+            f_name,
+        ));
     }
 
+    fn create_err_resolve_module(
+        &self,
+        f_name: &String,
+        module_name: &String,
+    ) -> anyhow::Result<()> {
+        return Err(anyhow!(
+            "Cannot resolve module name {}. From {}.{}::{}",
+            module_name,
+            self.ctx.module.name,
+            self.decl.name,
+            f_name,
+        ));
+    }
+}
+
+impl TsDefaultValue<'_> {
+    // fn find_local_decl(&self, name: &String) -> &Decl<TypeExpr<TypeRef>> {
+    //     self.ctx
+    //         .module
+    //         .decls
+    //         .iter()
+    //         .find(|decl| decl.name == *name)
+    //         .unwrap()
+    // }
+
     pub fn gen_default_value(
-        &mut self,
+        &self,
         t: &mut Tokens<JavaScript>,
         field: &Field<TypeExpr<TypeRef>>,
         val: Option<&Value>,
@@ -154,6 +185,7 @@ impl TsDefaultValue<'_> {
             None => match &field.default.0 {
                 Some(v) => v,
                 None => {
+                    // todo!();
                     return self.create_err_missing_val(&field.name);
                 }
             },
@@ -163,52 +195,96 @@ impl TsDefaultValue<'_> {
     }
 
     pub fn gen_type_expr(
-        &mut self,
+        &self,
         t: &mut Tokens<JavaScript>,
         f_name: &String,
         type_expr: &TypeExpr<TypeRef>,
         val: &Value,
     ) -> anyhow::Result<()> {
         match &type_expr.type_ref {
-            TypeRef::ScopedName(_d) => {
-                quote_in! { *t => {} };
+            TypeRef::ScopedName(sn) => {
+                let resolver = self.ctx.resolver;
+                if let Some(m_remote) = resolver.get_module(&sn.module_name) {
+                    if let Some(decl) = resolver.get_decl(sn) {
+                        let dvg = TsDefaultValue {
+                            ctx: &ResolverModule {
+                                module: m_remote,
+                                resolver,
+                            },
+                            decl,
+                            type_map: self.type_map,
+                        };
+                        dvg.gen_decl(t, decl, type_expr, f_name, val)?
+                    } else {
+                        return self.create_err_resolve_scoped_name(f_name, sn);
+                    }
+                } else {
+                    return self.create_err_resolve_module(f_name, &sn.module_name);
+                }
+                // let resolver = self.ctx.resolver;
+                // if let Some(remote_mod) = resolver.get_module(&sn.module_name) {
+                //     if let Some(decl) = resolver.get_decl(sn) {
+                //         let dvg = TsDefaultValue {
+                //             ctx: &ResolverModule {
+                //                 module: remote_mod,
+                //                 resolver,
+                //             },
+                //             decl,
+                //             type_map: self.type_map,
+                //         };
+                //         dvg.gen_decl(t, decl, type_expr, f_name, val)?
+                //     } else {
+                //         return self.create_err_resolve_scoped_name(f_name, sn);
+                //     }
+                // } else {
+                //     return self.create_err_resolve_scoped_name(f_name, sn);
+                // }
             }
             TypeRef::LocalName(d) => {
-                let decl = self.find_local_decl(&d);
-                let type_params = crate::utils::ast::get_type_params(decl);
-
-                if type_expr.parameters.len() != type_params.len() {
-                    return self.create_err_mismatch_type_params(
-                        &decl.name,
-                        type_params.len(),
-                        type_expr.parameters.len(),
-                    );
-                }
-                let mut type_map: HashMap<String, &TypeExpr<TypeRef>> = HashMap::new();
-                for (i, tp) in type_params.iter().enumerate() {
-                    let mut te_p = type_expr.parameters.get(i).unwrap();
-                    // TODO is this enough, or does it need to be in a loop?
-                    // I don't think so, but ...
-                    // loop {
-                    if let TypeRef::TypeParam(tp0) = &te_p.type_ref {
-                        te_p = self.type_map.get(tp0).unwrap();
-                    }
-                    //     else {
-                    //         break;
-                    //     }
-                    // }
-                    type_map.insert(tp.to_string(), te_p);
-                }
-                let tsgen_te = &mut TsDefaultValue {
-                    ctx: self.ctx,
-                    type_map: &type_map,
-                    decl,
-                    // depth: Box::new(0),
+                // let decl = self.find_local_decl(&d);
+                let sn = &ScopedName {
+                    module_name: self.ctx.module.name.clone(),
+                    name: d.clone(),
                 };
-                let inner = tsgen_te.gen_type_ref(t, &f_name, val);
-                if let Err(e) = inner {
-                    return self.create_wrapped_err(f_name, e.to_string());
+                if let Some(decl) = self.ctx.resolver.get_decl(sn) {
+                    self.gen_decl(t, decl, type_expr, f_name, val)?
+                } else {
+                    return self.create_err_resolve_scoped_name(f_name, sn);
                 }
+                // let type_params = crate::utils::ast::get_type_params(decl);
+
+                // if type_expr.parameters.len() != type_params.len() {
+                //     return self.create_err_mismatch_type_params(
+                //         &decl.name,
+                //         type_params.len(),
+                //         type_expr.parameters.len(),
+                //     );
+                // }
+                // let mut type_map: HashMap<String, &TypeExpr<TypeRef>> = HashMap::new();
+                // for (i, tp) in type_params.iter().enumerate() {
+                //     let mut te_p = type_expr.parameters.get(i).unwrap();
+                //     // TODO is this enough, or does it need to be in a loop?
+                //     // I don't think so, but ...
+                //     // loop {
+                //     if let TypeRef::TypeParam(tp0) = &te_p.type_ref {
+                //         te_p = self.type_map.get(tp0).unwrap();
+                //     }
+                //     //     else {
+                //     //         break;
+                //     //     }
+                //     // }
+                //     type_map.insert(tp.to_string(), te_p);
+                // }
+                // let tsgen_te = &mut TsDefaultValue {
+                //     ctx: self.ctx,
+                //     type_map: &type_map,
+                //     decl,
+                //     // depth: Box::new(0),
+                // };
+                // let inner = tsgen_te.gen_type_ref(t, &f_name, val);
+                // if let Err(e) = inner {
+                //     return self.create_wrapped_err(f_name, e.to_string());
+                // }
             }
             TypeRef::Primitive(d) => {
                 self.gen_primitive(t, &f_name, d, val, &type_expr.parameters)?;
@@ -228,8 +304,52 @@ impl TsDefaultValue<'_> {
         return Ok(());
     }
 
+    fn gen_decl(
+        &self,
+        t: &mut Tokens<JavaScript>,
+        decl: &Decl<TypeExpr<TypeRef>>,
+        type_expr: &TypeExpr<TypeRef>,
+        f_name: &String,
+        val: &Value,
+    ) -> anyhow::Result<()> {
+        let type_params = crate::utils::ast::get_type_params(decl);
+        if type_expr.parameters.len() != type_params.len() {
+            return self.create_err_mismatch_type_params(
+                &decl.name,
+                type_params.len(),
+                type_expr.parameters.len(),
+            );
+        }
+        let mut type_map: HashMap<String, &TypeExpr<TypeRef>> = HashMap::new();
+        for (i, tp) in type_params.iter().enumerate() {
+            let mut te_p = type_expr.parameters.get(i).unwrap();
+            // TODO is this enough, or does it need to be in a loop?
+            // I don't think so, but ...
+            // loop {
+            if let TypeRef::TypeParam(tp0) = &te_p.type_ref {
+                te_p = self.type_map.get(tp0).unwrap();
+            }
+            //     else {
+            //         break;
+            //     }
+            // }
+            type_map.insert(tp.to_string(), te_p);
+        }
+        let tsgen_te = &mut TsDefaultValue {
+            ctx: self.ctx,
+            type_map: &type_map,
+            decl,
+            // depth: Box::new(0),
+        };
+        let inner = tsgen_te.gen_type_ref(t, &f_name, val);
+        if let Err(e) = inner {
+            return self.create_wrapped_err(f_name, e.to_string());
+        }
+        return Ok(());
+    }
+
     fn gen_type_ref(
-        &mut self,
+        &self,
         t: &mut Tokens<JavaScript>,
         f_name: &String,
         val: &Value,
@@ -263,61 +383,91 @@ impl TsDefaultValue<'_> {
                     return self.create_err("object", f_name, val);
                 }
             }
-            DeclType::Union(ty) => {
-                match val {
-                    Value::String(b_name) => {
-                        if is_enum(ty) {
-                            quote_in! { *t => $DQ$(b_name)$DQ };
-                            return Ok(());
-                        }
-                        let te = ty.fields.iter().find(|f| f.serialized_name == *b_name);
-                        if let Some(te0) = te {
-                            match &te0.type_expr.type_ref {
-                                TypeRef::Primitive(p) => match p {
-                                    PrimitiveType::Void => {}
-                                    _ => {
-                                        return self.create_err_union_void_branch(b_name);
-                                    }
-                                },
+            DeclType::Union(ty) => match val {
+                Value::String(b_name) => {
+                    if is_enum(ty) {
+                        quote_in! { *t => $DQ$(b_name)$DQ };
+                        return Ok(());
+                    }
+                    let te = ty.fields.iter().find(|f| f.serialized_name == *b_name);
+                    if let Some(te0) = te {
+                        match &te0.type_expr.type_ref {
+                            TypeRef::Primitive(p) => match p {
+                                PrimitiveType::Void => {}
                                 _ => {
                                     return self.create_err_union_void_branch(b_name);
                                 }
+                            },
+                            _ => {
+                                return self.create_err_union_void_branch(b_name);
                             }
-                            quote_in! { *t => $OC };
-                            quote_in! { *t => kind : $DQ$(b_name)$DQ };
-                            quote_in! { *t => $CC };
-                        } else {
-                            return self.create_err_union_te(b_name);
                         }
+                        quote_in! { *t => $OC };
+                        quote_in! { *t => kind : $DQ$(b_name)$DQ };
+                        quote_in! { *t => $CC };
+                    } else {
+                        return self.create_err_union_te(b_name);
                     }
-                    Value::Object(obj) => {
-                        let y: Vec<&String> = obj.keys().collect();
-                        if y.len() != 1 {
-                            return self.create_err_union(f_name, val);
-                        }
-                        let b_name = y[0];
-                        let b_val = obj.get(y[0]);
-                        let te = ty.fields.iter().find(|f| f.serialized_name == *b_name);
-                        if let Some(te0) = te {
-                            quote_in! { *t => $OC };
-                            quote_in! { *t => kind : $DQ$(y[0])$DQ, value :$[' ']};
-                            self.gen_default_value(t, te0, b_val)?;
-                            quote_in! { *t => $CC };
-                        } else {
-                            return self.create_err_union_te(b_name);
-                        }
-                    }
-                    _ => return self.create_err("object or string", f_name, val),
                 }
+                Value::Object(obj) => {
+                    let y: Vec<&String> = obj.keys().collect();
+                    if y.len() != 1 {
+                        return self.create_err_union(f_name, val);
+                    }
+                    let b_name = y[0];
+                    let b_val = obj.get(y[0]);
+                    let te = ty.fields.iter().find(|f| f.serialized_name == *b_name);
+                    if let Some(te0) = te {
+                        quote_in! { *t => $OC };
+                        quote_in! { *t => kind : $DQ$(y[0])$DQ, value :$[' ']};
+                        self.gen_default_value(t, te0, b_val)?;
+                        quote_in! { *t => $CC };
+                    } else {
+                        return self.create_err_union_te(b_name);
+                    }
+                }
+                _ => return self.create_err("object or string", f_name, val),
+            },
+            DeclType::Type(_ty) => {
+                todo!();
             }
-            DeclType::Type(_ty) => todo!(),
-            DeclType::Newtype(_ty) => todo!(),
+            DeclType::Newtype(ty) => {
+                // match ty.type_expr.type_ref {
+                //     TypeRef::ScopedName(_) => todo!(),
+                //     TypeRef::LocalName(_) => todo!(),
+                //     TypeRef::Primitive(_) => todo!(),
+                //     TypeRef::TypeParam(_) => todo!(),
+                // }
+
+                // self.ctx.resolver.
+                // let dvg = TsDefaultValue {
+                //     ctx: &ResolverModule {
+                //         module: remote_mod,
+                //         resolver,
+                //     },
+                //     decl,
+                //     type_map: self.type_map,
+                // };
+
+                self.gen_type_expr(t, f_name, &ty.type_expr, val)?;
+                // let tsgen_te = &mut TsDefaultValue {
+                //     ctx: self.ctx,
+                //     type_map: self.type_map,
+                //     decl,
+                //     // depth: Box::new(0),
+                // };
+                // let inner = tsgen_te.gen_type_ref(t, &f_name, val);
+                // if let Err(e) = inner {
+                //     return self.create_wrapped_err(f_name, e.to_string());
+                // }
+                // todo!();
+            }
         };
         Ok(())
     }
 
     fn gen_primitive(
-        &mut self,
+        &self,
         t: &mut Tokens<JavaScript>,
         f_name: &String,
         type_: &PrimitiveType,

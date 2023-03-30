@@ -13,6 +13,15 @@ pub struct TestFileMetaData {
 
   #[serde(default="TestFileMetaData::def_fail")]
   pub fail: bool,
+
+  #[serde(default="TestFileMetaData::def_title")]
+  pub title: String,
+
+  #[serde(default="TestFileMetaData::def_description")]
+  pub description: String,
+
+  #[serde(default="TestFileMetaData::def_keywords")]
+  pub keywords: Vec<String>,
 }
 
 impl TestFileMetaData {
@@ -21,10 +30,25 @@ impl TestFileMetaData {
       search_path: search_path,
       modules: modules,
       fail: TestFileMetaData::def_fail(),
+      title: TestFileMetaData::def_title(),
+      description: TestFileMetaData::def_description(),
+      keywords: TestFileMetaData::def_keywords(),
     }
   }
 
   pub fn def_fail() -> bool {
     false
+  }
+
+  pub fn def_title() -> String {
+    "".to_string()
+  }
+
+  pub fn def_description() -> String {
+    "".to_string()
+  }
+
+  pub fn def_keywords() -> Vec<String> {
+    vec![]
   }
 }

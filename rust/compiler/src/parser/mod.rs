@@ -288,7 +288,12 @@ pub fn docstring_scoped_name() -> adlast::ScopedName {
     adlast::ScopedName::new("sys.annotations".to_owned(), "Doc".to_owned())
 }
 
-pub fn decl_type(i: Input) -> Res<Input, (&str, adlast::DeclType<TypeExpr0>)> {
+pub fn serializedname_scoped_name() -> adlast::ScopedName {
+    // adlast::ScopedName::new("sys.annotations".to_owned(), "SerializedName".to_owned())
+    adlast::ScopedName::new("".to_owned(), "SerializedName".to_owned())
+}
+
+pub fn decl_type(i: Input<'_>) -> Res<Input<'_>, (&str, adlast::DeclType<TypeExpr0>)> {
     alt((
         context(
             "struct",

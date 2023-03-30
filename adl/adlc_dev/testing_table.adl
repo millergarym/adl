@@ -6,6 +6,9 @@ struct TestFileMetaData {
     String search_path;
     Vector<String> modules;
     Bool fail = false;
+    String title = "";
+    String description = "";
+    Vector<String> keywords = [];
 };
 
 };
