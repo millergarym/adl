@@ -46,6 +46,7 @@ impl TsGenVisitor<'_> {
             $("/* @generated from adl module") $(m.name.clone()) $("*/")
             $['\n']
         };
+        self.gen_doc_comment(t, &m.annotations)?;
         let mname = &m.name;
         for decl in m.decls.iter() {
             self.gen_doc_comment(t, &decl.annotations)?;
@@ -95,7 +96,7 @@ impl TsGenVisitor<'_> {
     ) -> anyhow::Result<()> {
         let (decl, name) = (payload.decl, &payload.decl.name);
         // let name_up = &title(name);
-        self.gen_doc_comment(t, &decl.annotations)?;
+        // self.gen_doc_comment(t, &decl.annotations)?;
         // let fnames: &Vec<String> = &m.fields.iter().map(|f| f.name.clone()).collect();
         let te_trs: Vec<TypeExpr<TypeRef>> = m.fields.iter().map(|f| f.type_expr.clone()).collect();
         let mut has_make = true;
@@ -259,9 +260,6 @@ impl TsGenVisitor<'_> {
         let name = &payload.decl.name;
         let rtype = self.rust_type(&m.type_expr).map_err(|s| anyhow!(s))?;
 
-        quote_in! { *t =>
-            $("// newtype")$['\n']
-        }
         let used = used_type_params(&vec![m.type_expr.clone()]);
         quote_in! { *t =>
             export type $name$(gen_type_params_(&used, &m.type_params)) =  $(rtype.1.clone());
@@ -289,9 +287,6 @@ impl TsGenVisitor<'_> {
         let name = &payload.decl.name;
         let rtype = self.rust_type(&m.type_expr).map_err(|s| anyhow!(s))?;
 
-        quote_in! { *t =>
-            $("// type")$['\n']
-        }
         let used = used_type_params(&vec![m.type_expr.clone()]);
         quote_in! { *t =>
             export type $name$(gen_type_params_(&used, &m.type_params)) =  $(rtype.1.clone());
