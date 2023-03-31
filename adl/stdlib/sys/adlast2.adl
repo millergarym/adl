@@ -144,4 +144,6 @@ type TypeExpr1 = TypeExpr<TypeRef>;
 type Decl1 = Decl<TypeExpr1>;
 type Module1 = Module<TypeExpr1>;
 
+type AdlAst = StringMap<Module1>;
+
 };

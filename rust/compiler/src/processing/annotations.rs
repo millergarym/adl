@@ -6,18 +6,38 @@ use crate::parser::{serializedname_scoped_name, ExplicitAnnotationRef, RawModule
 
 fn apply_serialized_name(m0: &mut Module0) {
     for decl in m0.decls.iter_mut() {
-        match decl.r#type {
-            adlast::DeclType::Struct(ref mut dt) => {
+        // if the match variable isn't '&mut' the the branches need '(ref mut dt)'
+        //eg adlast::DeclType::Struct(ref mut dt)
+        match &mut decl.r#type {
+            adlast::DeclType::Struct(dt) => {
                 for f in dt.fields.iter_mut() {
                     if let Some(ser_value) = f.annotations.0.remove(&serializedname_scoped_name()) {
-                        f.serialized_name = String::from(ser_value.as_str().unwrap());
+                        // currently there is a bug where a local_name SerializedName can get confussed with sys.annotation.SerializedName
+                        // this is to mitigate this
+                        match ser_value.as_str() {
+                            Some(ser_name) => {
+                                f.serialized_name = String::from(ser_name);
+                            }
+                            None => {
+                                // TODO print warning?
+                            }
+                        }
                     }
                 }
             }
-            adlast::DeclType::Union(ref mut dt) => {
+            adlast::DeclType::Union(dt) => {
                 for f in dt.fields.iter_mut() {
                     if let Some(ser_value) = f.annotations.0.remove(&serializedname_scoped_name()) {
-                        f.serialized_name = String::from(ser_value.as_str().unwrap());
+                        // currently there is a bug where a local_name SerializedName can get confussed with sys.annotation.SerializedName
+                        // this is to mitigate this
+                        match ser_value.as_str() {
+                            Some(ser_name) => {
+                                f.serialized_name = String::from(ser_name);
+                            }
+                            None => {
+                                // TODO print warning?
+                            }
+                        }
                     }
                 }
             }
@@ -28,7 +48,9 @@ fn apply_serialized_name(m0: &mut Module0) {
 
 /// Attach explicit annotations to the appropriate nodes in the AST. On failure, returns
 /// the nodes that could not be attached.
-pub fn apply_explicit_annotations_and_serialized_name(raw_module: RawModule) -> Result<Module0, AnnotationError> {
+pub fn apply_explicit_annotations_and_serialized_name(
+    raw_module: RawModule,
+) -> Result<Module0, AnnotationError> {
     let (mut module0, explicit_annotations) = raw_module;
     let mut unresolved = Vec::new();
 

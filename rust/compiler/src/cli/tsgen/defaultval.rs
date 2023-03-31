@@ -371,7 +371,7 @@ impl TsDefaultValue<'_> {
                         } else {
                             rest = true;
                         }
-                        quote_in! { *t => $(&f0.serialized_name) :$[' ']}
+                        quote_in! { *t => $(&f0.name) :$[' ']}
                         dvg.gen_default_value(t, &f0, obj.get(&f0.serialized_name))?;
                         // let inner =  dvg.gen_default_value(t, &f0, obj.get(&f0.serialized_name));
                         // if let Err(e) = inner {
@@ -410,26 +410,26 @@ impl TsDefaultValue<'_> {
                     }
                 }
                 Value::Object(obj) => {
-                    let y: Vec<&String> = obj.keys().collect();
-                    if y.len() != 1 {
+                    let keys: Vec<&String> = obj.keys().collect();
+                    if keys.len() != 1 {
                         return self.create_err_union(f_name, val);
                     }
-                    let b_name = y[0];
-                    let b_val = obj.get(y[0]);
-                    let te = ty.fields.iter().find(|f| f.serialized_name == *b_name);
-                    if let Some(te0) = te {
+                    let ser_name = keys[0];
+                    let b_val = obj.get(ser_name);
+                    let branch = ty.fields.iter().find(|f| f.serialized_name == *ser_name);
+                    if let Some(branch) = branch {
                         quote_in! { *t => $OC };
-                        quote_in! { *t => kind : $DQ$(y[0])$DQ, value :$[' ']};
-                        self.gen_default_value(t, te0, b_val)?;
+                        quote_in! { *t => kind : $DQ$(&branch.name)$DQ, value :$[' ']};
+                        self.gen_default_value(t, branch, b_val)?;
                         quote_in! { *t => $CC };
                     } else {
-                        return self.create_err_union_te(b_name);
+                        return self.create_err_union_te(ser_name);
                     }
                 }
                 _ => return self.create_err("object or string", f_name, val),
             },
-            DeclType::Type(_ty) => {
-                todo!();
+            DeclType::Type(ty) => {
+                self.gen_type_expr(t, f_name, &ty.type_expr, val)?;
             }
             DeclType::Newtype(ty) => {
                 // match ty.type_expr.type_ref {

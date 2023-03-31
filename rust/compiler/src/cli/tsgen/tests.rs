@@ -24,6 +24,14 @@ fn generate_ts_from_test_files() {
     match TestFilesMetaData::deserialize(&mut de) {
         Ok(tests) => {
             for t in &tests {
+                if t.skip {
+                    println!(
+                        "Skipping {} {} - ts gen output;",
+                        &t.search_path,
+                        &t.title,
+                    );
+                    continue;
+                }
                 let mut sp = PathBuf::from("../../adl/tests/");
                 let mut outdir = PathBuf::from("build/dev_adl");
                 outdir.push(t.search_path.clone());
@@ -49,18 +57,25 @@ fn generate_ts_from_test_files() {
                 match tsgen(&opts) {
                     Ok(_) => {
                         println!(
-                            "{} {} {} - ts gen output;",
-                            &t.search_path, &t.title, &t.description
+                            "{} {} - ts gen output;  {}",
+                            &t.search_path,
+                            &t.title,
+                            &t.description.join("\n    "),
                         );
                         for m in &t.modules {
                             println!("  build/dev_adl/{}/{}.ts", &t.search_path, m)
+                        }
+                        if t.fail {
+                            assert!(false, "the above test was expected to fail, but passed")
                         }
                     }
                     Err(e) => {
                         if t.fail {
                             println!(
-                                "{} {} {} - failed as expected for src;",
-                                &t.search_path, &t.title, &t.description
+                                "{} {} - failed as expected for src;  {}",
+                                &t.search_path,
+                                &t.title,
+                                &t.description.join("\n\t"),
                             );
                             for m in &t.modules {
                                 println!("  ../../adl/tests/{}/{}.adl", &t.search_path, m)
@@ -70,7 +85,7 @@ fn generate_ts_from_test_files() {
                                 "{} {} {} - Error '{}'",
                                 &t.search_path,
                                 &t.title,
-                                &t.description,
+                                &t.description.join("\n\t"),
                                 e.to_string()
                             );
                             for m in &t.modules {

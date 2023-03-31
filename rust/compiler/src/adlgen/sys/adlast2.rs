@@ -333,3 +333,5 @@ pub type TypeExpr1 = TypeExpr<TypeRef>;
 pub type Decl1 = Decl<TypeExpr1>;
 
 pub type Module1 = Module<TypeExpr1>;
+
+pub type AdlAst = std::collections::HashMap<String,Module1>;
