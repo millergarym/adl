@@ -11,6 +11,8 @@ pub type Ident = String;
 
 pub type Annotations = Map<ScopedName, serde_json::Value>;
 
+pub type DocComment = Vec<String>;
+
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct ScopedName {
   #[serde(rename="moduleName")]
@@ -58,16 +60,20 @@ pub struct Field<TE> {
   pub default: Maybe<serde_json::Value>,
 
   pub annotations: Annotations,
+
+  #[serde(rename="docComment")]
+  pub doc_comment: DocComment,
 }
 
 impl<TE> Field<TE> {
-  pub fn new(name: Ident, serialized_name: Ident, type_expr: TE, default: Maybe<serde_json::Value>, annotations: Annotations) -> Field<TE> {
+  pub fn new(name: Ident, serialized_name: Ident, type_expr: TE, default: Maybe<serde_json::Value>, annotations: Annotations, doc_comment: DocComment) -> Field<TE> {
     Field {
       name: name,
       serialized_name: serialized_name,
       type_expr: type_expr,
       default: default,
       annotations: annotations,
+      doc_comment: doc_comment,
     }
   }
 }
@@ -170,15 +176,19 @@ pub struct Decl<TE> {
   pub r#type: DeclType<TE>,
 
   pub annotations: Annotations,
+
+  #[serde(rename="docComment")]
+  pub doc_comment: DocComment,
 }
 
 impl<TE> Decl<TE> {
-  pub fn new(name: Ident, version: Maybe<u32>, r#type: DeclType<TE>, annotations: Annotations) -> Decl<TE> {
+  pub fn new(name: Ident, version: Maybe<u32>, r#type: DeclType<TE>, annotations: Annotations, doc_comment: DocComment) -> Decl<TE> {
     Decl {
       name: name,
       version: version,
       r#type: r#type,
       annotations: annotations,
+      doc_comment: doc_comment,
     }
   }
 }
@@ -220,15 +230,19 @@ pub struct Module<TE> {
   pub decls: Vec<Decl<TE>>,
 
   pub annotations: Annotations,
+
+  #[serde(rename="docComment")]
+  pub doc_comment: DocComment,
 }
 
 impl<TE> Module<TE> {
-  pub fn new(name: ModuleName, imports: Vec<Import>, decls: Vec<Decl<TE>>, annotations: Annotations) -> Module<TE> {
+  pub fn new(name: ModuleName, imports: Vec<Import>, decls: Vec<Decl<TE>>, annotations: Annotations, doc_comment: DocComment) -> Module<TE> {
     Module {
       name: name,
       imports: imports,
       decls: decls,
       annotations: annotations,
+      doc_comment: doc_comment,
     }
   }
 }

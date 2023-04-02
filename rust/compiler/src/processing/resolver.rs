@@ -174,6 +174,7 @@ pub fn resolve_module(ctx: &mut ResolveCtx, module0: &Module0) -> Result<Module1
         module0.imports.clone(),
         decls1,
         annotations1,
+        module0.doc_comment.clone(),
     );
     Ok(module1)
 }
@@ -194,6 +195,7 @@ pub fn resolve_decl(
         decl0.version.clone(),
         dtype,
         annotations,
+        decl0.doc_comment.clone(),
     );
     Ok(decl)
 }

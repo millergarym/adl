@@ -116,6 +116,7 @@ fn parse_decl() {
       name: "A".to_string(),
       version:  Maybe::nothing(),
       annotations:  Map::new(Vec::new()),
+      doc_comment: vec![],
       r#type: adlast::DeclType::Struct(adlast::Struct{
         type_params: Vec::new(),
         fields: vec![
@@ -125,6 +126,7 @@ fn parse_decl() {
             default:  Maybe::nothing(),
             serialized_name: "f1".to_string(),
             type_expr: mk_typeexpr0(mk_scoped_name("", "F")),
+            doc_comment: vec![],
           },
           adlast::Field{
             name: "f2".to_string(),
@@ -132,6 +134,7 @@ fn parse_decl() {
             default: Maybe::nothing(),
             serialized_name: "f2".to_string(),
             type_expr: mk_typeexpr0(mk_scoped_name("", "G")),
+            doc_comment: vec![],
           }
         ],
       }),
@@ -151,6 +154,7 @@ fn parse_decl_annotations() {
         (mk_scoped_name("", "Y"), serde_json::Value::String("xyzzy".to_owned())),
         (mk_scoped_name("X", "Z"), serde_json::Value::Bool(true)),
       ]),
+      doc_comment: vec![],
       r#type: adlast::DeclType::Struct(adlast::Struct{
         type_params: Vec::new(),
         fields: vec![],
@@ -198,9 +202,8 @@ fn parse_docstring() {
     adlast::Decl{
       name: "A".to_string(),
       version: Maybe::nothing(),
-      annotations:  Map::from_iter(vec![
-        (docstring_scoped_name(), serde_json::Value::from(vec![" Some doc"])),
-      ]),
+      annotations:  Map::from_iter(vec![]),
+      doc_comment: vec![" Some doc".to_string()],
       r#type: adlast::DeclType::Struct(adlast::Struct{
         type_params: Vec::new(),
         fields: vec![],
@@ -213,9 +216,8 @@ fn parse_docstring() {
     adlast::Decl{
       name: "A".to_string(),
       version:  Maybe::nothing(),
-      annotations:  Map::from_iter(vec![
-        (mk_scoped_name("sys.annotations", "Doc"), serde_json::Value::from(vec![" Some doc"," with line 2"])),
-      ]),
+      annotations:  Map::from_iter(vec![]),
+      doc_comment: vec![" Some doc".to_string(), " with line 2".to_string()],
       r#type: adlast::DeclType::Struct(adlast::Struct{
         type_params: Vec::new(),
         fields: vec![],

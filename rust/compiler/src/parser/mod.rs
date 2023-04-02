@@ -195,7 +195,7 @@ pub fn raw_module0(i: Input) -> Res<Input, RawModule> {
             }
         }
     }
-    let module = adlast::Module::new(name, imports, decls, ma);
+    let module = adlast::Module::new(name, imports, decls, ma.0, ma.1);
 
     Ok((i, (module, explicit_annotations)))
 }
@@ -220,68 +220,72 @@ pub fn wildcard_import(i: Input) -> Res<Input, adlast::ModuleName> {
     Ok((i, m[..(m.len() - 2)].to_string()))
 }
 
-pub fn decl_or_annotation(i: Input) -> Res<Input, DeclOrAnnotation> {
+pub fn decl_or_annotation(i: Input<'_>) -> Res<Input<'_>, DeclOrAnnotation> {
     alt((
         map(explicit_annotation, |a| DeclOrAnnotation::DAAnnotation(a)),
         map(decl, |d| DeclOrAnnotation::DADecl(d)),
     ))(i)
 }
 
-pub fn decl(i: Input) -> Res<Input, adlast::Decl<TypeExpr0>> {
+pub fn decl(i: Input<'_>) -> Res<Input<'_>, adlast::Decl<TypeExpr0>> {
     let (i, annotations) = many0(prefix_annotation)(i)?;
     let ma = merge_annotations(annotations).map_err(|emsg| custom_error(i, emsg))?;
     let (i, (name, dtype)) = decl_type(i)?;
     let decl = adlast::Decl {
         name: name.to_owned(),
         r#type: dtype,
-        annotations: ma,
+        annotations: ma.0,
+        doc_comment: ma.1,
         version: Maybe::nothing(),
     };
     Ok((i, decl))
 }
 
-pub fn prefix_annotation(i: Input) -> Res<Input, (adlast::ScopedName, serde_json::Value)> {
+pub enum AnnOrDoc {
+    Ann((adlast::ScopedName, serde_json::Value)),
+    Doc(String),
+}
+
+pub fn prefix_annotation(i: Input<'_>) -> Res<Input<'_>, AnnOrDoc> {
     alt((
         prefix_annotation_,
         map(docstring, |s| {
-            (docstring_scoped_name(), serde_json::Value::from(s))
+            AnnOrDoc::Doc(s.to_string())
         }),
     ))(i)
 }
 
-pub fn prefix_annotation_(i: Input) -> Res<Input, (adlast::ScopedName, serde_json::Value)> {
+pub fn prefix_annotation_(i: Input<'_>) -> Res<Input<'_>, AnnOrDoc> {
     let (i, _) = wtag("@")(i)?;
     let (i, sn) = scoped_name(i)?;
     let (i, ojv) = opt(json)(i)?;
-    Ok((i, (sn, ojv.unwrap_or(serde_json::Value::Null))))
+    Ok((i, AnnOrDoc::Ann((sn, ojv.unwrap_or(serde_json::Value::Null)))))
 }
 
 pub fn merge_annotations(
-    anns: Vec<(adlast::ScopedName, serde_json::Value)>,
-) -> Result<adlast::Annotations, String> {
+    anns: Vec<AnnOrDoc>,
+) -> Result<(adlast::Annotations, adlast::DocComment), String> {
     // Create a map out of the annotations
     // Keep doc strings as a vector of string (saves having to split them later for Javadoc type comments with a leading *)
     let mut hm = HashMap::new();
     let mut ds = Vec::new();
-
-    for (k, v) in anns {
-        if k == docstring_scoped_name() {
-            ds.push(v.as_str().unwrap().to_owned());
-        } else {
-            if let Some(_) = hm.insert(k.clone(), v) {
-                return Err(format!(
-                    "Error duplicate annotation '{}.{}'",
-                    &k.module_name, &k.name
-                ));
-            }
+    for v in anns {
+        match v {
+            AnnOrDoc::Ann(ann) => {
+                if let Some(_) = hm.insert(ann.0.clone(), ann.1) {
+                    return Err(format!(
+                        "Error duplicate annotation '{}.{}'",
+                        &ann.0.module_name, &ann.0.name
+                    ));
+                }
+            },
+            AnnOrDoc::Doc(dc) => {
+                ds.push(dc);
+            },
         }
     }
-    if !ds.is_empty() {
-        // ADL Doc string is (in ADL) `type Doc = Vector<String>` not `type Doc = String`
-        hm.insert(docstring_scoped_name(), serde_json::Value::from(ds));
-    };
 
-    Ok(Map(hm))
+    Ok((Map(hm),ds))
 }
 
 pub fn docstring_scoped_name() -> adlast::ScopedName {
@@ -402,7 +406,8 @@ pub fn field0(i: Input) -> Res<Input, adlast::Field<TypeExpr0>> {
         serialized_name: name.to_owned(),
         type_expr: texpr,
         default: maybe_from_option(default),
-        annotations: ma,
+        annotations: ma.0,
+        doc_comment: ma.1,
     };
     Ok((i, field))
 }

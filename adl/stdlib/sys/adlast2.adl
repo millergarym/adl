@@ -8,7 +8,7 @@ type ModuleName = String;
 type Ident = String;
 
 type Annotations = Map<ScopedName,Json>;
-
+type DocComment = Vector<String>;
 
 struct ScopedName
 {
@@ -29,6 +29,7 @@ struct Field<TE>
     TE typeExpr;
     Maybe<Json> default;
     Annotations annotations;
+    DocComment docComment;
 };
 
 struct Struct<TE>
@@ -70,6 +71,7 @@ struct Decl<TE>
     Maybe<Word32> version;
     DeclType<TE> type_;
     Annotations annotations;
+    DocComment docComment;
 };
 
 struct ScopedDecl<TE>
@@ -92,6 +94,7 @@ struct Module<TE>
     Vector<Import> imports;
     Vector<Decl<TE>> decls;
     Annotations annotations;
+    DocComment docComment;
 };
 
 /// The Span start..end contains all values with start <= x < end. It is empty if start >= end.
@@ -144,6 +147,7 @@ type TypeExpr1 = TypeExpr<TypeRef>;
 type Decl1 = Decl<TypeExpr1>;
 type Module1 = Module<TypeExpr1>;
 
+// Used to output the ADL AST
 type AdlAst = StringMap<Module1>;
 
 };
