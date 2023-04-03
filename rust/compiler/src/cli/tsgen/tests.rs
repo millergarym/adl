@@ -21,6 +21,7 @@ fn generate_ts_from_test_files() {
     let reader = BufReader::new(file);
 
     let mut de = serde_json::Deserializer::from_reader(reader);
+    let mut adlc_cmds = vec![];
     match TestFilesMetaData::deserialize(&mut de) {
         Ok(tests) => {
             for t in &tests {
@@ -49,9 +50,43 @@ fn generate_ts_from_test_files() {
                         manifest: Some(manifest),
                     },
                     include_runtime: true,
+                    runtime_dir: Some("runtime".to_string()),
+                    ts_style: None,
                     modules: t.modules.clone(),
                     capitalize_branch_names_in_types: true,
                 };
+                if !t.fail && !t.skip {
+                    let mut adlc_cmd = String::new();
+                    adlc_cmd.push_str("adlc typescript");
+                    opts.search.path.iter().for_each(|p| {
+                        adlc_cmd.push_str(" --searchdir=");
+                        adlc_cmd.push_str(p.to_str().unwrap());
+                    });
+                    adlc_cmd.push_str(" --outputdir=build/adlc_out/");
+                    adlc_cmd.push_str(t.search_path.clone().as_str());
+                    // adlc_cmd.push_str(opts.output.outdir.to_str().unwrap());
+                    adlc_cmd.push_str(" --generate-transitive");
+                    adlc_cmd.push_str(" --include-rt");
+                    adlc_cmd.push_str(" --include-resolver");
+                    adlc_cmd.push_str(" --runtime-dir=runtime");
+
+                    adlc_cmd.push_str(" --manifest=");
+                    adlc_cmd.push_str("build/adlc_out/");
+                    adlc_cmd.push_str(t.search_path.clone().as_str());
+                    adlc_cmd.push_str("/manifest");
+
+                    opts.modules.iter().for_each(|m| {
+                        adlc_cmd.push_str(" ");
+                        adlc_cmd.push_str("../../adl/tests/");
+                        adlc_cmd.push_str(t.search_path.clone().as_str());
+                        adlc_cmd.push_str("/");
+                        adlc_cmd.push_str(m);
+                        adlc_cmd.push_str(".adl");
+                    });
+                    adlc_cmds.push(adlc_cmd);
+                    // println!("{}", adlc_cmd);
+                }
+
                 // TODO consider failed.
                 // t.fail
                 match tsgen(&opts) {
@@ -99,6 +134,9 @@ fn generate_ts_from_test_files() {
         }
         Err(err) => assert!(false, "error deserializing testing_table {}", err),
     }
+    adlc_cmds.iter().for_each(|cmd| {
+        println!("{}", cmd);
+    })
 
     // // Read the JSON contents of the file as an instance of `User`.
     // let u: Result<TestFilesMetaData, _> = serde_json::from_reader(reader);

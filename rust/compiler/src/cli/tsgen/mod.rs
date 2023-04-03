@@ -1,5 +1,9 @@
 use super::TsOpts;
 
+extern crate regex;
+
+use regex::bytes::Regex;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -9,9 +13,7 @@ use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
 use crate::adlgen::sys::adlast2::{self as adlast};
-use crate::adlgen::sys::adlast2::{
-    Module, Module1, TypeExpr, TypeRef,
-};
+use crate::adlgen::sys::adlast2::{Module, Module1, TypeExpr, TypeRef};
 use crate::processing::loader::loader_from_search_paths;
 use crate::processing::resolver::Resolver;
 use crate::processing::writer::TreeWriter;
@@ -19,10 +21,31 @@ use crate::processing::writer::TreeWriter;
 mod astgen;
 mod defaultval;
 mod generate;
-mod utils;
 #[cfg(test)]
 mod tests;
+mod utils;
 
+const RUNTIME_JSON: &[u8] = include_bytes!("runtime/json.ts");
+const RUNTIME_ADL: &[u8] = include_bytes!("runtime/adl.ts");
+const RUNTIME_UTILS: &[u8] = include_bytes!("runtime/utils.ts");
+const RUNTIME_DYNAMIC: &[u8] = include_bytes!("runtime/dynamic.ts");
+const RUNTIME_SYS_DYNAMIC: &[u8] = include_bytes!("runtime/sys/dynamic.ts");
+const RUNTIME_SYS_ADLAST: &[u8] = include_bytes!("runtime/sys/adlast.ts");
+const RUNTIME_SYS_TYPES: &[u8] = include_bytes!("runtime/sys/types.ts");
+
+const RUNTIME: [&'static (&str, &[u8]); 7] = [
+    &("json.ts", RUNTIME_JSON),
+    &("adl.ts", RUNTIME_ADL),
+    &("utils.ts", RUNTIME_UTILS),
+    &("dynamic.ts", RUNTIME_DYNAMIC),
+    &("sys/dynamic.ts", RUNTIME_SYS_DYNAMIC),
+    &("sys/adlast.ts", RUNTIME_SYS_ADLAST),
+    &("sys/types.ts", RUNTIME_SYS_TYPES),
+];
+
+const TSC_B64: &[u8] =
+    b"import {fromByteArray as b64Encode, toByteArray as b64Decode} from 'base64-js'";
+const DENO_B64: &[u8] = b"import {encode as b64Encode, decode as b64Decode} from 'https://deno.land/std@0.97.0/encoding/base64.ts'";
 
 pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
     let loader = loader_from_search_paths(&opts.search.path);
@@ -32,6 +55,43 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
         match r {
             Ok(()) => (),
             Err(e) => return Err(anyhow!("Failed to load module {}: {:?}", m, e)),
+        }
+    }
+
+    let re = Regex::new(r"\$TSEXT").unwrap();
+    let re2 = Regex::new(r"\$TSB64IMPORT").unwrap();
+    for rt in RUNTIME.iter() {
+        let mut file_path = opts.output.outdir.clone();
+        if let Some(d) = &opts.runtime_dir {
+            file_path.push(d);
+        } else {
+            file_path.push("runtime");
+        };
+        file_path.push(rt.0);
+        let dir_path = file_path.parent().unwrap();
+        std::fs::create_dir_all(dir_path)?;
+
+        log::info!("writing {}", file_path.display());
+        eprintln!("writing runtime file '{}'", file_path.display());
+
+        let tss = if let Some(tss) = opts.ts_style {
+            tss
+        } else {
+            super::TsStyle::Tsc
+        };
+        match tss {
+            super::TsStyle::Tsc => {
+                let content = re.replace_all(rt.1, "".as_bytes());
+                let content = re2.replace(&content, TSC_B64);
+                std::fs::write(file_path, content)
+                    .map_err(|e| anyhow!("error writing runtime file {}", e.to_string()))?;
+            }
+            super::TsStyle::Deno => {
+                let content = re.replace_all(rt.1, ".ts".as_bytes());
+                let content = re2.replace(&content, DENO_B64);
+                std::fs::write(file_path, content)
+                    .map_err(|e| anyhow!("error writing runtime file {}", e.to_string()))?;
+            }
         }
     }
 
@@ -52,13 +112,21 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn gen_ts_module(m: &Module<TypeExpr<TypeRef>>, resolver: &Resolver, opts: &TsOpts) -> anyhow::Result<String> {
+fn gen_ts_module(
+    m: &Module<TypeExpr<TypeRef>>,
+    resolver: &Resolver,
+    opts: &TsOpts,
+) -> anyhow::Result<String> {
     // TODO sys.annotations::SerializedName needs to be embedded
     let tokens = &mut js::Tokens::new();
     let mut mgen = generate::TsGenVisitor {
         module: m,
         resolver: resolver,
-        adlr: js::import(utils::rel_import(&m.name, &"runtime.adl".to_string()), "ADL").into_wildcard(),
+        adlr: js::import(
+            utils::rel_import(&m.name, &"runtime.adl".to_string()),
+            "ADL",
+        )
+        .into_wildcard(),
         map: &mut HashMap::new(),
         opts,
     };

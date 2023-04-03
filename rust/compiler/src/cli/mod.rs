@@ -1,5 +1,6 @@
+use anyhow::{Error, anyhow};
 use clap::{Args, Parser};
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
 pub mod ast;
 pub mod rust;
@@ -107,6 +108,15 @@ pub struct TsOpts {
     #[arg(long)]
     pub include_runtime: bool,
 
+    /// Set the directory where runtime code is written (relative to output dir).
+    #[arg(long, short='R', value_name="DIR")]
+    pub runtime_dir: Option<String>,
+
+    /// Select the style of typescript to be generated
+    // #[clap(arg_senum)]
+    #[arg(long)]
+    pub ts_style: Option<TsStyle>,//=tsc|deno
+
     #[arg(value_name="ADLMODULE")]
     pub modules: Vec<String>,
 
@@ -116,6 +126,25 @@ pub struct TsOpts {
     /// Set to true to preserve backward compatiblity.
     #[arg(long)]
     pub capitalize_branch_names_in_types: bool,
+}
+
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum TsStyle {
+    Tsc,
+    Deno,
+}
+
+impl FromStr for TsStyle {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "tsc" => Ok(TsStyle::Tsc),
+            "deno" => Ok(TsStyle::Deno),
+            _ => Err(anyhow!("must be one of 'tsc' or 'deno'")),
+        }
+    }
 }
 
 #[derive(Debug, Args)]
