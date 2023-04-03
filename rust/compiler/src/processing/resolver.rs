@@ -264,6 +264,7 @@ pub fn resolve_field(
         resolve_type_expr(ctx, &field0.type_expr)?,
         field0.default.clone(),
         resolve_annotations(ctx, &field0.annotations)?,
+        field0.doc_comment.clone(),
     );
     Ok(field1)
 }
