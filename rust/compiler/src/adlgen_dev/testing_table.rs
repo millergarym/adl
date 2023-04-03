@@ -12,6 +12,9 @@ pub struct TestFileMetaData {
   #[serde(default="TestFileMetaData::def_lib_paths")]
   pub lib_paths: Vec<String>,
 
+  #[serde(default="TestFileMetaData::def_output_dir")]
+  pub output_dir: Option<String>,
+
   pub modules: Vec<String>,
 
   #[serde(default="TestFileMetaData::def_fail")]
@@ -35,6 +38,7 @@ impl TestFileMetaData {
     TestFileMetaData {
       module_root: module_root,
       lib_paths: TestFileMetaData::def_lib_paths(),
+      output_dir: TestFileMetaData::def_output_dir(),
       modules: modules,
       fail: TestFileMetaData::def_fail(),
       skip: TestFileMetaData::def_skip(),
@@ -46,6 +50,10 @@ impl TestFileMetaData {
 
   pub fn def_lib_paths() -> Vec<String> {
     vec![]
+  }
+
+  pub fn def_output_dir() -> Option<String> {
+    None
   }
 
   pub fn def_fail() -> bool {
