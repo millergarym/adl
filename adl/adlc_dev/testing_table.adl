@@ -3,7 +3,8 @@ module testing_table {
 type TestFilesMetaData = Vector<TestFileMetaData>;
 
 struct TestFileMetaData {
-    String search_path;
+    String module_root;
+    Vector<String> lib_paths = [];
     Vector<String> modules;
     Bool fail = false;
     Bool skip = false;

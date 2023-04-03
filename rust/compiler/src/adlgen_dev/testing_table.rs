@@ -7,7 +7,10 @@ pub type TestFilesMetaData = Vec<TestFileMetaData>;
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct TestFileMetaData {
-  pub search_path: String,
+  pub module_root: String,
+
+  #[serde(default="TestFileMetaData::def_lib_paths")]
+  pub lib_paths: Vec<String>,
 
   pub modules: Vec<String>,
 
@@ -28,9 +31,10 @@ pub struct TestFileMetaData {
 }
 
 impl TestFileMetaData {
-  pub fn new(search_path: String, modules: Vec<String>) -> TestFileMetaData {
+  pub fn new(module_root: String, modules: Vec<String>) -> TestFileMetaData {
     TestFileMetaData {
-      search_path: search_path,
+      module_root: module_root,
+      lib_paths: TestFileMetaData::def_lib_paths(),
       modules: modules,
       fail: TestFileMetaData::def_fail(),
       skip: TestFileMetaData::def_skip(),
@@ -38,6 +42,10 @@ impl TestFileMetaData {
       description: TestFileMetaData::def_description(),
       keywords: TestFileMetaData::def_keywords(),
     }
+  }
+
+  pub fn def_lib_paths() -> Vec<String> {
+    vec![]
   }
 
   pub fn def_fail() -> bool {

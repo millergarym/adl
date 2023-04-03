@@ -5,6 +5,7 @@ extern crate regex;
 use regex::bytes::Regex;
 
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::path::PathBuf;
 
 use anyhow::anyhow;
@@ -58,40 +59,21 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
         }
     }
 
-    let re = Regex::new(r"\$TSEXT").unwrap();
-    let re2 = Regex::new(r"\$TSB64IMPORT").unwrap();
-    for rt in RUNTIME.iter() {
-        let mut file_path = opts.output.outdir.clone();
-        if let Some(d) = &opts.runtime_dir {
-            file_path.push(d);
+    let manifest = opts.output.manifest.as_ref().map(|m| {
+        if m.extension() == None {
+            let mut m0 = m.clone();
+            m0.set_extension("json");
+            m0
         } else {
-            file_path.push("runtime");
-        };
-        file_path.push(rt.0);
-        let dir_path = file_path.parent().unwrap();
-        std::fs::create_dir_all(dir_path)?;
+            m.clone()
+        }
+    });
 
-        log::info!("writing {}", file_path.display());
-        eprintln!("writing runtime file '{}'", file_path.display());
+    let mut writer = TreeWriter::new(opts.output.outdir.clone(), manifest)?;
 
-        let tss = if let Some(tss) = opts.ts_style {
-            tss
-        } else {
-            super::TsStyle::Tsc
-        };
-        match tss {
-            super::TsStyle::Tsc => {
-                let content = re.replace_all(rt.1, "".as_bytes());
-                let content = re2.replace(&content, TSC_B64);
-                std::fs::write(file_path, content)
-                    .map_err(|e| anyhow!("error writing runtime file {}", e.to_string()))?;
-            }
-            super::TsStyle::Deno => {
-                let content = re.replace_all(rt.1, ".ts".as_bytes());
-                let content = re2.replace(&content, DENO_B64);
-                std::fs::write(file_path, content)
-                    .map_err(|e| anyhow!("error writing runtime file {}", e.to_string()))?;
-            }
+    if !opts.include_runtime {
+        if opts.runtime_dir == None || opts.ts_style == None {
+            return Err(anyhow!("Invalid flags; --runtime-dir and --ts-style only valid if --include-runtime is set"));
         }
     }
 
@@ -101,12 +83,33 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
         .map(|mn| resolver.get_module(&mn).unwrap())
         .collect();
 
-    let mut writer = TreeWriter::new(opts.output.outdir.clone(), opts.output.manifest.clone())?;
-
     for m in modules {
         let path = path_from_module_name(opts, m.name.to_owned());
         let code = gen_ts_module(m, &resolver, opts)?;
         writer.write(path.as_path(), code)?;
+    }
+
+    {
+        let tokens = &mut js::Tokens::new();
+        let modules = resolver.get_module_names();
+        gen_resolver(tokens, modules)?;
+        let config = js::Config::default();
+        // let config = js::Config{
+        //     ..Default::default()
+        // };
+        let mut w = fmt::IoWriter::new(Vec::<u8>::new());
+        // let mut w = fmt::IoWriter::new(stdout.lock());
+        let fmt = fmt::Config::from_lang::<JavaScript>();
+        let fmt = fmt::Config::with_indentation(fmt, Indentation::Space(2));
+        tokens.format_file(&mut w.as_formatter(&fmt), &config)?;
+        let vector = w.into_inner();
+        let code = std::str::from_utf8(&vector)?;
+        let path = path_from_module_name(opts, "resolver".to_string());
+        writer.write(path.as_path(), code.to_string())?;
+    }
+
+    if opts.include_runtime {
+        gen_runtime(opts, &mut writer)?
     }
 
     Ok(())
@@ -157,4 +160,77 @@ fn path_from_module_name(_opts: &TsOpts, mname: adlast::ModuleName) -> PathBuf {
     }
     path.set_extension("ts");
     return path;
+}
+
+fn gen_resolver(t: &mut Tokens<JavaScript>, mut modules: Vec<String>) -> anyhow::Result<()> {
+    let mut m_imports = vec![];
+    for m in &modules {
+        m_imports.push(
+            js::import(format!("./{}", m.replace(".", "/")), "_AST_MAP")
+                .with_alias(m.replace(".", "_")),
+        );
+    }
+    let adlr1 = js::import("./runtime/adl", "declResolver");
+    let adlr2 = js::import("./runtime/adl", "ScopedDecl");
+    let gened = "/* @generated from adl */";
+    modules.sort();
+    quote_in! { *t =>
+    $gened
+    $(register (adlr2))
+    $(register (adlr1))
+    $(for m in m_imports => $(register (m)))
+
+
+    export const ADL: { [key: string]: ScopedDecl } = {
+      $(for m in &modules => ...$(m.replace(".", "_")),$['\r'])
+    };
+
+    export const RESOLVER = declResolver(ADL);
+    }
+
+    Ok(())
+}
+
+fn gen_runtime(opts: &TsOpts, writer: &mut TreeWriter) -> anyhow::Result<()> {
+    let re = Regex::new(r"\$TSEXT").unwrap();
+    let re2 = Regex::new(r"\$TSB64IMPORT").unwrap();
+    for rt in RUNTIME.iter() {
+        let mut file_path = PathBuf::new();
+        if let Some(d) = &opts.runtime_dir {
+            file_path.push(d);
+        } else {
+            file_path.push("runtime");
+        };
+        file_path.push(rt.0);
+        let dir_path = file_path.parent().unwrap();
+        std::fs::create_dir_all(dir_path)?;
+
+        log::info!("writing {}", file_path.display());
+        eprintln!("writing runtime file '{}'", file_path.display());
+
+        let tss = if let Some(tss) = opts.ts_style {
+            tss
+        } else {
+            super::TsStyle::Tsc
+        };
+        match tss {
+            super::TsStyle::Tsc => {
+                let content = re.replace_all(rt.1, "".as_bytes());
+                let content = re2.replace(&content, TSC_B64);
+                let x = content.deref();
+                let y = String::from_utf8(x.to_vec())?;
+                writer.write(file_path.as_path(), y)?;
+                // std::fs::write(file_path, content)
+                //     .map_err(|e| anyhow!("error writing runtime file {}", e.to_string()))?;
+            }
+            super::TsStyle::Deno => {
+                let content = re.replace_all(rt.1, ".ts".as_bytes());
+                let content = re2.replace(&content, DENO_B64);
+                let x = content.deref();
+                let y = String::from_utf8(x.to_vec())?;
+                writer.write(file_path.as_path(), y)?;
+            }
+        }
+    }
+    Ok(())
 }
