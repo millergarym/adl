@@ -71,14 +71,16 @@ fn generate_ts_from_test_files() {
                 let opts = TsOpts {
                     search: AdlSearchOpts { path: search_path },
                     output: OutputOpts {
-                        outdir,
+                        outputdir: outdir,
                         manifest: Some(manifest),
                     },
-                    include_runtime: true,
+                    include_rt: true,
                     runtime_dir: Some("runtime".to_string()),
                     ts_style: None,
                     modules: t.modules.clone(),
                     capitalize_branch_names_in_types: true,
+                    generate_transitive: true,
+                    include_resolver: true,
                 };
                 if !t.fail && !t.skip {
                     let mut adlc_cmd = String::new();
@@ -88,12 +90,12 @@ fn generate_ts_from_test_files() {
                         adlc_cmd.push_str(p.to_str().unwrap());
                     });
                     adlc_cmd.push_str(" --outputdir=");
-                    if let Some(dir) = &t.output_dir {
-                        adlc_cmd.push_str(dir.as_str());
-                    } else {
+                    // if let Some(dir) = &t.output_dir {
+                    //     adlc_cmd.push_str(dir.as_str());
+                    // } else {
                         adlc_cmd.push_str("build/adlc_out/");
                         adlc_cmd.push_str(t.module_root.clone().as_str());
-                    }
+                    // }
                     // adlc_cmd.push_str(opts.output.outdir.to_str().unwrap());
                     adlc_cmd.push_str(" --generate-transitive");
                     adlc_cmd.push_str(" --include-rt");
@@ -101,21 +103,21 @@ fn generate_ts_from_test_files() {
                     adlc_cmd.push_str(" --runtime-dir=runtime");
 
                     adlc_cmd.push_str(" --manifest=");
-                    if let Some(dir) = &t.output_dir {
-                        adlc_cmd.push_str(dir.as_str());
-                        adlc_cmd.push_str("/manifest");
-                    } else {
+                    // if let Some(dir) = &t.output_dir {
+                    //     adlc_cmd.push_str(dir.as_str());
+                    //     adlc_cmd.push_str("/manifest");
+                    // } else {
                         adlc_cmd.push_str("build/adlc_out/");
                         adlc_cmd.push_str(t.module_root.clone().as_str());
                         adlc_cmd.push_str("/manifest");
-                    }
+                    // }
 
                     opts.modules.iter().for_each(|m| {
                         adlc_cmd.push_str(" ");
                         adlc_cmd.push_str("../../adl/tests/");
                         adlc_cmd.push_str(t.module_root.clone().as_str());
                         adlc_cmd.push_str("/");
-                        adlc_cmd.push_str(m);
+                        adlc_cmd.push_str(m.replace(".", "/").as_str());
                         adlc_cmd.push_str(".adl");
                     });
                     adlc_cmds.push(adlc_cmd);
@@ -150,6 +152,7 @@ fn generate_ts_from_test_files() {
                             for m in &t.modules {
                                 println!("  ../../adl/tests/{}/{}.adl", &t.module_root, m)
                             }
+                            println!("  error '{}'", e.to_string());
                         } else {
                             println!(
                                 "{} {} {} - Error '{}'",

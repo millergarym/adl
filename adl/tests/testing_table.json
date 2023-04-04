@@ -26,6 +26,8 @@
     { "module_root": "test22", "modules": ["test22a", "test22b"] },
     { "module_root": "test23", "modules": ["test23" ] },
     { "module_root": "test24", "modules": ["test24" ] },
+    { "module_root": "test24", "modules": ["test24_01"], "fail": true, "title": "token type with hanging type param" },
+    { "module_root": "test24", "modules": ["test24_02"], "fail": true, "title": "default value with hanging type param" },
     { "module_root": "test25", "modules": ["admin" ] },
     { "module_root": "test26", "modules": ["test26" ] },
     { "module_root": "test27", "modules": ["test27" ] },

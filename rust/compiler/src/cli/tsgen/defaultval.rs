@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::anyhow;
+use convert_case::{Case, Casing};
 use serde_json::Value;
 
 use crate::adlgen::sys::adlast2::{
@@ -12,6 +13,8 @@ use genco::prelude::*;
 const DQ: &str = "\"";
 const OC: &str = "{";
 const CC: &str = "}";
+const OP: &str = "(";
+const CP: &str = ")";
 const OSB: &str = "[";
 const CSB: &str = "]";
 
@@ -78,6 +81,17 @@ impl TsDefaultValue<'_> {
             self.decl.name,
             f_name,
             x
+        ));
+    }
+
+    fn create_err_def_val_with_tp(&self, typename: &str, f_name: &String, tp: &String) -> anyhow::Result<()> {
+        return Err(anyhow!(
+            "default values cannot be created for decls with type parameters. For {} in {}.{}::{} hanging type param '{}'",
+            typename,
+            self.ctx.module.name,
+            self.decl.name,
+            f_name,
+            tp
         ));
     }
 
@@ -263,18 +277,24 @@ impl TsDefaultValue<'_> {
         }
         let mut type_map: HashMap<String, &TypeExpr<TypeRef>> = HashMap::new();
         for (i, tp) in type_params.iter().enumerate() {
-            let mut te_p = type_expr.parameters.get(i).unwrap();
+            let te_p = type_expr.parameters.get(i).unwrap();
             // TODO is this enough, or does it need to be in a loop?
             // I don't think so, but ...
             // loop {
             if let TypeRef::TypeParam(tp0) = &te_p.type_ref {
-                te_p = self.type_map.get(tp0).unwrap();
+                if let Some(te_p2) = self.type_map.get(tp0) {
+                    type_map.insert(tp.to_string(), te_p2);
+                } else {
+                    // decl with type_param on left but not on the right (transitively).
+                    // if this is not ok with will be caught later.
+                }
+            } else {
+                type_map.insert(tp.to_string(), te_p);
             }
             //     else {
             //         break;
             //     }
             // }
-            type_map.insert(tp.to_string(), te_p);
         }
         let tsgen_te = &mut TsDefaultValue {
             ctx: self.ctx,
@@ -560,24 +580,66 @@ impl TsDefaultValue<'_> {
                 }
             }
             PrimitiveType::TypeToken => {
-                // TODO should this be a 'todo!()' ?
-
-                // This is not quite correct but it is never used since 'makeXXX' are not created if there is a tokentype field (the check is transitive).
-                // In the Haskell adlc the check isn't transitive.
-                // The actual output should be;
-                // - for primatives "ADL.texprInt64()"
-                // - for localnames "texprXXX()"
-                // - for scopednames ...
-                if let Some(_) = val.as_null() {
-                    quote_in! { *t => null }
-                } else {
+                if None == val.as_null() {
                     return self.create_err("TypeToken", f_name, val);
+                }
+                let param = type_params.get(0).unwrap();
+                match &param.type_ref {
+                    TypeRef::TypeParam(tp) => {
+                        if let Some(te) = self.type_map.get(tp) {
+                            self.gen_token_type(t, f_name, te)?;
+                        } else {
+                            return self.create_err_def_val_with_tp("TypeToken", f_name, tp);
+                            // quote_in! { *t => BUG:texprTypeVariable({{$(tp)}}) };
+                        }
+                    },
+                    _ => todo!()
                 }
             }
         }
 
         Ok(())
     }
+
+    fn gen_token_type(
+        &self,
+        t: &mut Tokens<JavaScript>,
+        f_name: &String,
+        te: &TypeExpr<TypeRef>,
+    ) -> anyhow::Result<()> {
+        match &te.type_ref {
+            TypeRef::ScopedName(sn) => {
+                let i_name = sn.module_name.replace(".", "_").to_case(Case::Snake);
+                quote_in! { *t => $(i_name).texpr$(&sn.name)$OP };
+                for tp in &te.parameters {
+                    self.gen_token_type(t, f_name, tp)?;
+                }
+                quote_in! { *t => $CP };
+            }
+            TypeRef::LocalName(ln) => {
+                quote_in! { *t => texpr$(ln)$OP };
+                for tp in &te.parameters {
+                    self.gen_token_type(t, f_name, tp)?;
+                }
+                quote_in! { *t => $CP };
+            },
+            TypeRef::Primitive(p) => {
+                let pname = format!("{:?}", p);
+                quote_in! { *t => ADL.texpr$(pname)$OP };
+                for tp in &te.parameters {
+                    self.gen_token_type(t, f_name, tp)?;
+                }
+                quote_in! { *t => $CP };
+            },
+            TypeRef::TypeParam(tp) => {
+                dbg!(tp);
+                todo!();
+            },
+        }
+
+        Ok(())
+    }
+
 }
 
 pub fn is_enum(m: &Union<TypeExpr<TypeRef>>) -> bool {

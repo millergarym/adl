@@ -70,9 +70,9 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
     //     }
     // });
 
-    let mut writer = TreeWriter::new(opts.output.outdir.clone(), manifest)?;
+    let mut writer = TreeWriter::new(opts.output.outputdir.clone(), manifest)?;
 
-    if !opts.include_runtime {
+    if !opts.include_rt {
         if opts.runtime_dir == None || opts.ts_style == None {
             return Err(anyhow!("Invalid flags; --runtime-dir and --ts-style only valid if --include-runtime is set"));
         }
@@ -109,7 +109,7 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
         writer.write(path.as_path(), code.to_string())?;
     }
 
-    if opts.include_runtime {
+    if opts.include_rt {
         gen_runtime(opts, &mut writer)?
     }
 
@@ -207,7 +207,6 @@ fn gen_runtime(opts: &TsOpts, writer: &mut TreeWriter) -> anyhow::Result<()> {
         std::fs::create_dir_all(dir_path)?;
 
         log::info!("writing {}", file_path.display());
-        eprintln!("writing runtime file '{}'", file_path.display());
 
         let tss = if let Some(tss) = opts.ts_style {
             tss

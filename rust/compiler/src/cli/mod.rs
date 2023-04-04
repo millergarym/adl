@@ -106,11 +106,20 @@ pub struct TsOpts {
 
     /// Generate the runtime code
     #[arg(long)]
-    pub include_runtime: bool,
+    pub include_rt: bool,
 
     /// Set the directory where runtime code is written (relative to output dir).
     #[arg(long, short='R', value_name="DIR")]
     pub runtime_dir: Option<String>,
+
+    /// Also generate code for the transitive dependencies of the specified adl files (default: true)
+    #[arg(long, default_value_t = true)]
+    pub generate_transitive: bool,
+
+    /// Generate the resolver map for all generated adl files (default: true)
+    #[arg(long)]
+    #[arg(long, default_value_t = true)]
+    include_resolver: bool,
 
     /// Select the style of typescript to be generated
     // #[clap(arg_senum)]
@@ -158,7 +167,7 @@ pub struct AdlSearchOpts {
 pub struct OutputOpts {
     /// writes generated code to the specified directory
     #[arg(long, short='O', value_name="DIR")]
-    pub outdir: PathBuf,
+    pub outputdir: PathBuf,
 
     /// write a manifest file recording generated files
     #[arg(long, value_name="FILE")]

@@ -30,7 +30,7 @@ pub fn rust(opts: &RustOpts) -> anyhow::Result<()> {
         .collect();
 
     let mut writer = TreeWriter::new(
-        opts.output.outdir.clone(),
+        opts.output.outputdir.clone(),
         opts.output.manifest.clone(),
     )?;
 
