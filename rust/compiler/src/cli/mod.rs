@@ -117,7 +117,6 @@ pub struct TsOpts {
     pub generate_transitive: bool,
 
     /// Generate the resolver map for all generated adl files (default: true)
-    #[arg(long)]
     #[arg(long, default_value_t = true)]
     include_resolver: bool,
 
@@ -129,12 +128,17 @@ pub struct TsOpts {
     #[arg(value_name="ADLMODULE")]
     pub modules: Vec<String>,
 
-    /// If set capitalizes branch (field) name in the exported interfaces.
+    /// If set capitalizes branch (field) name in the exported interfaces (used to generate backward code).
     ///
     /// Has a risk of creating name clashes between branches with only differ in case.
     /// Set to true to preserve backward compatiblity.
     #[arg(long)]
     pub capitalize_branch_names_in_types: bool,
+
+    /// Capitalizes type names (default: true).
+    #[arg(long, default_value_t = true)]
+    pub capitalize_type_names: bool,
+
 }
 
 

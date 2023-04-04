@@ -12,6 +12,7 @@ module test14
     union unsigned
     {
          Void null;
+         Int64 string;
     };
 
     newtype Factory = String;

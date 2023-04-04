@@ -79,6 +79,7 @@ fn generate_ts_from_test_files() {
                     ts_style: None,
                     modules: t.modules.clone(),
                     capitalize_branch_names_in_types: true,
+                    capitalize_type_names: true,
                     generate_transitive: true,
                     include_resolver: true,
                 };

@@ -11,6 +11,7 @@ use crate::adlgen::sys::adlast2::{
     Annotations, Decl, DeclType, Module, NewType, PrimitiveType, ScopedName, Struct, TypeDef,
     TypeExpr, TypeRef, Union,
 };
+use crate::cli::TsOpts;
 use crate::parser::docstring_scoped_name;
 use crate::processing::resolver::Resolver;
 
@@ -72,7 +73,7 @@ impl TsGenVisitor<'_> {
             }
             lit(t, "  ");
             quote_in! { *t =>
-                $("\"")$(m.name.clone()).$(&decl.name)$("\"") : $(&decl.name)_AST
+                $("\"")$(m.name.clone()).$(&decl.name)$("\"") : $(cap_opt(&decl.name, self.opts))_AST
             };
             true
         });
@@ -98,7 +99,7 @@ impl TsGenVisitor<'_> {
         let mut has_make = true;
         let fnames = used_type_params(&te_trs);
         quote_in! { *t =>
-            export interface $(name)$(gen_type_params_(&fnames, &m.type_params)) {$['\r']
+            export interface $(cap_opt(name, self.opts))$(gen_type_params_(&fnames, &m.type_params)) {$['\r']
             $(for f in m.fields.iter() =>
                 $(ref t => {
                     self.gen_doc_comment(t, &f.annotations)?;
@@ -112,7 +113,7 @@ impl TsGenVisitor<'_> {
         }
         if has_make {
             quote_in! { *t =>
-                export function make$(cap_or__(name))$(gen_type_params_(&fnames, &m.type_params))(
+                export function make$(cap_or__(name, self.opts))$(gen_type_params_(&fnames, &m.type_params))(
                   $(if m.fields.len() == 0 => _)input: {
                     $(for f in &m.fields => $(ref t => {
                         let rt = self.rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
@@ -123,7 +124,7 @@ impl TsGenVisitor<'_> {
                         quote_in! { *t => $(&f.name)$(if has_default => ?): $(rt.1),$['\r']}
                     }))
                   }
-                ): $(name)$(gen_type_params_(&fnames, &m.type_params)) {
+                ): $(cap_opt(name, self.opts))$(gen_type_params_(&fnames, &m.type_params)) {
                   return {
                     $(for f in &m.fields => $(ref t => {
                         if let Some(_) = f.default.0 {
@@ -170,7 +171,7 @@ impl TsGenVisitor<'_> {
         // lit(t, "// union \n");
 
         let type_suffix = |name0: &String| {
-            if self.opts.capitalize_branch_names_in_types {
+            if self.opts.capitalize_type_names || self.opts.capitalize_branch_names_in_types {
                 to_title(name0)
             } else {
                 name0.clone()
@@ -196,13 +197,13 @@ impl TsGenVisitor<'_> {
                 };
                 if is_void {
                     quote_in! { *t =>
-                        export interface $(name)_$(type_suffix(&bname.clone()))$(gen_type_params_(&used, &m.type_params)) {
+                        export interface $(cap_opt(name, self.opts))_$(type_suffix(&bname.clone()))$(gen_type_params_(&used, &m.type_params)) {
                             kind: $SQ$(bname.clone())$SQ;
                         }$['\r']
                     }
                 } else {
                     quote_in! { *t =>
-                        export interface $(name)_$(type_suffix(&bname.clone()))$(gen_type_params_(&used, &m.type_params)) {
+                        export interface $(cap_opt(name, self.opts))_$(type_suffix(&bname.clone()))$(gen_type_params_(&used, &m.type_params)) {
                             kind: $SQ$(bname.clone())$SQ;
                             value: $(rtype.1.clone());
                         }$['\r']
@@ -215,18 +216,18 @@ impl TsGenVisitor<'_> {
             quote_in! { *t => $['\n'] }
             self.gen_doc_comment(t, &payload.decl.annotations)?;
             quote_in! { *t =>
-                export type $name$(gen_type_params_(&tp_names, &m.type_params)) = $(for n in m.fields.iter().map(|b| &b.name) join ( | ) =>
-                        $(name)_$(type_suffix(n))$(gen_type_params_(&tp_names, &m.type_params))
+                export type $(cap_opt(name, self.opts))$(gen_type_params_(&tp_names, &m.type_params)) = $(for n in m.fields.iter().map(|b| &b.name) join ( | ) =>
+                        $(cap_opt(name, self.opts))_$(type_suffix(n))$(gen_type_params_(&tp_names, &m.type_params))
                     );
 
-                export interface $(name)Opts$(gen_type_params_(&tp_names, &m.type_params)) {
+                export interface $(cap_opt(name, self.opts))Opts$(gen_type_params_(&tp_names, &m.type_params)) {
                   $(for opt in opts => $(ref t => {
                     self.gen_doc_comment(t, &opt.2.annotations)?;
                     quote_in! { *t => $(opt.0): $(opt.1);$['\r'] }
                   }))
                 }$['\n']
 
-                export function make$(name)<$(gen_raw_type_params_(&tp_names, &m.type_params))K extends keyof $(name)Opts$(gen_type_params_(&tp_names, &m.type_params))>(kind: K, value: $(name)Opts$(gen_type_params_(&tp_names, &m.type_params))[K]) { return {kind, value}; }$['\n']
+                export function make$(cap_opt(name, self.opts))<$(gen_raw_type_params_(&tp_names, &m.type_params))K extends keyof $(cap_opt(name, self.opts))Opts$(gen_type_params_(&tp_names, &m.type_params))>(kind: K, value: $(cap_opt(name, self.opts))Opts$(gen_type_params_(&tp_names, &m.type_params))[K]) { return {kind, value}; }$['\n']
             }
         } else {
             let b_names: Vec<&String> = m.fields.iter().map(|f| &f.name).collect();
@@ -242,7 +243,7 @@ impl TsGenVisitor<'_> {
             //     export type $name = $(for f in &m.fields join ( | ) => $(ref t => self.gen_doc_comment(t, &f.annotations)?;)$SQ$(&f.name)$SQ);
             //     $['\r']
             // }
-            quote_in! { *t => export const values$name : $name[] =$[' ']
+            quote_in! { *t => export const values$(cap_opt(name, self.opts)) : $(cap_opt(name, self.opts))[] =$[' ']
                 [$(for n in b_names join (, ) => $SQ$(n)$SQ)];$['\r']
             }
         }
@@ -269,7 +270,7 @@ impl TsGenVisitor<'_> {
         let used = used_type_params(&vec![m.type_expr.clone()]);
         self.gen_doc_comment(t, &payload.decl.annotations)?;
         quote_in! { *t =>
-            export type $name$(gen_type_params_(&used, &m.type_params)) =  $(rtype.1.clone());
+            export type $(cap_opt(name, self.opts))$(gen_type_params_(&used, &m.type_params)) =  $(rtype.1.clone());
         }
         self.gen_rtti(
             t,
@@ -298,7 +299,7 @@ impl TsGenVisitor<'_> {
 
         self.gen_doc_comment(t, &payload.decl.annotations)?;
         quote_in! { *t =>
-            export type $name$(gen_type_params_(&used, &m.type_params)) =  $(rtype.1.clone());
+            export type $(cap_opt(name, self.opts))$(gen_type_params_(&used, &m.type_params)) =  $(rtype.1.clone());
         }
         self.gen_rtti(
             t,
@@ -432,16 +433,16 @@ impl TsGenVisitor<'_> {
         let mname = &payload.mname;
         quote_in! { *t =>
             $['\n']
-            const $(name)_AST : $(&self.adlr).ScopedDecl =
+            const $(cap_opt(name, self.opts))_AST : $(&self.adlr).ScopedDecl =
               {"moduleName":$("\"")$(mname.clone())$("\""),"decl":$(ref tok => {
                 let mut sdg = crate::cli::tsgen::astgen::TsScopedDeclGenVisitor{module_name: &mname.clone(), t: tok};
                 sdg.visit_decl(decl);
               })};$['\n']
 
-            export const sn$(cap_or__(name)): $(&self.adlr).ScopedName = {moduleName:$("\"")$mname$("\""), name:$("\"")$name$("\"")};$['\n']
+            export const sn$(cap_or__(name, self.opts)): $(&self.adlr).ScopedName = {moduleName:$("\"")$mname$("\""), name:$("\"")$name$("\"")};$['\n']
 
-            export function texpr$(cap_or__(name))$(gen_type_params(payload.type_params))($(ref t => texpr_args(t, &payload.type_params))): ADL.ATypeExpr<$(name)$(gen_type_params(payload.type_params))> {
-                return {value:{typeRef:{kind:"reference",value:sn$(cap_or__(name))},parameters:[$(ref t => texpr_params(t, &payload.type_params))]}};
+            export function texpr$(cap_or__(name, self.opts))$(gen_type_params(payload.type_params))($(ref t => texpr_args(t, &payload.type_params))): ADL.ATypeExpr<$(cap_opt(name, self.opts))$(gen_type_params(payload.type_params))> {
+                return {value:{typeRef:{kind:"reference",value:sn$(cap_or__(name, self.opts))},parameters:[$(ref t => texpr_params(t, &payload.type_params))]}};
             }
             $['\n']
         }
@@ -548,7 +549,17 @@ fn collect_used_type_params(te_trs: &Vec<TypeExpr<TypeRef>>, mut fnames: &mut Ve
     })
 }
 
-pub fn cap_or__(input: &String) -> String {
+fn cap_opt(name: &String, opts: &TsOpts) -> String {
+    if opts.capitalize_type_names {
+        return to_title(name);
+    }
+    name.clone()
+}
+
+pub fn cap_or__(input: &String, opts: &TsOpts) -> String {
+    if opts.capitalize_type_names {
+        return to_title(input);
+    }
     let mut c = input.chars();
     match c.next() {
         None => String::new(),
