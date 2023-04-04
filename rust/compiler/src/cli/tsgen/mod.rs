@@ -59,15 +59,16 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
         }
     }
 
-    let manifest = opts.output.manifest.as_ref().map(|m| {
-        if m.extension() == None {
-            let mut m0 = m.clone();
-            m0.set_extension("json");
-            m0
-        } else {
-            m.clone()
-        }
-    });
+    let manifest = opts.output.manifest.clone();
+    // let manifest = opts.output.manifest.as_ref().map(|m| {
+    //     if m.extension() == None {
+    //         let mut m0 = m.clone();
+    //         m0.set_extension("json");
+    //         m0
+    //     } else {
+    //         m.clone()
+    //     }
+    // });
 
     let mut writer = TreeWriter::new(opts.output.outdir.clone(), manifest)?;
 

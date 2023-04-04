@@ -25,7 +25,6 @@ pub struct TsGenVisitor<'a> {
     pub opts: &'a crate::cli::TsOpts,
 }
 
-// struct DeclPayload<'a>(&'a Decl<TypeExpr<TypeRef>>);
 struct DeclPayload<'a> {
     decl: &'a Decl<TypeExpr<TypeRef>>,
     mname: &'a String,
@@ -49,7 +48,6 @@ impl TsGenVisitor<'_> {
         self.gen_doc_comment(t, &m.annotations)?;
         let mname = &m.name;
         for decl in m.decls.iter() {
-            self.gen_doc_comment(t, &decl.annotations)?;
             let payload = DeclPayload {
                 decl: decl,
                 mname: &mname.clone(),
@@ -95,9 +93,7 @@ impl TsGenVisitor<'_> {
         payload: DeclPayload<'_>,
     ) -> anyhow::Result<()> {
         let (decl, name) = (payload.decl, &payload.decl.name);
-        // let name_up = &title(name);
-        // self.gen_doc_comment(t, &decl.annotations)?;
-        // let fnames: &Vec<String> = &m.fields.iter().map(|f| f.name.clone()).collect();
+        self.gen_doc_comment(t, &decl.annotations)?;
         let te_trs: Vec<TypeExpr<TypeRef>> = m.fields.iter().map(|f| f.type_expr.clone()).collect();
         let mut has_make = true;
         let fnames = used_type_params(&te_trs);
@@ -133,7 +129,7 @@ impl TsGenVisitor<'_> {
                         if let Some(_) = f.default.0 {
                             quote_in! { *t => $(&f.name): input.$(&f.name) === undefined ?$[' '] }
                             let dvg = &mut crate::cli::tsgen::defaultval::TsDefaultValue{
-                                ctx: &crate::cli::tsgen::defaultval:: ResolverModule {
+                                ctx: &crate::cli::tsgen::defaultval::ResolverModule {
                                     module: self.module,
                                     resolver: self.resolver,
                                 },
@@ -184,13 +180,12 @@ impl TsGenVisitor<'_> {
         if !crate::cli::tsgen::defaultval::is_enum(m) {
             let mut opts = vec![];
             for b in m.fields.iter() {
-                self.gen_doc_comment(t, &b.annotations)?;
                 let bname = b.name.clone();
 
                 let rtype = self.rust_type(&b.type_expr).map_err(|s| anyhow!(s))?;
                 let used = used_type_params(&vec![b.type_expr.clone()]);
 
-                opts.push((bname.clone(), rtype.clone().1));
+                opts.push((bname.clone(), rtype.clone().1, b));
 
                 let is_void = match &b.type_expr.type_ref {
                     TypeRef::Primitive(p) => match p {
@@ -217,25 +212,36 @@ impl TsGenVisitor<'_> {
             let te_trs: Vec<TypeExpr<TypeRef>> =
                 m.fields.iter().map(|f| f.type_expr.clone()).collect();
             let tp_names = used_type_params(&te_trs);
+            quote_in! { *t => $['\n'] }
+            self.gen_doc_comment(t, &payload.decl.annotations)?;
             quote_in! { *t =>
-                $['\n']
                 export type $name$(gen_type_params_(&tp_names, &m.type_params)) = $(for n in m.fields.iter().map(|b| &b.name) join ( | ) =>
                         $(name)_$(type_suffix(n))$(gen_type_params_(&tp_names, &m.type_params))
                     );
 
                 export interface $(name)Opts$(gen_type_params_(&tp_names, &m.type_params)) {
-                  $(for opt in opts => $(opt.0): $(opt.1);$['\r'])
+                  $(for opt in opts => $(ref t => {
+                    self.gen_doc_comment(t, &opt.2.annotations)?;
+                    quote_in! { *t => $(opt.0): $(opt.1);$['\r'] }
+                  }))
                 }$['\n']
 
                 export function make$(name)<$(gen_raw_type_params_(&tp_names, &m.type_params))K extends keyof $(name)Opts$(gen_type_params_(&tp_names, &m.type_params))>(kind: K, value: $(name)Opts$(gen_type_params_(&tp_names, &m.type_params))[K]) { return {kind, value}; }$['\n']
             }
         } else {
             let b_names: Vec<&String> = m.fields.iter().map(|f| &f.name).collect();
+            quote_in! { *t => $['\n'] }
+            self.gen_doc_comment(t, &payload.decl.annotations)?;
+            // Note doc comments on enum branches is ignored by TSDoc
+            // see https://github.com/microsoft/tsdoc/issues/164
             quote_in! { *t =>
-                $['\n']
-                export type $name = $(for n in &b_names join ( | ) => $SQ$(*n)$SQ);
+                export type $name = $(for f in &m.fields join ( | ) => $SQ$(&f.name)$SQ);
                 $['\r']
             }
+            // quote_in! { *t =>
+            //     export type $name = $(for f in &m.fields join ( | ) => $(ref t => self.gen_doc_comment(t, &f.annotations)?;)$SQ$(&f.name)$SQ);
+            //     $['\r']
+            // }
             quote_in! { *t => export const values$name : $name[] =$[' ']
                 [$(for n in b_names join (, ) => $SQ$(n)$SQ)];$['\r']
             }
@@ -261,6 +267,7 @@ impl TsGenVisitor<'_> {
         let rtype = self.rust_type(&m.type_expr).map_err(|s| anyhow!(s))?;
 
         let used = used_type_params(&vec![m.type_expr.clone()]);
+        self.gen_doc_comment(t, &payload.decl.annotations)?;
         quote_in! { *t =>
             export type $name$(gen_type_params_(&used, &m.type_params)) =  $(rtype.1.clone());
         }
@@ -288,6 +295,8 @@ impl TsGenVisitor<'_> {
         let rtype = self.rust_type(&m.type_expr).map_err(|s| anyhow!(s))?;
 
         let used = used_type_params(&vec![m.type_expr.clone()]);
+
+        self.gen_doc_comment(t, &payload.decl.annotations)?;
         quote_in! { *t =>
             export type $name$(gen_type_params_(&used, &m.type_params)) =  $(rtype.1.clone());
         }
@@ -420,7 +429,6 @@ impl TsGenVisitor<'_> {
     ) -> anyhow::Result<()> {
         // Generation AST holder
         let name = &decl.name;
-        // let name_up = title(name);
         let mname = &payload.mname;
         quote_in! { *t =>
             $['\n']
@@ -451,8 +459,9 @@ impl TsGenVisitor<'_> {
             lit(t, "/**\n");
             match ds {
                 serde_json::Value::String(y) => {
-                    quote_in! { *t => $(for line in y.lines() => $[' ']* $(line)$['\r'] ) };
-                },
+                    // TODO should this be trimmed?
+                    quote_in! { *t => $(for line in y.lines() => $[' ']* $(line.trim())$['\r'] ) };
+                }
                 serde_json::Value::Array(array) => {
                     for c in array.iter() {
                         if let Ok(x) = serde_json::to_string(&c.clone()) {
@@ -461,10 +470,13 @@ impl TsGenVisitor<'_> {
                             quote_in! { *t => $[' ']* $(y)$['\r'] };
                         }
                     }
-                },
+                }
                 _ => {
                     let j = serde_json::to_string(ds);
-                    return Err(anyhow!("error processing doc comment expect array received JSON '{}'", j.unwrap()));
+                    return Err(anyhow!(
+                        "error processing doc comment expect array received JSON '{}'",
+                        j.unwrap()
+                    ));
                 }
             }
             lit(t, " */\n");

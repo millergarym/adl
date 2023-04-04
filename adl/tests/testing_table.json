@@ -1,6 +1,7 @@
 [
     { "module_root": "test1", "modules": ["test1" ] },
     { "module_root": "test2", "modules": ["test2" ], "keywords": ["@Doc", "doc comment", "recursive type", "generic"]},
+    { "module_root": "test2", "modules": ["test2_01" ], "keywords": ["doc comments for each decl type"]},
     { "module_root": "test3", "modules": ["test3" ], "keywords": ["default values"]},
     { "module_root": "test4", "modules": ["test4" ], "keywords": ["default values", "newtype with default", "custom mappers"] },
     { "module_root": "test5", "modules": ["test5" ], "keywords": ["union", "mutual recursion"] },

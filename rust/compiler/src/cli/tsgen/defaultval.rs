@@ -165,15 +165,6 @@ impl TsDefaultValue<'_> {
 }
 
 impl TsDefaultValue<'_> {
-    // fn find_local_decl(&self, name: &String) -> &Decl<TypeExpr<TypeRef>> {
-    //     self.ctx
-    //         .module
-    //         .decls
-    //         .iter()
-    //         .find(|decl| decl.name == *name)
-    //         .unwrap()
-    // }
-
     pub fn gen_default_value(
         &self,
         t: &mut Tokens<JavaScript>,
@@ -185,7 +176,6 @@ impl TsDefaultValue<'_> {
             None => match &field.default.0 {
                 Some(v) => v,
                 None => {
-                    // todo!();
                     return self.create_err_missing_val(&field.name);
                 }
             },
@@ -214,6 +204,7 @@ impl TsDefaultValue<'_> {
                             decl,
                             type_map: self.type_map,
                         };
+                        // gen_decl wraps errors
                         dvg.gen_decl(t, decl, type_expr, f_name, val)?
                     } else {
                         return self.create_err_resolve_scoped_name(f_name, sn);
@@ -221,70 +212,18 @@ impl TsDefaultValue<'_> {
                 } else {
                     return self.create_err_resolve_module(f_name, &sn.module_name);
                 }
-                // let resolver = self.ctx.resolver;
-                // if let Some(remote_mod) = resolver.get_module(&sn.module_name) {
-                //     if let Some(decl) = resolver.get_decl(sn) {
-                //         let dvg = TsDefaultValue {
-                //             ctx: &ResolverModule {
-                //                 module: remote_mod,
-                //                 resolver,
-                //             },
-                //             decl,
-                //             type_map: self.type_map,
-                //         };
-                //         dvg.gen_decl(t, decl, type_expr, f_name, val)?
-                //     } else {
-                //         return self.create_err_resolve_scoped_name(f_name, sn);
-                //     }
-                // } else {
-                //     return self.create_err_resolve_scoped_name(f_name, sn);
-                // }
             }
             TypeRef::LocalName(d) => {
-                // let decl = self.find_local_decl(&d);
                 let sn = &ScopedName {
                     module_name: self.ctx.module.name.clone(),
                     name: d.clone(),
                 };
                 if let Some(decl) = self.ctx.resolver.get_decl(sn) {
+                    // gen_decl wraps errors
                     self.gen_decl(t, decl, type_expr, f_name, val)?
                 } else {
                     return self.create_err_resolve_scoped_name(f_name, sn);
                 }
-                // let type_params = crate::utils::ast::get_type_params(decl);
-
-                // if type_expr.parameters.len() != type_params.len() {
-                //     return self.create_err_mismatch_type_params(
-                //         &decl.name,
-                //         type_params.len(),
-                //         type_expr.parameters.len(),
-                //     );
-                // }
-                // let mut type_map: HashMap<String, &TypeExpr<TypeRef>> = HashMap::new();
-                // for (i, tp) in type_params.iter().enumerate() {
-                //     let mut te_p = type_expr.parameters.get(i).unwrap();
-                //     // TODO is this enough, or does it need to be in a loop?
-                //     // I don't think so, but ...
-                //     // loop {
-                //     if let TypeRef::TypeParam(tp0) = &te_p.type_ref {
-                //         te_p = self.type_map.get(tp0).unwrap();
-                //     }
-                //     //     else {
-                //     //         break;
-                //     //     }
-                //     // }
-                //     type_map.insert(tp.to_string(), te_p);
-                // }
-                // let tsgen_te = &mut TsDefaultValue {
-                //     ctx: self.ctx,
-                //     type_map: &type_map,
-                //     decl,
-                //     // depth: Box::new(0),
-                // };
-                // let inner = tsgen_te.gen_type_ref(t, &f_name, val);
-                // if let Err(e) = inner {
-                //     return self.create_wrapped_err(f_name, e.to_string());
-                // }
             }
             TypeRef::Primitive(d) => {
                 self.gen_primitive(t, &f_name, d, val, &type_expr.parameters)?;
@@ -304,6 +243,8 @@ impl TsDefaultValue<'_> {
         return Ok(());
     }
 
+    /// Creates a new TsDefaultValue for decl arg with a new type_map and calls gen_type_ref.
+    /// Wraps an errors so there is context.
     fn gen_decl(
         &self,
         t: &mut Tokens<JavaScript>,
@@ -432,35 +373,7 @@ impl TsDefaultValue<'_> {
                 self.gen_type_expr(t, f_name, &ty.type_expr, val)?;
             }
             DeclType::Newtype(ty) => {
-                // match ty.type_expr.type_ref {
-                //     TypeRef::ScopedName(_) => todo!(),
-                //     TypeRef::LocalName(_) => todo!(),
-                //     TypeRef::Primitive(_) => todo!(),
-                //     TypeRef::TypeParam(_) => todo!(),
-                // }
-
-                // self.ctx.resolver.
-                // let dvg = TsDefaultValue {
-                //     ctx: &ResolverModule {
-                //         module: remote_mod,
-                //         resolver,
-                //     },
-                //     decl,
-                //     type_map: self.type_map,
-                // };
-
                 self.gen_type_expr(t, f_name, &ty.type_expr, val)?;
-                // let tsgen_te = &mut TsDefaultValue {
-                //     ctx: self.ctx,
-                //     type_map: self.type_map,
-                //     decl,
-                //     // depth: Box::new(0),
-                // };
-                // let inner = tsgen_te.gen_type_ref(t, &f_name, val);
-                // if let Err(e) = inner {
-                //     return self.create_wrapped_err(f_name, e.to_string());
-                // }
-                // todo!();
             }
         };
         Ok(())
