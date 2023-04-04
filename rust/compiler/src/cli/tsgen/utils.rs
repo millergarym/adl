@@ -1,29 +1,29 @@
 pub fn rel_import(src: &String, dst: &String) -> String {
     let src_v: Vec<&str> = src.split(['.']).collect();
-    // strip off the name, only leave the path
     let src_v = &src_v[..src_v.len() - 1];
     let dst_v: Vec<&str> = dst.split(['.']).collect();
-    let mut common = 0;
-    let mut src_i = src_v.iter();
-    let mut dst_i = dst_v.iter();
+    let last = dst_v.last().unwrap();
+    let dst_v = &dst_v[..dst_v.len() - 1];
+    let mut src_i = src_v.iter().peekable();
+    let mut dst_i = dst_v.iter().peekable();
     let mut import = String::new();
-    import.push_str("./");
-    while let (Some(sel), Some(del)) = (&src_i.next(), &dst_i.next()) {
+    import.push_str(".");
+    while let (Some(sel), Some(del)) = (&src_i.peek(), &dst_i.peek()) {
         if sel != del {
             break;
         }
-        common += 1;
+        src_i.next();
+        dst_i.next();
     }
-    // dbg!(&src_v);
-    // dbg!(common);
-    // dbg!(&dst_v);
-    import.push_str("../".repeat(src_v.len() - common).as_str());
-    if common == dst_v.len() {
-        import.push_str("../");
-        import.push_str(dst_v.join("/").as_str());
-    } else {
-        import.push_str(dst_v[common..].join("/").as_str());
+    while let Some(_) = &src_i.next() {
+        import.push_str("/..");
     }
+    while let Some(del) = &dst_i.next() {
+        import.push_str("/");
+        import.push_str(del);
+    }
+    import.push_str("/");
+    import.push_str(last);
     import
 }
 
@@ -50,7 +50,7 @@ mod tests {
             ),
             ("test 04", "common.adminui.api", "common", "./../../common"),
             ("test 05", "common.adminui.api", "common.db", "./../db"),
-            ("test 06", "common.adminui.api", "common.adminui", "./../common/adminui"),
+            ("test 06", "common.adminui.api", "common.adminui", "./../adminui"),
         ];
 
         for t in tests {
