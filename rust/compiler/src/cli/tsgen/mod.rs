@@ -73,8 +73,9 @@ pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
     let mut writer = TreeWriter::new(opts.output.outputdir.clone(), manifest)?;
 
     if !opts.include_rt {
-        if opts.runtime_dir == None || opts.ts_style == None {
-            return Err(anyhow!("Invalid flags; --runtime-dir and --ts-style only valid if --include-runtime is set"));
+        if opts.runtime_dir == None {
+            eprintln!("Invalid flags; --runtime-dir only valid if --include-rt is set");
+            // return Err(anyhow!("Invalid flags; --runtime-dir only valid if --include-rt is set"));
         }
     }
 

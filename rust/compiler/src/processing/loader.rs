@@ -27,23 +27,44 @@ pub trait AdlLoader {
 
 /// Combines a bunch of loaders
 pub struct MultiLoader {
+    embedded: EmbeddedStdlibLoader,
     loaders: Vec<Box<dyn AdlLoader>>,
 }
 
 impl MultiLoader {
     pub fn new(loaders: Vec<Box<dyn AdlLoader>>) -> Self {
-        MultiLoader { loaders }
+        MultiLoader {
+            embedded: EmbeddedStdlibLoader {},
+            loaders,
+        }
     }
 }
 
 impl AdlLoader for MultiLoader {
     fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
+        if let Some(module) = self.embedded.load(module_name)? {
+            return Ok(Some(module));
+        }
         for loader in &mut self.loaders {
             if let Some(module) = loader.load(module_name)? {
                 return Ok(Some(module));
             }
         }
         Ok(None)
+    }
+}
+
+pub struct EmbeddedStdlibLoader {}
+
+impl AdlLoader for EmbeddedStdlibLoader {
+    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
+        match crate::adlstdlib::get_stdlib(module_name, "") {
+            Some(data) => match std::str::from_utf8(data.as_ref()) {
+                Ok(content) => return parse(&content).map(|m| Some(m)),
+                Err(err) => return Err(anyhow::Error::from(err)),
+            },
+            None => return Ok(None),
+        }
     }
 }
 

@@ -7,10 +7,6 @@ pub mod rust;
 pub mod tsgen;
 pub mod verify;
 
-
-
-
-
 pub fn run_cli() -> i32 {
     let cli = Cli::parse();
 
@@ -19,6 +15,7 @@ pub fn run_cli() -> i32 {
         Command::Ast(opts) => ast::ast(&opts),
         Command::Rust(opts) => rust::rust(&opts),
         Command::Tsgen(opts) => tsgen::tsgen(&opts),
+        Command::WriteStdlib(opts) => crate::adlstdlib::dump(&opts),
     };
     match r {
         Ok(_) => 0,
@@ -48,7 +45,17 @@ pub enum Command {
     /// generate rust code for the some ADL modules
     Rust(RustOpts),
     /// generate typescript code for the some ADL modules
+    #[clap(name="typescript")]
     Tsgen(TsOpts),
+    /// dump the embedded stdlib to the filesystem.
+    WriteStdlib(DumpStdlibOpts),
+}
+
+#[derive(Debug, Args)]
+pub struct DumpStdlibOpts {
+    /// writes generated code to the specified directory
+    #[arg(long, short='O', value_name="DIR")]
+    pub outputdir: PathBuf,
 }
 
 #[derive(Debug, Args)]
