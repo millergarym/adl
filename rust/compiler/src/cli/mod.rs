@@ -1,16 +1,21 @@
+use std::path::{Path, PathBuf};
+
 use anyhow::{Error, anyhow};
 use clap::{Args, Parser};
-use std::{path::PathBuf, str::FromStr};
+use std::str::{FromStr};
+// use std::path{Path, PathBuf};
 
 pub mod ast;
 pub mod rust;
 pub mod tsgen;
 pub mod verify;
+pub mod workspace;
 
 pub fn run_cli() -> i32 {
     let cli = Cli::parse();
 
     let r = match cli.command {
+        Command::Gen(opts) => workspace::workspace(&opts),
         Command::Verify(opts) => verify::verify(&opts),
         Command::Ast(opts) => ast::ast(&opts),
         Command::Rust(opts) => rust::rust(&opts),
@@ -38,6 +43,8 @@ struct Cli {
 
 #[derive(Debug, Parser)]
 pub enum Command {
+    /// generate source based on Workspace & Packages files (adl.work.json & adl.pkg.json)
+    Gen(GenOpts),
     /// verify ADL
     Verify(VerifyOpts),
     /// generate the json AST for some ADL modules
@@ -49,6 +56,13 @@ pub enum Command {
     Tsgen(TsOpts),
     /// dump the embedded stdlib to the filesystem.
     WriteStdlib(DumpStdlibOpts),
+}
+
+#[derive(Debug, Args)]
+pub struct GenOpts {
+    /// The module where the code is generated, relative to crate root
+    #[arg(default_value_t={".".to_string()})]
+    pub dir: String,
 }
 
 #[derive(Debug, Args)]
