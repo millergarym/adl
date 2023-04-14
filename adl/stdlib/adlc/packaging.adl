@@ -33,6 +33,13 @@ struct TypescriptGenOptions {
     Bool include_resolver;
     TsStyle ts_style = "tsc";
     ModuleSrc modules;
+
+// --merge-adlext=EXT
+// --verbose
+// --no-overwrite
+// --exclude-ast
+// --excluded-ast-annotations=SCOPEDNAMES
+
     Bool capitalize_branch_names_in_types;
     Bool capitalize_type_names;
 };
