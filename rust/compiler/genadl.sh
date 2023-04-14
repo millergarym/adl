@@ -14,7 +14,7 @@ adlc rust \
   --runtime-module adlrt \
   --include-rt \
   --searchdir  $ADL_STDLIB_DIR \
-  $ADL_STDLIB_DIR/sys/adlast2.adl
+  $ADL_STDLIB_DIR/sys/adlast2.adl $ADL_STDLIB_DIR/adlc/packaging.adl
 
 ADL_DIR=../../adl
 

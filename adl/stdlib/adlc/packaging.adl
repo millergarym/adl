@@ -1,0 +1,99 @@
+// This is based on Golang's modules and workspace.
+// e.g. see https://go.dev/ref/mod#workspaces
+
+module adlc.packaging {
+
+/// Expected to live in a file named `adl.work.json`
+struct AdlWorkspace {
+    /// Version
+    String adlc;
+    AdlPackageRefs use;
+};
+
+type AdlPackageRefs = Vector<AdlPackageRef>;
+
+struct AdlPackageRef {
+    /// must be a path to a directory directly under the folder containing the `adl.work.json` file.
+    String root;
+    Vector<GenOptions> genOptions;
+};
+
+union GenOptions {
+    TypescriptGenOptions tsgen;
+};
+
+
+struct TypescriptGenOptions {
+    ReferenceableScopeOption referenceable = "local";
+    // Vector<> searchDir;
+    OutputOpts outputs;
+    Bool includeRuntime;
+    Nullable<String> runtimeDir;
+    Bool generate_transitive;
+    Bool include_resolver;
+    TsStyle ts_style = "tsc";
+    ModuleSrc modules;
+    Bool capitalize_branch_names_in_types;
+    Bool capitalize_type_names;
+};
+
+struct OutputOpts {
+    String outputDir;
+    Nullable<String> manifest = null;
+};
+
+union TsStyle {
+    Void tsc;
+    Void deno;
+};
+
+union ModuleSrc {
+    Void all;
+    Vector<String> modules;
+};
+
+union ReferenceableScopeOption {
+    /// Generated code will only be referred internal to the repo
+    Void local;
+    /// Generated code can be published via a package manager (e.g. npm)
+    Void remote;
+};
+
+/// Expected to live in a file named `adl.pkg.json`
+struct AdlPackage {
+    PackageDirective pkg;
+    /// Version
+    String adlc;
+    Vector<Require> requires = [];
+    Vector<Exclude> excludes = [];
+    Vector<Replace> replaces = [];
+    Vector<Retract> retracts = [];
+};
+
+struct PackageDirective {
+    String path;
+    Nullable<String> repo = null;
+};
+
+struct Require {
+    String path;
+    String version;
+    Bool indirect = false;
+};
+
+struct Exclude {
+    String path;
+    String version;
+};
+
+struct Replace {
+    String path;
+    Nullable<String> version;
+};
+
+struct Retract {
+    String version;
+    Nullable<String> comment = null;
+};
+
+};

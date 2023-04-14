@@ -12,6 +12,9 @@ pub struct TestFileMetaData {
   #[serde(default="TestFileMetaData::def_lib_paths")]
   pub lib_paths: Vec<String>,
 
+  /**
+   * If null then 'build/adlc_out/$module_root' is used
+   */
   #[serde(default="TestFileMetaData::def_output_dir")]
   pub output_dir: Option<String>,
 
