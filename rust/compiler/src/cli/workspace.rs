@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{env, fs};
 
 use anyhow::anyhow;
@@ -9,8 +9,8 @@ use crate::adlgen::adlc::packaging::{AdlPackage, AdlWorkspace0, AdlWorkspace1, G
 use crate::adlrt::custom::sys::types::pair::Pair;
 use crate::processing::loader::loader_from_workspace;
 
-use super::{tsgen, TsStyle};
 use super::TsOpts;
+use super::{tsgen, TsStyle};
 
 pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
     let pkg_defs = collect_work_and_pkg(&opts.dir)?;
@@ -36,16 +36,23 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
                         },
                         modules: match &opts.modules {
                             crate::adlgen::adlc::packaging::ModuleSrc::All => {
-                                let mut ms = vec![];
-                                ms
-                            },
+                                let pkg_root = wrk1.0.join(pkg.0 .0.path.clone()).canonicalize()?;
+                                if let Some(pkg_root_str) = pkg_root.as_os_str().to_str() {
+                                    walk_and_collect_adl_modules(pkg_root_str, &pkg_root)
+                                } else {
+                                    return Err(anyhow!("Could get str from pkg_root"));
+                                }
+                            }
                             crate::adlgen::adlc::packaging::ModuleSrc::Modules(ms) => ms.clone(),
                         },
                         capitalize_branch_names_in_types: opts.capitalize_branch_names_in_types,
                         capitalize_type_names: opts.capitalize_type_names,
                     };
                     let loader = loader_from_workspace(wrk1.0.clone(), wrk1.1.clone());
-                    println!("TsGen for pkg {:?} in workspace {:?} output dir {}", pkg.0.0, wrk1.0, opts.outputs.output_dir);
+                    println!(
+                        "TsGen for pkg {:?} in workspace {:?} output dir {}",
+                        pkg.0 .0, wrk1.0, opts.outputs.output_dir
+                    );
                     tsgen::tsgen(loader, &tsopts)?;
                 }
             }
@@ -54,12 +61,39 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+fn walk_and_collect_adl_modules(pkg_root: &str, cwd: &PathBuf) -> Vec<String> {
+    let mut mods = vec![];
+    if let Ok(files) = fs::read_dir(cwd) {
+        for file in files {
+            if let Ok(file) = file {
+                let path = file.path();
+                if path.is_file() {
+                    if let Some(ext) = path.extension() {
+                        if ext == "adl" {
+                            if let Some(name) = path.to_str() {
+                                let name1 = &name[(pkg_root.len() + 1)..(name.len() - 4)];
+                                let name2 = name1.replace("/", ".");
+                                println!("  adding module {}", name2);
+                                mods.push(name2);
+                            }
+                        }
+                    }
+                }
+                if path.is_dir() {
+                    mods.append(&mut walk_and_collect_adl_modules(pkg_root, &path));
+                }
+            }
+        }
+    }
+    mods
+}
+
 fn collection_to_workspace(
     pkg_defs: Vec<(PkgDef, PathBuf, &str)>,
 ) -> Result<(PathBuf, AdlWorkspace1), anyhow::Error> {
     for porw in pkg_defs {
         let porw_path = porw.1.join(porw.2);
-        let content = fs::read_to_string(&porw_path)?;
+        let content = fs::read_to_string(&porw_path).map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
         let mut de = serde_json::Deserializer::from_str(&content);
         match porw.0 {
             PkgDef::Pkg => {
@@ -76,7 +110,7 @@ fn collection_to_workspace(
                 };
                 for p in wrk0.r#use.iter() {
                     let p_path = porw.1.join(&p.path).join("adl.pkg.json");
-                    let content = fs::read_to_string(&p_path)?;
+                    let content = fs::read_to_string(&p_path).map_err(|e| anyhow!("Can't read pkg specified in workspace.\n\tworkspace {:?}\n\t package {:?}\n\t error: {}", porw_path, p_path, e.to_string()))?;
                     let mut de = serde_json::Deserializer::from_str(&content);
                     let pkg = AdlPackage::deserialize(&mut de)
                         .map_err(|e| anyhow!("{:?}: {}", p_path, e.to_string()))?;

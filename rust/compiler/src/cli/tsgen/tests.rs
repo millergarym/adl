@@ -4,8 +4,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
-use crate::adlgen_dev::testing_table::TestFilesMetaData;
-use crate::cli::{AdlSearchOpts, OutputOpts};
+use crate::{cli::{AdlSearchOpts, OutputOpts}, adlgen::adlc::testing_table::TestFilesMetaData};
 
 use super::*;
 
@@ -56,6 +55,7 @@ fn generate_ts_from_test_files() {
 
                 let mut search_path = vec![];
                 search_path.push(PathBuf::from("../../adl/stdlib"));
+                search_path.push(PathBuf::from("../../adl/adlc"));
                 {
                     let mut sp = PathBuf::from("../../adl/tests/");
                     sp.push(t.module_root.clone());
@@ -127,7 +127,7 @@ fn generate_ts_from_test_files() {
 
                 // TODO consider failed.
                 // t.fail
-                match tsgen(&opts) {
+                match tsgen(loader_from_search_paths(&opts.search.path), &opts) {
                     Ok(_) => {
                         println!(
                             "{} {} - ts gen output;  {}",

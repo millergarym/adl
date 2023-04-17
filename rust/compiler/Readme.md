@@ -24,3 +24,8 @@ cd build/ast
 jq -S . test30_04.adlc.ast.json > test30_04.adlc.sorted.ast.json
 code -d test30_04.adlc.sorted.ast.json test30_04.rust.sorted.ast.json
 ```
+
+### Testing Workspace Gen
+```
+cargo +nightly run gen ../../adl/tests/test31/proj
+```

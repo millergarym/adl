@@ -1,35 +1,14 @@
 {
     "adlc": "0.0.0",
-    "defaultGenOptions": [
-        {
-            "tsgen": {
-                "referenceable": "remote",
-                "outputs": {
-                    "outputDir": "",
-                    "manifest": null
-                },
-                "includeRuntime": false,
-                "runtimeDir": null,
-                "generate_transitive": false,
-                "include_resolver": false,
-                "modules": "all",
-                "capitalize_branch_names_in_types": true,
-                "capitalize_type_names": true
-            }
-        }
-    ],
     "use": [
         {
-            "path": "./adlc_dev"
+            "path": "./adlc"
         },
         {
             "path": "./tests/test31/lib"
         },
         {
-            "path": "./stdlib/adlc"
-        },
-        {
-            "path": "./stdlib/sys"
+            "path": "./stdlib"
         },
         {
             "path": "./tests/test31/proj",

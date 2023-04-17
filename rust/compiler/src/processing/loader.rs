@@ -43,6 +43,7 @@ impl AdlLoader for WorkspaceLoader {
     fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
         for pkg in &self.workspace.r#use {
             let pkg_path = pkg.0.1.path.as_str();
+            println!("  looking for {} in {} or {:?}", module_name, pkg_path, pkg.0.1.global_alias.clone());
             let pkg_name = if module_name.starts_with(pkg_path) {
                 Some(pkg.0.1.path.clone())
             } else if let Some(alias) = pkg.0.1.global_alias.clone() {

@@ -1,4 +1,4 @@
-// @generated from adl module testing_table
+// @generated from adl module adlc.testing_table
 
 use serde::Deserialize;
 use serde::Serialize;

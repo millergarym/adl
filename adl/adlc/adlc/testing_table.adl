@@ -1,4 +1,4 @@
-module testing_table {
+module adlc.testing_table {
 
 type TestFilesMetaData = Vector<TestFileMetaData>;
 

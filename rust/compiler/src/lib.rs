@@ -5,5 +5,3 @@ pub mod parser;
 pub mod processing;
 pub mod utils;
 pub mod adlstdlib;
-
-mod adlgen_dev;

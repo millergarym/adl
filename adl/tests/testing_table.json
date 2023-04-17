@@ -76,5 +76,12 @@
             "It is resolved as sys.annotation.SerializedName"
         ]
     },
+    {
+        "module_root": "test31/proj",
+        "output_dir": "test_app/protoapp/src/adlgen",
+        "modules": ["protoclient.protoapp.api" ],
+        "title": "protoapp",
+        "lib_paths": [ "test31/lib" ]
+    },
     { "module_root": "demo1", "modules": ["picture" ] }
 ]
