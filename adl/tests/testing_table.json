@@ -83,5 +83,6 @@
         "title": "protoapp",
         "lib_paths": [ "test31/lib" ]
     },
+    { "module_root": "test32", "modules": ["test32a", "test32b"], "fail": true, "title": "Circular module reference"},
     { "module_root": "demo1", "modules": ["picture" ] }
 ]

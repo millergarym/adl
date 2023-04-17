@@ -82,7 +82,7 @@ impl Resolver {
 
         let module_refs = find_module_refs(&module0);
         for m in &module_refs {
-            self.add_module(m)?;
+            self.add_module_impl(in_progress, m)?;
         }
 
         let type_params = HashSet::new();
