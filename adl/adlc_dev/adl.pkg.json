@@ -1,4 +1,4 @@
 {
-    "pkg": { "path" : "" },
+    "path" : "github.com/adl-lang/adl/adl/adkc_dev",
     "adlc": "0.0.0"
 }

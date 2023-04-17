@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Error, anyhow};
 use clap::{Args, Parser};
 use std::str::{FromStr};
+
+use crate::processing::loader::loader_from_search_paths;
 // use std::path{Path, PathBuf};
 
 pub mod ast;
@@ -19,7 +21,10 @@ pub fn run_cli() -> i32 {
         Command::Verify(opts) => verify::verify(&opts),
         Command::Ast(opts) => ast::ast(&opts),
         Command::Rust(opts) => rust::rust(&opts),
-        Command::Tsgen(opts) => tsgen::tsgen(&opts),
+        Command::Tsgen(opts) => {
+            let loader = loader_from_search_paths(&opts.search.path);
+            tsgen::tsgen(loader, &opts)
+        },
         Command::WriteStdlib(opts) => crate::adlstdlib::dump(&opts),
     };
     match r {

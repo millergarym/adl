@@ -3,19 +3,28 @@
 
 module adlc.packaging {
 
+import sys.types.Pair;
+
+type AdlWorkspace0 = AdlWorkspace<AdlPackageRef>;
+type AdlWorkspace1 = AdlWorkspace<Pair<AdlPackageRef,AdlPackage>>;
+
 /// Expected to live in a file named `adl.work.json`
-struct AdlWorkspace {
+struct AdlWorkspace<T> {
     /// Version
     String adlc;
-    AdlPackageRefs use;
+    Vector<GenOptions> defaultGenOptions = [];
+    Vector<T> use;
+    // AdlPackageRefs use;
 };
+
+// key must be a path to a directory directly under the folder containing the `adl.work.json` file.
+// type AdlPackageRefs = StringMap<AdlPackageRef>;
 
 type AdlPackageRefs = Vector<AdlPackageRef>;
 
 struct AdlPackageRef {
-    /// must be a path to a directory directly under the folder containing the `adl.work.json` file.
-    String root;
-    Vector<GenOptions> genOptions;
+    String path;
+    Vector<GenOptions> genOptions = [];
 };
 
 union GenOptions {
@@ -68,7 +77,8 @@ union ReferenceableScopeOption {
 
 /// Expected to live in a file named `adl.pkg.json`
 struct AdlPackage {
-    PackageDirective pkg;
+    String path;
+    Nullable<String> globalAlias = null;
     /// Version
     String adlc;
     Vector<Require> requires = [];

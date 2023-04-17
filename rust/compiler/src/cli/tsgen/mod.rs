@@ -15,7 +15,7 @@ use genco::prelude::*;
 
 use crate::adlgen::sys::adlast2::{self as adlast};
 use crate::adlgen::sys::adlast2::{Module, Module1, TypeExpr, TypeRef};
-use crate::processing::loader::loader_from_search_paths;
+use crate::processing::loader::{loader_from_search_paths, AdlLoader};
 use crate::processing::resolver::Resolver;
 use crate::processing::writer::TreeWriter;
 
@@ -48,8 +48,7 @@ const TSC_B64: &[u8] =
     b"import {fromByteArray as b64Encode, toByteArray as b64Decode} from 'base64-js'";
 const DENO_B64: &[u8] = b"import {encode as b64Encode, decode as b64Decode} from 'https://deno.land/std@0.97.0/encoding/base64.ts'";
 
-pub fn tsgen(opts: &TsOpts) -> anyhow::Result<()> {
-    let loader = loader_from_search_paths(&opts.search.path);
+pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts) -> anyhow::Result<()> {
     let mut resolver = Resolver::new(loader);
     for m in &opts.modules {
         let r = resolver.add_module(m);

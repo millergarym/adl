@@ -1,28 +1,42 @@
 // @generated from adl module adlc.packaging
 
+use crate::adlrt::custom::sys::types::pair::Pair;
 use serde::Deserialize;
 use serde::Serialize;
+
+pub type AdlWorkspace0 = AdlWorkspace<AdlPackageRef>;
+
+pub type AdlWorkspace1 = AdlWorkspace<Pair<AdlPackageRef, AdlPackage>>;
 
 /**
  * Expected to live in a file named `adl.work.json`
  */
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub struct AdlWorkspace {
+pub struct AdlWorkspace<T> {
   /**
    * Version
    */
   pub adlc: String,
 
+  #[serde(default="AdlWorkspace::<T>::def_default_gen_options")]
+  #[serde(rename="defaultGenOptions")]
+  pub default_gen_options: Vec<GenOptions>,
+
   #[serde(rename="use")]
-  pub r#use: AdlPackageRefs,
+  pub r#use: Vec<T>,
 }
 
-impl AdlWorkspace {
-  pub fn new(adlc: String, r#use: AdlPackageRefs) -> AdlWorkspace {
+impl<T> AdlWorkspace<T> {
+  pub fn new(adlc: String, r#use: Vec<T>) -> AdlWorkspace<T> {
     AdlWorkspace {
       adlc: adlc,
+      default_gen_options: AdlWorkspace::<T>::def_default_gen_options(),
       r#use: r#use,
     }
+  }
+
+  pub fn def_default_gen_options() -> Vec<GenOptions> {
+    vec![]
   }
 }
 
@@ -30,21 +44,23 @@ pub type AdlPackageRefs = Vec<AdlPackageRef>;
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct AdlPackageRef {
-  /**
-   * must be a path to a directory directly under the folder containing the `adl.work.json` file.
-   */
-  pub root: String,
+  pub path: String,
 
+  #[serde(default="AdlPackageRef::def_gen_options")]
   #[serde(rename="genOptions")]
   pub gen_options: Vec<GenOptions>,
 }
 
 impl AdlPackageRef {
-  pub fn new(root: String, gen_options: Vec<GenOptions>) -> AdlPackageRef {
+  pub fn new(path: String) -> AdlPackageRef {
     AdlPackageRef {
-      root: root,
-      gen_options: gen_options,
+      path: path,
+      gen_options: AdlPackageRef::def_gen_options(),
     }
+  }
+
+  pub fn def_gen_options() -> Vec<GenOptions> {
+    vec![]
   }
 }
 
@@ -166,7 +182,11 @@ pub enum ReferenceableScopeOption {
  */
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct AdlPackage {
-  pub pkg: PackageDirective,
+  pub path: String,
+
+  #[serde(default="AdlPackage::def_global_alias")]
+  #[serde(rename="globalAlias")]
+  pub global_alias: Option<String>,
 
   /**
    * Version
@@ -187,15 +207,20 @@ pub struct AdlPackage {
 }
 
 impl AdlPackage {
-  pub fn new(pkg: PackageDirective, adlc: String) -> AdlPackage {
+  pub fn new(path: String, adlc: String) -> AdlPackage {
     AdlPackage {
-      pkg: pkg,
+      path: path,
+      global_alias: AdlPackage::def_global_alias(),
       adlc: adlc,
       requires: AdlPackage::def_requires(),
       excludes: AdlPackage::def_excludes(),
       replaces: AdlPackage::def_replaces(),
       retracts: AdlPackage::def_retracts(),
     }
+  }
+
+  pub fn def_global_alias() -> Option<String> {
+    None
   }
 
   pub fn def_requires() -> Vec<Require> {

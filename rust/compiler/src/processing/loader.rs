@@ -1,15 +1,21 @@
 use anyhow::anyhow;
 use nom::Finish;
 use nom_locate::LocatedSpan;
+use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::PathBuf;
 
+use crate::adlgen::adlc::packaging::AdlWorkspace1;
 use crate::adlgen::sys::adlast2 as adlast;
 use crate::parser::{convert_error, raw_module};
 use crate::processing::annotations::apply_explicit_annotations_and_serialized_name;
 
 use super::Module0;
+
+pub fn loader_from_workspace(root: PathBuf, workspace: AdlWorkspace1) -> Box<dyn AdlLoader> {
+    Box::new(WorkspaceLoader{ root, workspace, loaders: HashMap::new() })
+}
 
 pub fn loader_from_search_paths(paths: &Vec<PathBuf>) -> Box<dyn AdlLoader> {
     let loaders = paths.iter().map(loader_from_dir_tree).collect();
@@ -23,6 +29,41 @@ pub fn loader_from_dir_tree(path: &PathBuf) -> Box<dyn AdlLoader> {
 pub trait AdlLoader {
     /// Find and load the specified ADL module
     fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error>;
+}
+
+pub struct WorkspaceLoader {
+    root: PathBuf,
+    workspace: AdlWorkspace1,
+    // embedded: EmbeddedStdlibLoader,
+    loaders: HashMap<String, Box<dyn AdlLoader>>,
+}
+
+
+impl AdlLoader for WorkspaceLoader {
+    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
+        for pkg in &self.workspace.r#use {
+            let pkg_path = pkg.0.1.path.as_str();
+            let pkg_name = if module_name.starts_with(pkg_path) {
+                Some(pkg.0.1.path.clone())
+            } else if let Some(alias) = pkg.0.1.global_alias.clone() {
+                if module_name.starts_with(alias.as_str()) {
+                    Some(alias)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some(name) = pkg_name {
+                let loader = self
+                    .loaders
+                    .entry(name)
+                    .or_insert(Box::new(DirTreeLoader::new(self.root.join(&pkg.0.0.path))));
+                return loader.load(module_name);
+            }
+        }
+        Ok(None)
+    }
 }
 
 /// Combines a bunch of loaders
