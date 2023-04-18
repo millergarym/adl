@@ -8,18 +8,18 @@ use genco::prelude::*;
 use genco::tokens::{Item, ItemStr};
 
 use crate::adlgen::sys::adlast2::{
-    Annotations, Decl, DeclType, Module, NewType, PrimitiveType, ScopedName, Struct, TypeDef,
-    TypeExpr, TypeRef, Union,
+    DeclType, NewType, PrimitiveType, ScopedName, TypeDef,
+    TypeExpr, TypeRef, Annotations, Module1, Decl1, Struct1, Union1, GlobalName,
 };
 use crate::cli::TsOpts;
-use crate::parser::docstring_scoped_name;
+use crate::parser::{docstring_global_named};
 use crate::processing::resolver::Resolver;
 
 const SP: &str = " ";
 const SQ: &str = "'";
 
 pub struct TsGenVisitor<'a> {
-    pub module: &'a Module<TypeExpr<TypeRef>>,
+    pub module: &'a Module1,
     pub resolver: &'a Resolver,
     pub adlr: JsImport,
     pub map: &'a mut HashMap<ScopedName, (String, JsImport)>,
@@ -27,7 +27,7 @@ pub struct TsGenVisitor<'a> {
 }
 
 struct DeclPayload<'a> {
-    decl: &'a Decl<TypeExpr<TypeRef>>,
+    decl: &'a Decl1,
     mname: &'a String,
 }
 
@@ -40,7 +40,7 @@ impl TsGenVisitor<'_> {
     pub fn gen_module(
         &mut self,
         t: &mut Tokens<JavaScript>,
-        m: &Module<TypeExpr<TypeRef>>,
+        m: &Module1,
     ) -> anyhow::Result<()> {
         quote_in! { *t =>
             $("/* @generated from adl module") $(m.name.clone()) $("*/")
@@ -90,7 +90,7 @@ impl TsGenVisitor<'_> {
     fn gen_struct(
         &mut self,
         t: &mut Tokens<JavaScript>,
-        m: &Struct<TypeExpr<TypeRef>>,
+        m: &Struct1,
         payload: DeclPayload<'_>,
     ) -> anyhow::Result<()> {
         let (decl, name) = (payload.decl, &payload.decl.name);
@@ -164,7 +164,7 @@ impl TsGenVisitor<'_> {
     fn gen_union(
         &mut self,
         t: &mut Tokens<JavaScript>,
-        m: &Union<TypeExpr<TypeRef>>,
+        m: &Union1,
         payload: DeclPayload<'_>,
     ) -> anyhow::Result<()> {
         let name = &payload.decl.name;
@@ -318,11 +318,31 @@ impl TsGenVisitor<'_> {
     /// returns (has_make_function,ts type)
     fn rust_type(&mut self, te: &TypeExpr<TypeRef>) -> Result<(bool, String), String> {
         match &te.type_ref {
+            TypeRef::GlobalName(n) => self.tstype_from_global_name(n, &te.parameters),
             TypeRef::ScopedName(n) => self.tstype_from_scoped_name(n, &te.parameters),
             TypeRef::LocalName(n) => self.tstype_from_local_name(n, &te.parameters),
             TypeRef::Primitive(n) => self.tstype_from_prim(n, &te.parameters),
             TypeRef::TypeParam(n) => Ok((true, n.clone())),
         }
+    }
+
+    fn tstype_from_global_name(
+        &mut self,
+        global_name: &GlobalName,
+        params: &Vec<TypeExpr<TypeRef>>,
+    ) -> Result<(bool, String), String> {
+        // todo!("{:?}", global_name);
+        let imp = self.map.entry(global_name.scoped_name.clone()).or_insert_with(|| {
+            let path = "@";
+            let i_name = global_name.scoped_name
+                .module_name
+                .replace(".", "_")
+                .to_case(Case::Snake);
+            let import = js::import(path, i_name.clone()).into_wildcard();
+            (i_name, import)
+        });
+        let local_name = format!("@{}.{}", global_name.path, global_name.scoped_name.name);
+        self.tstype_from_local_name(&local_name, params)
     }
 
     fn tstype_from_scoped_name(
@@ -425,7 +445,7 @@ impl TsGenVisitor<'_> {
     fn gen_rtti(
         &mut self,
         t: &mut Tokens<JavaScript>,
-        decl: &Decl<TypeExpr<TypeRef>>,
+        decl: &Decl1,
         payload: &RttiPayload<'_>,
     ) -> anyhow::Result<()> {
         // Generation AST holder
@@ -456,7 +476,7 @@ impl TsGenVisitor<'_> {
         t: &mut Tokens<JavaScript>,
         annotations: &Annotations,
     ) -> anyhow::Result<()> {
-        if let Some(ds) = annotations.0.get(&docstring_scoped_name()) {
+        if let Some(ds) = annotations.0.get(&docstring_global_named()) {
             lit(t, "/**\n");
             match ds {
                 serde_json::Value::String(y) => {
@@ -473,7 +493,7 @@ impl TsGenVisitor<'_> {
                     }
                 }
                 _ => {
-                    let j = serde_json::to_string(ds);
+                    let j = serde_json::to_string(&ds);
                     return Err(anyhow!(
                         "error processing doc comment expect array received JSON '{}'",
                         j.unwrap()

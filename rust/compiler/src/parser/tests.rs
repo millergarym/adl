@@ -2,7 +2,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::utils::ast::{mk_typeexpr0, mk_scoped_name};
+use crate::utils::ast::{mk_typeexpr0, mk_scoped_name, mk_named_scoped_name};
 
 use super::*;
 use nom::{
@@ -148,8 +148,8 @@ fn parse_decl_annotations() {
       name: "A".to_string(),
       version:  Maybe::nothing(),
       annotations:  Map::from_iter(vec![
-        (mk_scoped_name("", "Y"), serde_json::Value::String("xyzzy".to_owned())),
-        (mk_scoped_name("X", "Z"), serde_json::Value::Bool(true)),
+        (mk_named_scoped_name("", "Y"), serde_json::Value::String("xyzzy".to_owned())),
+        (mk_named_scoped_name("X", "Z"), serde_json::Value::Bool(true)),
       ]),
       r#type: adlast::DeclType::Struct(adlast::Struct{
         type_params: Vec::new(),
@@ -214,7 +214,7 @@ fn parse_docstring() {
       name: "A".to_string(),
       version:  Maybe::nothing(),
       annotations:  Map::from_iter(vec![
-        (mk_scoped_name("sys.annotations", "Doc"), serde_json::Value::from(" Some doc\n with line 2")),
+        (mk_named_scoped_name("sys.annotations", "Doc"), serde_json::Value::from(" Some doc\n with line 2")),
       ]),
       r#type: adlast::DeclType::Struct(adlast::Struct{
         type_params: Vec::new(),

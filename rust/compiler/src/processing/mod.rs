@@ -7,9 +7,6 @@ pub mod primitives;
 pub mod resolver;
 pub mod writer;
 
-pub type TypeExpr0 = adlast::TypeExpr<adlast::ScopedName>;
-pub type Module0 = adlast::Module<TypeExpr0>;
-
 pub trait ErrorConsumer {
     fn consume_error(&mut self, error: String) -> ();
 }

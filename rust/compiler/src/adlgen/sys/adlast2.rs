@@ -9,7 +9,36 @@ pub type ModuleName = String;
 
 pub type Ident = String;
 
-pub type Annotations = Map<ScopedName, serde_json::Value>;
+pub type Annotations = Map<Named, serde_json::Value>;
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub enum Named {
+  #[serde(rename="global")]
+  Global(GlobalName),
+
+  #[serde(rename="scoped")]
+  Scoped(ScopedName),
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub struct GlobalName {
+  pub path: String,
+
+  pub alias: Option<String>,
+
+  #[serde(rename="scopedName")]
+  pub scoped_name: ScopedName,
+}
+
+impl GlobalName {
+  pub fn new(path: String, alias: Option<String>, scoped_name: ScopedName) -> GlobalName {
+    GlobalName {
+      path: path,
+      alias: alias,
+      scoped_name: scoped_name,
+    }
+  }
+}
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct ScopedName {
@@ -311,6 +340,9 @@ pub enum PrimitiveType {
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub enum TypeRef {
+  #[serde(rename="globalName")]
+  GlobalName(GlobalName),
+
   #[serde(rename="scopedName")]
   ScopedName(ScopedName),
 
@@ -326,9 +358,27 @@ pub enum TypeRef {
 
 pub type TypeExpr0 = TypeExpr<ScopedName>;
 
+pub type Field0 = Field<TypeExpr0>;
+
+pub type Struct0 = Struct<TypeExpr0>;
+
+pub type Union0 = Union<TypeExpr0>;
+
+pub type DeclType0 = DeclType<TypeExpr0>;
+
+pub type Decl0 = Decl<TypeExpr0>;
+
 pub type Module0 = Module<TypeExpr0>;
 
 pub type TypeExpr1 = TypeExpr<TypeRef>;
+
+pub type Field1 = Field<TypeExpr1>;
+
+pub type Struct1 = Struct<TypeExpr1>;
+
+pub type Union1 = Union<TypeExpr1>;
+
+pub type DeclType1 = DeclType<TypeExpr1>;
 
 pub type Decl1 = Decl<TypeExpr1>;
 

@@ -23,7 +23,7 @@ pub fn run_cli() -> i32 {
         Command::Rust(opts) => rust::rust(&opts),
         Command::Tsgen(opts) => {
             let loader = loader_from_search_paths(&opts.search.path);
-            tsgen::tsgen(loader, &opts)
+            tsgen::tsgen(loader, &opts, None)
         },
         Command::WriteStdlib(opts) => crate::adlstdlib::dump(&opts),
     };
@@ -137,6 +137,9 @@ pub struct TsOpts {
     /// Set the directory where runtime code is written (relative to output dir).
     #[arg(long, short='R', value_name="DIR")]
     pub runtime_dir: Option<String>,
+
+    #[arg(long)]
+    pub runtime_pkg: Option<String>,
 
     /// Also generate code for the transitive dependencies of the specified adl files (default: true)
     #[arg(long, default_value_t = true)]

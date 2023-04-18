@@ -2,58 +2,59 @@ use anyhow::anyhow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use crate::adlgen::adlc::packaging::AdlPackage;
 use crate::adlgen::sys::adlast2::{self as adlast, ScopedName};
 use crate::adlrt::custom::sys::types::map::Map;
 
 use super::loader::AdlLoader;
 use super::primitives::prim_from_str;
-use super::{Module0, TypeExpr0};
 
 type Result<T> = anyhow::Result<T>;
 
-pub type TypeRef = adlast::TypeRef;
-pub type TypeExpr1 = adlast::TypeExpr1;
-pub type Decl1 = adlast::Decl1;
-pub type Module1 = adlast::Module1;
-pub type ModuleName = adlast::ModuleName;
-
 pub struct Resolver {
+    adl_pkg: Option<AdlPackage>,
     loader: Box<dyn AdlLoader>,
-    modules: HashMap<ModuleName, ResolvedModule>,
+    modules: HashMap<adlast::ModuleName, ResolvedModule>,
 }
 
 pub struct ResolvedModule {
-    module1: Module1,
-    decls: HashMap<String, Decl1>,
+    adl_pkg: Option<AdlPackage>,
+    module1: adlast::Module1,
+    decls: HashMap<String, adlast::Decl1>,
+}
+
+pub struct TsGenOpts {
+    pkg_name: String,
 }
 
 impl Resolver {
-    pub fn new(loader: Box<dyn AdlLoader>) -> Self {
+    pub fn new(loader: Box<dyn AdlLoader>, adl_pkg: Option<AdlPackage>) -> Self {
         Self {
+            adl_pkg,
             loader,
             modules: HashMap::new(),
         }
     }
 
-    pub fn add_module(&mut self, module_name: &ModuleName) -> Result<()> {
+    pub fn add_module(&mut self, module_name: &adlast::ModuleName) -> Result<()> {
         let mut in_progress = HashSet::new();
         self.add_module_impl(&mut in_progress, module_name)
     }
 
-    pub fn get_module_names(&self) -> Vec<ModuleName> {
+    pub fn get_module_names(&self) -> Vec<adlast::ModuleName> {
         self.modules.keys().cloned().collect()
     }
 
-    pub fn get_rmodule(&self, module_name: &ModuleName) -> Option<&ResolvedModule> {
+    pub fn get_rmodule(&self, module_name: &adlast::ModuleName) -> Option<&ResolvedModule> {
         self.modules.get(module_name)
     }
 
-    pub fn get_module(&self, module_name: &ModuleName) -> Option<&Module1> {
+    pub fn get_module(&self, module_name: &adlast::ModuleName) -> Option<&adlast::Module1> {
         self.modules.get(module_name).map(|rm| &rm.module1)
     }
 
-    pub fn get_decl(&self, scoped_name: &adlast::ScopedName) -> Option<&Decl1> {
-        match  self.modules.get(&scoped_name.module_name) {
+    pub fn get_decl(&self, scoped_name: &adlast::ScopedName) -> Option<&adlast::Decl1> {
+        match self.modules.get(&scoped_name.module_name) {
             None => None,
             Some(rmodule) => return rmodule.decls.get(&scoped_name.name),
         }
@@ -61,8 +62,8 @@ impl Resolver {
 
     fn add_module_impl(
         &mut self,
-        in_progress: &mut HashSet<ModuleName>,
-        module_name: &ModuleName,
+        in_progress: &mut HashSet<adlast::ModuleName>,
+        module_name: &adlast::ModuleName,
     ) -> Result<()> {
         if self.modules.contains_key(module_name) {
             return Ok(());
@@ -74,7 +75,7 @@ impl Resolver {
 
         in_progress.insert(module_name.clone());
 
-        let mut module0 = self
+        let (adl_pkg, mut module0) = self
             .loader
             .load(module_name)?
             .ok_or_else(|| anyhow!("Module {} not found", module_name))?;
@@ -90,6 +91,7 @@ impl Resolver {
         let local_names = module0.decls.iter().map(|d| &(d.name) as &str).collect();
         let mut ctx = ResolveCtx {
             resolver: self,
+            adl_pkg: &adl_pkg,
             module0: &module0,
             local_names: &local_names,
             expanded_imports: &expanded_imports,
@@ -97,13 +99,15 @@ impl Resolver {
         };
         let module1 = resolve_module(&mut ctx, &module0)?;
         check_module(&module1)?;
-        let decls : HashMap<String,Decl1> = module1.decls
+        let decls: HashMap<String, adlast::Decl1> = module1
+            .decls
             .iter()
             .map(|d| (d.name.clone(), d.clone()))
             .collect();
 
         let rmodule = ResolvedModule {
             module1,
+            adl_pkg: ctx.adl_pkg.clone(),
             decls,
         };
         self.modules.insert(module_name.clone(), rmodule);
@@ -113,7 +117,7 @@ impl Resolver {
         Ok(())
     }
 
-    fn add_default_imports(&self, module: &mut Module0) {
+    fn add_default_imports(&self, module: &mut adlast::Module0) {
         let default_imports = vec!["sys.annotations"];
         for din in default_imports {
             let di = adlast::Import::ModuleName(din.to_owned());
@@ -123,7 +127,10 @@ impl Resolver {
         }
     }
 
-    fn get_expanded_imports(&self, module: &Module0) -> HashMap<String, adlast::ScopedName> {
+    fn get_expanded_imports(
+        &self,
+        module: &adlast::Module0,
+    ) -> HashMap<String, adlast::ScopedName> {
         let mut result = HashMap::new();
         for i in &module.imports {
             match i {
@@ -149,7 +156,7 @@ impl Resolver {
     }
 }
 
-pub fn check_module(m: &Module1) -> Result<()> {
+pub fn check_module(m: &adlast::Module1) -> Result<()> {
     let mut elog = super::ErrorLogger::new();
     super::checks::check_duplicates::module(m, &mut elog);
     if elog.failed {
@@ -159,7 +166,7 @@ pub fn check_module(m: &Module1) -> Result<()> {
     }
 }
 
-pub fn resolve_module(ctx: &mut ResolveCtx, module0: &Module0) -> Result<Module1> {
+pub fn resolve_module(ctx: &mut ResolveCtx, module0: &adlast::Module0) -> Result<adlast::Module1> {
     let decls1 = module0
         .decls
         .iter()
@@ -178,10 +185,7 @@ pub fn resolve_module(ctx: &mut ResolveCtx, module0: &Module0) -> Result<Module1
     Ok(module1)
 }
 
-pub fn resolve_decl(
-    ctx: &mut ResolveCtx,
-    decl0: &adlast::Decl<TypeExpr0>,
-) -> Result<adlast::Decl<TypeExpr1>> {
+pub fn resolve_decl(ctx: &mut ResolveCtx, decl0: &adlast::Decl0) -> Result<adlast::Decl1> {
     let dtype = match &decl0.r#type {
         adlast::DeclType::Struct(s) => resolve_struct(ctx, &s)?,
         adlast::DeclType::Union(u) => resolve_union(ctx, &u)?,
@@ -200,18 +204,15 @@ pub fn resolve_decl(
 
 pub fn resolve_struct(
     ctx0: &mut ResolveCtx,
-    struct0: &adlast::Struct<TypeExpr0>,
-) -> Result<adlast::DeclType<TypeExpr1>> {
+    struct0: &adlast::Struct0,
+) -> Result<adlast::DeclType1> {
     let ctx = with_type_params(ctx0, &struct0.type_params);
     let fields = resolve_fields(&ctx, &struct0.fields)?;
     let struct1 = adlast::Struct::new(struct0.type_params.clone(), fields);
     Ok(adlast::DeclType::Struct(struct1))
 }
 
-pub fn resolve_union(
-    ctx0: &mut ResolveCtx,
-    union0: &adlast::Union<TypeExpr0>,
-) -> Result<adlast::DeclType<TypeExpr1>> {
+pub fn resolve_union(ctx0: &mut ResolveCtx, union0: &adlast::Union0) -> Result<adlast::DeclType1> {
     let ctx = with_type_params(ctx0, &union0.type_params);
     let fields = resolve_fields(&ctx, &union0.fields)?;
     let union1 = adlast::Union::new(union0.type_params.clone(), fields);
@@ -220,8 +221,8 @@ pub fn resolve_union(
 
 pub fn resolve_type_alias(
     ctx0: &mut ResolveCtx,
-    type0: &adlast::TypeDef<TypeExpr0>,
-) -> Result<adlast::DeclType<TypeExpr1>> {
+    type0: &adlast::TypeDef<adlast::TypeExpr0>,
+) -> Result<adlast::DeclType1> {
     let ctx = with_type_params(ctx0, &type0.type_params);
     let type_expr1 = resolve_type_expr(&ctx, &type0.type_expr)?;
     let type1 = adlast::TypeDef::new(type0.type_params.clone(), type_expr1);
@@ -230,8 +231,8 @@ pub fn resolve_type_alias(
 
 pub fn resolve_newtype(
     ctx0: &mut ResolveCtx,
-    newtype0: &adlast::NewType<TypeExpr0>,
-) -> Result<adlast::DeclType<TypeExpr1>> {
+    newtype0: &adlast::NewType<adlast::TypeExpr0>,
+) -> Result<adlast::DeclType1> {
     let ctx = with_type_params(ctx0, &newtype0.type_params);
     let type_expr1 = resolve_type_expr(&ctx, &newtype0.type_expr)?;
     let newtype1 = adlast::NewType::new(
@@ -244,18 +245,15 @@ pub fn resolve_newtype(
 
 pub fn resolve_fields(
     ctx: &ResolveCtx,
-    fields0: &Vec<adlast::Field<TypeExpr0>>,
-) -> Result<Vec<adlast::Field<TypeExpr1>>> {
+    fields0: &Vec<adlast::Field0>,
+) -> Result<Vec<adlast::Field1>> {
     fields0
         .iter()
         .map(|f| resolve_field(ctx, f))
         .collect::<Result<Vec<_>>>()
 }
 
-pub fn resolve_field(
-    ctx: &ResolveCtx,
-    field0: &adlast::Field<TypeExpr0>,
-) -> Result<adlast::Field<TypeExpr1>> {
+pub fn resolve_field(ctx: &ResolveCtx, field0: &adlast::Field0) -> Result<adlast::Field1> {
     let field1 = adlast::Field::new(
         field0.name.clone(),
         field0.serialized_name.clone(),
@@ -275,26 +273,30 @@ pub fn resolve_annotations(
         .0
         .iter()
         .map(|(sn0, jv)| {
-            let tr1 = ctx.resolve_type_ref(sn0)?;
+            let tr1 = ctx.resolve_type_ref_named(sn0)?;
             match tr1 {
-                TypeRef::ScopedName(sn1) => Ok((sn1, jv.clone())),
-                TypeRef::LocalName(ln1) => Ok((
-                    ScopedName {
+                adlast::TypeRef::GlobalName(gn) => Ok((adlast::Named::Global(gn), jv.clone())),
+                adlast::TypeRef::ScopedName(sn1) => Ok((adlast::Named::Scoped(sn1), jv.clone())),
+                adlast::TypeRef::LocalName(ln1) => Ok((
+                    adlast::Named::Scoped(ScopedName {
                         module_name: ctx.module0.name.clone(),
                         name: ln1,
-                    },
+                    }),
                     jv.clone(),
                 )),
-                TypeRef::Primitive(_) => Err(anyhow!("primitives can't be annotations")),
-                TypeRef::TypeParam(_) => Err(anyhow!("typeparams can't be annotations")),
+                adlast::TypeRef::Primitive(_) => Err(anyhow!("primitives can't be annotations")),
+                adlast::TypeRef::TypeParam(_) => Err(anyhow!("typeparams can't be annotations")),
             }
         })
         .collect::<Result<HashMap<_, _>>>()?;
     Ok(Map(hm1))
 }
 
-pub fn resolve_type_expr(ctx: &ResolveCtx, typeexpr0: &TypeExpr0) -> Result<TypeExpr1> {
-    let type_ref = ctx.resolve_type_ref(&typeexpr0.type_ref)?;
+pub fn resolve_type_expr(
+    ctx: &ResolveCtx,
+    typeexpr0: &adlast::TypeExpr0,
+) -> Result<adlast::TypeExpr1> {
+    let type_ref = ctx.resolve_type_ref_scoped_name(&typeexpr0.type_ref)?;
     let parameters = typeexpr0
         .parameters
         .iter()
@@ -306,37 +308,51 @@ pub fn resolve_type_expr(ctx: &ResolveCtx, typeexpr0: &TypeExpr0) -> Result<Type
 
 pub struct ResolveCtx<'a> {
     resolver: &'a mut Resolver,
-    module0: &'a Module0,
+    adl_pkg: &'a Option<AdlPackage>,
+    module0: &'a adlast::Module0,
     local_names: &'a HashSet<&'a str>,
     expanded_imports: &'a HashMap<adlast::Ident, adlast::ScopedName>,
     type_params: HashSet<String>,
 }
 
 impl<'a> ResolveCtx<'a> {
-    pub fn find_module(&self, module_name: &ModuleName) -> Result<Option<&Module1>> {
+    pub fn find_module(
+        &self,
+        module_name: &adlast::ModuleName,
+    ) -> Result<Option<&adlast::Module1>> {
         Ok(self.resolver.get_module(module_name))
     }
 
-    pub fn resolve_type_ref(&self, scoped_name0: &adlast::ScopedName) -> Result<TypeRef> {
+    pub fn resolve_type_ref_named(&self, name0: &adlast::Named) -> Result<adlast::TypeRef> {
+        match name0 {
+            adlast::Named::Global(gn) => Ok(adlast::TypeRef::GlobalName(gn.clone())),
+            adlast::Named::Scoped(scoped_name0) => self.resolve_type_ref_scoped_name(scoped_name0),
+        }
+    }
+
+    pub fn resolve_type_ref_scoped_name(
+        &self,
+        scoped_name0: &adlast::ScopedName,
+    ) -> Result<adlast::TypeRef> {
         if scoped_name0.module_name.is_empty() {
             let name = &scoped_name0.name;
             if self.type_params.contains(name.as_str()) {
-                return Ok(TypeRef::TypeParam(name.clone()));
+                return Ok(adlast::TypeRef::TypeParam(name.clone()));
             }
             if let Some(ptype) = prim_from_str(&name) {
-                return Ok(TypeRef::Primitive(ptype));
+                return Ok(adlast::TypeRef::Primitive(ptype));
             }
-            if self.local_names.contains(&name as &str){
-                return Ok(TypeRef::LocalName(name.clone()));
+            if self.local_names.contains(&name as &str) {
+                return Ok(adlast::TypeRef::LocalName(name.clone()));
             }
             if let Some(scoped_name) = self.expanded_imports.get(name) {
-                return Ok(TypeRef::ScopedName(scoped_name.clone()));
+                return Ok(adlast::TypeRef::ScopedName(scoped_name.clone()));
             }
             Err(anyhow!("Local type {} not found", name))
         } else {
             match self.resolver.get_rmodule(&scoped_name0.module_name) {
                 None => return Err(anyhow!("module {} not found", scoped_name0.module_name)),
-                Some(rmodule) => match rmodule.decls.get(&scoped_name0.name) {
+                Some(rmodule) => match &rmodule.decls.get(&scoped_name0.name) {
                     None => {
                         return Err(anyhow!(
                             "type {}.{} not found",
@@ -344,7 +360,33 @@ impl<'a> ResolveCtx<'a> {
                             scoped_name0.name
                         ))
                     }
-                    Some(_) => return Ok(TypeRef::ScopedName(scoped_name0.clone())),
+                    Some(_) => {
+                        match &rmodule.adl_pkg {
+                            None => return Ok(adlast::TypeRef::ScopedName(scoped_name0.clone())),
+                            Some(r_adl_pkg) => {
+                                match &self.adl_pkg {
+                                    // TODO && or should it be ||
+                                    Some(adl_pkg)
+                                        if adl_pkg.path != r_adl_pkg.path
+                                            || adl_pkg.global_alias != r_adl_pkg.global_alias =>
+                                    {
+                                        return Ok(adlast::TypeRef::GlobalName(
+                                            adlast::GlobalName {
+                                                path: r_adl_pkg.path.clone(),
+                                                alias: r_adl_pkg.global_alias.clone(),
+                                                scoped_name: scoped_name0.clone(),
+                                            },
+                                        ))
+                                    }
+                                    _ => {
+                                        return Ok(adlast::TypeRef::ScopedName(
+                                            scoped_name0.clone(),
+                                        ))
+                                    }
+                                }
+                            }
+                        }
+                    }
                 },
             }
         }
@@ -357,6 +399,7 @@ fn with_type_params<'a>(
 ) -> ResolveCtx<'a> {
     ResolveCtx {
         resolver: ctx0.resolver,
+        adl_pkg: ctx0.adl_pkg,
         module0: ctx0.module0,
         local_names: ctx0.local_names,
         expanded_imports: ctx0.expanded_imports,
@@ -371,9 +414,9 @@ fn type_params_set(type_params: &Vec<adlast::Ident>) -> HashSet<String> {
         .collect::<HashSet<_>>()
 }
 
-fn find_module_refs(module: &Module0) -> HashSet<ModuleName> {
+fn find_module_refs(module: &adlast::Module0) -> HashSet<adlast::ModuleName> {
     struct C {
-        refs: HashSet<ModuleName>,
+        refs: HashSet<adlast::ModuleName>,
     }
     impl AstConsumer<adlast::ScopedName> for C {
         fn consume_typeref(&mut self, sn: adlast::ScopedName) -> () {
@@ -385,6 +428,7 @@ fn find_module_refs(module: &Module0) -> HashSet<ModuleName> {
             }
         }
     }
+
     let mut ac = C {
         refs: HashSet::new(),
     };
@@ -434,7 +478,10 @@ mod consume {
 
     pub fn annotations<T>(annotations: &adlast::Annotations, ac: &mut dyn AstConsumer<T>) {
         for a in annotations.0.keys() {
-            ac.consume_scoped_name(a.clone());
+            match a {
+                adlast::Named::Global(gn) => ac.consume_scoped_name(gn.scoped_name.clone()),
+                adlast::Named::Scoped(sn) => ac.consume_scoped_name(sn.clone()),
+            }
         }
     }
 
@@ -448,5 +495,6 @@ mod consume {
 
 pub trait AstConsumer<TR> {
     fn consume_typeref(&mut self, t: TR) -> ();
+    // fn consume_global_name(&mut self, gn: adlast::GlobalName) -> ();
     fn consume_scoped_name(&mut self, sn: adlast::ScopedName) -> ();
 }

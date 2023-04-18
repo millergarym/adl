@@ -1,5 +1,16 @@
 use crate::adlgen::sys::adlast2 as adlast;
 
+pub fn get_scoped_name(named: &adlast::Named) -> adlast::ScopedName {
+    match named {
+        adlast::Named::Global(gn) => gn.scoped_name.clone(),
+        adlast::Named::Scoped(sn) => sn.clone(),
+    }
+}
+
+pub fn mk_named_scoped_name(mname: &str, name: &str) -> adlast::Named {
+    adlast::Named::Scoped(adlast::ScopedName::new(mname.to_string(), name.to_string()))
+}
+
 pub fn mk_scoped_name(mname: &str, name: &str) -> adlast::ScopedName {
     adlast::ScopedName::new(mname.to_string(), name.to_string())
 }

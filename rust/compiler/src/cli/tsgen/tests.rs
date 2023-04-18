@@ -76,6 +76,7 @@ fn generate_ts_from_test_files() {
                     },
                     include_rt: true,
                     runtime_dir: Some("runtime".to_string()),
+                    runtime_pkg: None,
                     ts_style: None,
                     modules: t.modules.clone(),
                     capitalize_branch_names_in_types: true,
@@ -127,7 +128,7 @@ fn generate_ts_from_test_files() {
 
                 // TODO consider failed.
                 // t.fail
-                match tsgen(loader_from_search_paths(&opts.search.path), &opts) {
+                match tsgen(loader_from_search_paths(&opts.search.path), &opts, None) {
                     Ok(_) => {
                         println!(
                             "{} {} - ts gen output;  {}",

@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use anyhow::anyhow;
 
-use crate::adlgen::sys::adlast2::{self as adlast};
+use crate::adlgen::sys::adlast2::{self as adlast, Module1};
 use crate::processing::loader::loader_from_search_paths;
-use crate::processing::resolver::{Module1, Resolver};
+use crate::processing::resolver::{Resolver};
 use crate::processing::writer::TreeWriter;
 
 use generate::{gen_module, gen_rs_mod_files};
@@ -15,7 +15,7 @@ mod generate;
 
 pub fn rust(opts: &RustOpts) -> anyhow::Result<()> {
     let loader = loader_from_search_paths(&opts.search.path);
-    let mut resolver = Resolver::new(loader);
+    let mut resolver = Resolver::new(loader, None);
     for m in &opts.modules {
         let r = resolver.add_module(m);
         match r {

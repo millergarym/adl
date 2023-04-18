@@ -10,11 +10,9 @@ type AdlWorkspace1 = AdlWorkspace<Pair<AdlPackageRef,AdlPackage>>;
 
 /// Expected to live in a file named `adl.work.json`
 struct AdlWorkspace<T> {
-    /// Version
     String adlc;
-    Vector<GenOptions> defaultGenOptions = [];
     Vector<T> use;
-    // AdlPackageRefs use;
+    Bool use_embedded_sys_loader = true;
 };
 
 // key must be a path to a directory directly under the folder containing the `adl.work.json` file.
@@ -24,36 +22,46 @@ type AdlPackageRefs = Vector<AdlPackageRef>;
 
 struct AdlPackageRef {
     String path;
-    Vector<GenOptions> genOptions = [];
+    Nullable<TypescriptGenOptions> ts_opts = null; 
 };
-
-union GenOptions {
-    TypescriptGenOptions tsgen;
-};
-
 
 struct TypescriptGenOptions {
-    ReferenceableScopeOption referenceable = "local";
-    // Vector<> searchDir;
-    OutputOpts outputs;
-    Bool includeRuntime;
-    Nullable<String> runtimeDir;
-    Bool generate_transitive;
-    Bool include_resolver;
+    String npm_pkg_name;
+    OutputOpts outputs = { "ref": {}};
+    TsRuntimeOpt runtime_opts = { "packageRef": "@adl-lang/runtime" };
+    Bool generate_transitive = false;
+    Bool include_resolver = false;
     TsStyle ts_style = "tsc";
-    ModuleSrc modules;
-
+    ModuleSrc modules = "all";
+    Bool capitalize_branch_names_in_types = true;
+    Bool capitalize_type_names = true;
+// Vector<> searchDir;
 // --merge-adlext=EXT
 // --verbose
 // --no-overwrite
 // --exclude-ast
 // --excluded-ast-annotations=SCOPEDNAMES
-
-    Bool capitalize_branch_names_in_types;
-    Bool capitalize_type_names;
 };
 
-struct OutputOpts {
+union TsRuntimeOpt {
+    String packageRef;
+    TsGenRuntime generate;
+};
+
+struct TsGenRuntime {
+    String runtimeDir;
+};
+
+union OutputOpts {
+    GenOutput gen;
+    PkgRef ref;
+};
+
+struct PkgRef {
+};
+
+struct GenOutput {
+    ReferenceableScopeOption referenceable = "local";
     String outputDir;
     Nullable<String> manifest = null;
 };

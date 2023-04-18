@@ -4,8 +4,9 @@ use std::path::PathBuf;
 use convert_case::{Case, Casing};
 
 
-use crate::adlgen::sys::adlast2::{self as adlast, PrimitiveType};
-use crate::processing::resolver::{Module1, Resolver, TypeExpr1};
+use crate::adlgen::sys::adlast2::{self as adlast, Module1, TypeExpr1, PrimitiveType};
+use crate::parser::docstring_global_named;
+use crate::processing::resolver::{Resolver};
 use crate::processing::writer::TreeWriter;
 
 use crate::cli::rust::rsfile::RSFile;
@@ -65,8 +66,8 @@ pub fn gen_module(m: &Module1) -> anyhow::Result<String> {
 
 fn gen_struct(
     _m: &Module1,
-    d: &adlast::Decl<TypeExpr1>,
-    s: &adlast::Struct<TypeExpr1>,
+    d: &adlast::Decl1,
+    s: &adlast::Struct1,
     out: &mut RSFile,
 ) -> anyhow::Result<()> {
     let efields: Vec<ExtendedField> = s.fields
@@ -83,7 +84,7 @@ fn gen_struct(
     let type_name = rs_type_name_from_adl(&d.name);
     let type_params = fmt_type_params(&s.type_params);
 
-    if let Some(serde_json::Value::String(doc)) = d.annotations.0.get(&ann_doc()) {
+    if let Some(serde_json::Value::String(doc)) = d.annotations.0.get(&docstring_global_named()) {
       out.pushlns(fmt_doc_comment(doc));
     }
 
@@ -114,7 +115,7 @@ fn gen_struct(
 
 fn gen_type(
   _m: &Module1,
-  d: &adlast::Decl<TypeExpr1>,
+  d: &adlast::Decl1,
   t: &adlast::TypeDef<TypeExpr1>,
   out: &mut RSFile,
 ) -> anyhow::Result<()> {
@@ -130,14 +131,14 @@ fn gen_type(
 }
 
 struct ExtendedField<'a> {
-  field: &'a adlast::Field<TypeExpr1>,
+  field: &'a adlast::Field1,
   rs_field_name: String,
   type_str: String,
   type_expr_gen: TypeExprGen,
 }
 
 impl <'a> ExtendedField<'a> {
-  fn new(field: &'a adlast::Field<TypeExpr1>, out: &mut RSFile) -> Self {
+  fn new(field: &'a adlast::Field1, out: &mut RSFile) -> Self {
     let type_expr_gen = TypeExprGen::new(&field.type_expr);
     let type_str = type_expr_gen.gen_type(out);
     let rs_field_name = rs_field_name_from_adl(&field.name);
@@ -176,6 +177,7 @@ impl TypeCodeGen for TypeExprGen {
     .collect();
 
     match &self.type_ref {
+      adlast::TypeRef::GlobalName(_) => todo!(),
       adlast::TypeRef::LocalName(ln) => format!("{}{}", ln,fmt_type_params(&params)),
       adlast::TypeRef::ScopedName(sn) => {
         let name = rsfile.import(&sn.module_name, &sn.name);
@@ -246,11 +248,4 @@ fn rs_field_name_from_adl(adl_field_name: &str) -> String {
 fn rs_type_name_from_adl(adl_type_name: &str) -> String {
   // TODO: deal with reserved words
   adl_type_name.to_case(Case::UpperCamel)
-}
-
-fn ann_doc() ->  adlast::ScopedName {
-  adlast::ScopedName {
-    module_name: "sys.annotations".to_owned(),
-    name: "Doc".to_owned(),
-  }
 }

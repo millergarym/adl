@@ -1,5 +1,6 @@
 use crate::adlgen::sys::adlast2::Spanned;
 use crate::adlgen::sys::adlast2::{self as adlast};
+use crate::utils::ast::get_scoped_name;
 use std::collections::HashMap;
 use std::iter::repeat;
 
@@ -29,11 +30,11 @@ type Res<I, T> = IResult<I, T, VerboseError<I>>;
 type Input<'a> = LocatedSpan<&'a str>;
 
 type TypeExpr0 = adlast::TypeExpr<adlast::ScopedName>;
-type Module0 = adlast::Module<TypeExpr0>;
+type Module0 = adlast::Module0;
 pub type RawModule = (Module0, Vec<ExplicitAnnotation>);
 
 pub enum DeclOrAnnotation {
-    DADecl(adlast::Decl<adlast::TypeExpr<adlast::ScopedName>>),
+    DADecl(adlast::Decl0),
     DAAnnotation(ExplicitAnnotation),
 }
 
@@ -179,7 +180,7 @@ pub fn raw_module0(i: Input) -> Res<Input, RawModule> {
         ),
         wtag("}"),
     )(i)?;
-    let mut decls: Vec<adlast::Decl<TypeExpr0>> = vec![];
+    let mut decls: Vec<adlast::Decl0> = vec![];
     let mut explicit_annotations: Vec<ExplicitAnnotation> = Vec::new();
     for da in decls_or_annotations {
         match da {
@@ -227,7 +228,7 @@ pub fn decl_or_annotation(i: Input) -> Res<Input, DeclOrAnnotation> {
     ))(i)
 }
 
-pub fn decl(i: Input) -> Res<Input, adlast::Decl<TypeExpr0>> {
+pub fn decl(i: Input) -> Res<Input, adlast::Decl0> {
     let (i, annotations) = many0(prefix_annotation)(i)?;
     let ma = merge_annotations(annotations).map_err(|emsg| custom_error(i, emsg))?;
     let (i, (name, dtype)) = decl_type(i)?;
@@ -240,7 +241,7 @@ pub fn decl(i: Input) -> Res<Input, adlast::Decl<TypeExpr0>> {
     Ok((i, decl))
 }
 
-pub fn prefix_annotation(i: Input) -> Res<Input, (adlast::ScopedName, serde_json::Value)> {
+pub fn prefix_annotation(i: Input) -> Res<Input, (adlast::Named, serde_json::Value)> {
     alt((
         prefix_annotation_,
         map(docstring, |s| {
@@ -249,16 +250,16 @@ pub fn prefix_annotation(i: Input) -> Res<Input, (adlast::ScopedName, serde_json
     ))(i)
 }
 
-pub fn prefix_annotation_(i: Input) -> Res<Input, (adlast::ScopedName, serde_json::Value)> {
+pub fn prefix_annotation_(i: Input) -> Res<Input, (adlast::Named, serde_json::Value)> {
     let (i, _) = wtag("@")(i)?;
     let (i, sn) = scoped_name(i)?;
     let (i, ojv) = opt(json)(i)?;
-    Ok((i, (sn, ojv.unwrap_or(serde_json::Value::Null))))
+    Ok((i, (adlast::Named::Scoped(sn), ojv.unwrap_or(serde_json::Value::Null))))
 }
 
 pub fn merge_annotations(
-    anns: Vec<(adlast::ScopedName, serde_json::Value)>,
-) -> Result<adlast::Annotations,String> {
+    anns: Vec<(adlast::Named, serde_json::Value)>,
+) -> Result<adlast::Annotations, String> {
     // Create a map out of the annotations, but join any doc strings as separate lines
     let mut hm = HashMap::new();
     let mut ds = Vec::new();
@@ -270,7 +271,7 @@ pub fn merge_annotations(
             if let Some(_) = hm.insert(k.clone(), v) {
                 return Err(format!(
                     "Error duplicate annotation '{}.{}'",
-                    &k.module_name, &k.name
+                    get_scoped_name(&k).module_name, get_scoped_name(&k).name
                 ));
             }
         }
@@ -285,16 +286,32 @@ pub fn merge_annotations(
     Ok(Map(hm))
 }
 
-pub fn docstring_scoped_name() -> adlast::ScopedName {
-    adlast::ScopedName::new("sys.annotations".to_owned(), "Doc".to_owned())
+pub fn docstring_global_named() -> adlast::Named {
+    adlast::Named::Global(adlast::GlobalName::new(
+        "github.com/adl-lang/adl/adl/stdlib/sys".to_string(),
+        Some("sys".to_string()),
+        adlast::ScopedName::new("sys.annotations".to_owned(), "Doc".to_owned()),
+    ))
 }
 
-pub fn serializedname_scoped_name() -> adlast::ScopedName {
+pub fn serializedname_global_name() -> adlast::Named {
+    adlast::Named::Global(adlast::GlobalName::new(
+        "github.com/adl-lang/adl/adl/stdlib/sys".to_string(),
+        Some("sys".to_string()),
+        adlast::ScopedName::new("".to_owned(), "SerializedName".to_owned()),
+    ))
+}
+
+pub fn docstring_scoped_name() -> adlast::Named {
+    adlast::Named::Scoped(adlast::ScopedName::new("sys.annotations".to_owned(), "Doc".to_owned()))
+}
+
+pub fn serializedname_scoped_name() -> adlast::Named {
     // adlast::ScopedName::new("sys.annotations".to_owned(), "SerializedName".to_owned())
-    adlast::ScopedName::new("".to_owned(), "SerializedName".to_owned())
+    adlast::Named::Scoped(adlast::ScopedName::new("".to_owned(), "SerializedName".to_owned()))
 }
 
-pub fn decl_type(i: Input) -> Res<Input, (&str, adlast::DeclType<TypeExpr0>)> {
+pub fn decl_type(i: Input) -> Res<Input, (&str, adlast::DeclType0)> {
     alt((
         context(
             "struct",
@@ -315,7 +332,7 @@ pub fn decl_type(i: Input) -> Res<Input, (&str, adlast::DeclType<TypeExpr0>)> {
     ))(i)
 }
 
-pub fn struct_(i: Input) -> Res<Input, (&str, adlast::Struct<TypeExpr0>)> {
+pub fn struct_(i: Input) -> Res<Input, (&str, adlast::Struct0)> {
     let (i, _) = ws(tag("struct"))(i)?;
     cut(|i| {
         let (i, name) = ws(ident0)(i)?;
@@ -330,7 +347,7 @@ pub fn struct_(i: Input) -> Res<Input, (&str, adlast::Struct<TypeExpr0>)> {
     })(i)
 }
 
-pub fn union(i: Input) -> Res<Input, (&str, adlast::Union<TypeExpr0>)> {
+pub fn union(i: Input) -> Res<Input, (&str, adlast::Union0)> {
     let (i, _) = wtag("union")(i)?;
     cut(|i| {
         let (i, name) = ws(ident0)(i)?;
@@ -388,11 +405,11 @@ fn oversion_(i: Input) -> Res<Input, u64> {
     Ok((i, ds.parse::<u64>().unwrap()))
 }
 
-pub fn field(i: Input) -> Res<Input, adlast::Field<TypeExpr0>> {
+pub fn field(i: Input) -> Res<Input, adlast::Field0> {
     context("field", field0)(i)
 }
 
-pub fn field0(i: Input) -> Res<Input, adlast::Field<TypeExpr0>> {
+pub fn field0(i: Input) -> Res<Input, adlast::Field0> {
     let (i, annotations) = many0(prefix_annotation)(i)?;
     let ma = merge_annotations(annotations).map_err(|emsg| custom_error(i, emsg))?;
     let (i, texpr) = ws(type_expr)(i)?;

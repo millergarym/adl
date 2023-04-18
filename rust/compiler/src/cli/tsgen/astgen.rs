@@ -2,10 +2,11 @@ use std::cmp::Ordering;
 use genco::tokens::{Item, ItemStr};
 
 use crate::adlgen::sys::adlast2::{
-    Annotations, Decl, DeclType, Field, Ident, NewType, ScopedName, Struct,
-    TypeDef, TypeExpr, TypeRef, Union,
+    DeclType, Ident, NewType,
+    TypeDef, TypeExpr, TypeRef, Decl1, DeclType1, Struct1, Union1, Field1, Annotations, Named,
 };
 use crate::adlrt::custom::sys::types::maybe::Maybe;
+use crate::utils::ast::get_scoped_name;
 use genco::prelude::*;
 
 const DQ: &str = "\"";
@@ -23,17 +24,20 @@ impl TsScopedDeclGenVisitor<'_> {
 
 impl TsScopedDeclGenVisitor<'_> {
     fn visit_annotations(&mut self, d: &Annotations) {
-        let mut keys: Vec<&ScopedName> = d.0.keys().collect();
+        let mut keys: Vec<&Named> = d.0.keys().collect();
         keys.sort_by(|a, b| {
-            if &a.module_name == &b.module_name {
-                if a.name == b.name {
+            let a_scoped_name = get_scoped_name(a);
+            let b_scoped_name = get_scoped_name(b);
+            
+            if &a_scoped_name.module_name == &b_scoped_name.module_name {
+                if a_scoped_name.name == b_scoped_name.name {
                     Ordering::Equal
-                } else if a.name > b.name {
+                } else if a_scoped_name.name > b_scoped_name.name {
                     Ordering::Greater
                 } else {
                     Ordering::Less
                 }
-            } else if a.module_name > b.module_name {
+            } else if a_scoped_name.module_name > b_scoped_name.module_name {
                 Ordering::Greater
             } else {
                 Ordering::Less
@@ -41,7 +45,7 @@ impl TsScopedDeclGenVisitor<'_> {
         });
         quote_in! { self.t =>  "annotations":$("[") };
         keys.iter().fold(false, |rest, key| {
-            if **key == crate::parser::docstring_scoped_name() {
+            if **key == crate::parser::docstring_global_named() {
                 return rest;
             }
             if rest {
@@ -52,7 +56,7 @@ impl TsScopedDeclGenVisitor<'_> {
             quote_in! { self.t => "value":$jv,}
             quote_in! { self.t => "key": }
             self.lit("{");
-            quote_in! { self.t => "moduleName":$DQ$(&key.module_name)$DQ,"name":$DQ$(&key.name)$DQ }
+            quote_in! { self.t => "moduleName":$DQ$(&get_scoped_name(key).module_name)$DQ,"name":$DQ$(&get_scoped_name(key).name)$DQ }
             self.lit("}");
             self.lit("}");
             return true;
@@ -60,7 +64,7 @@ impl TsScopedDeclGenVisitor<'_> {
         quote_in! { self.t =>  $("]") };
     }
 
-    pub fn visit_decl(&mut self, d: &Decl<TypeExpr<TypeRef>>) {
+    pub fn visit_decl(&mut self, d: &Decl1) {
         self.lit("{");
         self.visit_annotations(&d.annotations);
         self.lit(",");
@@ -74,7 +78,7 @@ impl TsScopedDeclGenVisitor<'_> {
     fn visit_decl_name(&mut self, n: &String) {
         quote_in! { self.t =>  "name":$("\"")$n$("\"")};
     }
-    fn visit_decl_type(&mut self, r#type: &DeclType<TypeExpr<TypeRef>>) {
+    fn visit_decl_type(&mut self, r#type: &DeclType1) {
         self.lit("\"type_\":{");
         match r#type {
             DeclType::Struct(dt) => self.visit_struct(dt),
@@ -84,7 +88,7 @@ impl TsScopedDeclGenVisitor<'_> {
         }
         self.lit("}");
     }
-    fn visit_struct(&mut self, dt: &Struct<TypeExpr<TypeRef>>) {
+    fn visit_struct(&mut self, dt: &Struct1) {
         quote_in! { self.t => "kind":"struct_","value":$("{") }
         self.visit_type_params(&dt.type_params);
         self.lit(",");
@@ -99,7 +103,7 @@ impl TsScopedDeclGenVisitor<'_> {
         self.lit("]");
         self.lit("}");
     }
-    fn visit_union(&mut self, dt: &Union<TypeExpr<TypeRef>>) {
+    fn visit_union(&mut self, dt: &Union1) {
         quote_in! { self.t => "kind":"union_","value":$("{") }
         self.visit_type_params(&dt.type_params);
         self.lit(",");
@@ -135,7 +139,7 @@ impl TsScopedDeclGenVisitor<'_> {
     fn visit_type_params(&mut self, tps: &Vec<Ident>) {
         quote_in! { self.t => "typeParams":[$(for tp in tps join (,) => $DQ$tp$DQ)]}
     }
-    fn visit_field(&mut self, f: &Field<TypeExpr<TypeRef>>) {
+    fn visit_field(&mut self, f: &Field1) {
         self.lit("{");
         self.visit_annotations(&f.annotations);
         self.lit(",");
@@ -178,6 +182,9 @@ impl TsScopedDeclGenVisitor<'_> {
     fn visit_type_ref(&mut self, te: &TypeRef) {
         quote_in! { self.t => "typeRef":$("{")}
         match te {
+            TypeRef::GlobalName(n) => {
+                quote_in! { self.t =>  "kind":"reference","value":{"moduleName":$("\"")$(&n.scoped_name.module_name)$("\""),"name":$("\"")$(&n.scoped_name.name)$("\"")}};
+            },
             TypeRef::ScopedName(n) => {
                 quote_in! { self.t =>  "kind":"reference","value":{"moduleName":$("\"")$(&n.module_name)$("\""),"name":$("\"")$(&n.name)$("\"")}};
             }

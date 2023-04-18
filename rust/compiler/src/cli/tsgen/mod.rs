@@ -13,6 +13,7 @@ use anyhow::anyhow;
 use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
+use crate::adlgen::adlc::packaging::AdlPackage;
 use crate::adlgen::sys::adlast2::{self as adlast};
 use crate::adlgen::sys::adlast2::{Module, Module1, TypeExpr, TypeRef};
 use crate::processing::loader::{loader_from_search_paths, AdlLoader};
@@ -48,8 +49,8 @@ const TSC_B64: &[u8] =
     b"import {fromByteArray as b64Encode, toByteArray as b64Decode} from 'base64-js'";
 const DENO_B64: &[u8] = b"import {encode as b64Encode, decode as b64Decode} from 'https://deno.land/std@0.97.0/encoding/base64.ts'";
 
-pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts) -> anyhow::Result<()> {
-    let mut resolver = Resolver::new(loader);
+pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts, adl_pkg: Option<AdlPackage>) -> anyhow::Result<()> {
+    let mut resolver = Resolver::new(loader, adl_pkg.clone());
     for m in &opts.modules {
         let r = resolver.add_module(m);
         match r {
@@ -72,8 +73,8 @@ pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts) -> anyhow::Result<()> {
     let mut writer = TreeWriter::new(opts.output.outputdir.clone(), manifest)?;
 
     if !opts.include_rt {
-        if opts.runtime_dir == None {
-            eprintln!("Invalid flags; --runtime-dir only valid if --include-rt is set");
+        if opts.runtime_dir != None {
+            eprintln!("Invalid flags; --runtime-dir only valid if --include-rt is set. Pkg path '{:?}'", &adl_pkg);
             // return Err(anyhow!("Invalid flags; --runtime-dir only valid if --include-rt is set"));
         }
     }
@@ -85,9 +86,11 @@ pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts) -> anyhow::Result<()> {
         .collect();
 
     for m in modules {
-        let path = path_from_module_name(opts, m.name.to_owned());
-        let code = gen_ts_module(m, &resolver, opts)?;
-        writer.write(path.as_path(), code)?;
+        if opts.modules.contains(&m.name) {
+            let path = path_from_module_name(opts, m.name.to_owned());
+            let code = gen_ts_module(m, &resolver, opts)?;
+            writer.write(path.as_path(), code)?;
+        }
     }
 
     {
@@ -117,20 +120,26 @@ pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts) -> anyhow::Result<()> {
 }
 
 fn gen_ts_module(
-    m: &Module<TypeExpr<TypeRef>>,
+    m: &Module1,
     resolver: &Resolver,
     opts: &TsOpts,
 ) -> anyhow::Result<String> {
     // TODO sys.annotations::SerializedName needs to be embedded
     let tokens = &mut js::Tokens::new();
+    let adlr = if opts.include_rt {
+        // TODO modify the import path with opts.runtime_dir 
+        js::import( utils::rel_import(&m.name, &"runtime.adl".to_string()), "ADL").into_wildcard()
+    } else {
+        if let Some(pkg) = &opts.runtime_pkg {
+            js::import(  pkg.clone() + "/adl", "ADL").into_wildcard()
+        } else {
+            return Err(anyhow!("runtime_pkg not specified"));
+        }
+    };
     let mut mgen = generate::TsGenVisitor {
         module: m,
         resolver: resolver,
-        adlr: js::import(
-            utils::rel_import(&m.name, &"runtime.adl".to_string()),
-            "ADL",
-        )
-        .into_wildcard(),
+        adlr,
         map: &mut HashMap::new(),
         opts,
     };

@@ -11,7 +11,7 @@ use crate::processing::resolver::{Resolver};
 
 pub fn ast(opts: &AstOpts) -> anyhow::Result<()> {
     let loader = loader_from_search_paths(&opts.search.path);
-    let mut resolver = Resolver::new(loader);
+    let mut resolver = Resolver::new(loader, None);
     for m in &opts.modules {
         let r = resolver.add_module(m);
         match r {

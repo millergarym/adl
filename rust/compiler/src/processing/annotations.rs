@@ -1,8 +1,7 @@
 use std::fmt;
 
-use super::Module0;
-use crate::adlgen::sys::adlast2::{self as adlast};
-use crate::parser::{serializedname_scoped_name, ExplicitAnnotationRef, RawModule};
+use crate::adlgen::sys::adlast2::{self as adlast, Module0};
+use crate::parser::{ExplicitAnnotationRef, RawModule, serializedname_scoped_name};
 
 fn apply_serialized_name(m0: &mut Module0) {
     for decl in m0.decls.iter_mut() {
@@ -58,15 +57,15 @@ pub fn apply_explicit_annotations_and_serialized_name(
         let aref = find_annotations_ref(&ea.refr, &mut module0);
         match aref {
             Some(aref) => {
-                if let Some(_) = aref.0.get(&ea.scoped_name) {
+                if let Some(_) = aref.0.get(&adlast::Named::Scoped(ea.scoped_name.clone())) {
                     return Err(AnnotationError::Override(format!(
                         "explicit annotations can't override prefix annotation. Target '{}.{}'",
                         module0.name,
                         // ea.scoped_name.module_name,
-                        ea.scoped_name.name
+                        &ea.scoped_name.name.clone()
                     )));
                 } else {
-                    aref.0.insert(ea.scoped_name, ea.value);
+                    aref.0.insert(adlast::Named::Scoped(ea.scoped_name), ea.value);
                 }
             }
             None => {
@@ -165,6 +164,7 @@ impl fmt::Display for UnresolvedExplicitAnnotations {
 #[cfg(test)]
 mod tests {
     use crate::adlgen::sys::adlast2 as adlast;
+    use crate::utils::ast::mk_named_scoped_name;
     use crate::{parser::raw_module, utils::ast::mk_scoped_name};
     use nom_locate::LocatedSpan;
 
@@ -177,21 +177,21 @@ mod tests {
 
         let m0 = super::apply_explicit_annotations_and_serialized_name(rm).unwrap();
         assert_eq!(
-            m0.annotations.0.get(&mk_scoped_name("", "A")),
+            m0.annotations.0.get(&mk_named_scoped_name("", "A")),
             Some(&serde_json::Value::from(1i32))
         );
         assert_eq!(
-            m0.annotations.0.get(&mk_scoped_name("", "E")),
+            m0.annotations.0.get(&mk_named_scoped_name("", "E")),
             Some(&serde_json::Value::from(6i32))
         );
 
         let decl = m0.decls.iter().find(|d| d.name == "Y").unwrap();
         assert_eq!(
-            decl.annotations.0.get(&mk_scoped_name("", "B")),
+            decl.annotations.0.get(&mk_named_scoped_name("", "B")),
             Some(&serde_json::Value::from(2i32))
         );
         assert_eq!(
-            decl.annotations.0.get(&mk_scoped_name("", "F")),
+            decl.annotations.0.get(&mk_named_scoped_name("", "F")),
             Some(&serde_json::Value::from(7i32))
         );
 
@@ -202,11 +202,11 @@ mod tests {
         }
         .unwrap();
         assert_eq!(
-            field.annotations.0.get(&mk_scoped_name("", "C")),
+            field.annotations.0.get(&mk_named_scoped_name("", "C")),
             Some(&serde_json::Value::from(3i32))
         );
         assert_eq!(
-            field.annotations.0.get(&mk_scoped_name("", "G")),
+            field.annotations.0.get(&mk_named_scoped_name("", "G")),
             Some(&serde_json::Value::from(8i32))
         );
     }

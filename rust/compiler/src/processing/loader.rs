@@ -6,47 +6,71 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::PathBuf;
 
-use crate::adlgen::adlc::packaging::AdlWorkspace1;
-use crate::adlgen::sys::adlast2 as adlast;
+use crate::adlgen::adlc::packaging::{AdlPackage, AdlWorkspace1};
+use crate::adlgen::sys::adlast2::{self as adlast, Module0};
 use crate::parser::{convert_error, raw_module};
 use crate::processing::annotations::apply_explicit_annotations_and_serialized_name;
 
-use super::Module0;
-
-pub fn loader_from_workspace(root: PathBuf, workspace: AdlWorkspace1) -> Box<dyn AdlLoader> {
-    Box::new(WorkspaceLoader{ root, workspace, loaders: HashMap::new() })
+pub fn loader_from_workspace(
+    root: PathBuf,
+    workspace: AdlWorkspace1,
+) -> Box<dyn AdlLoader> {
+    Box::new(WorkspaceLoader {
+        root,
+        workspace,
+        embedded: EmbeddedStdlibLoader {},
+        loaders: HashMap::new(),
+    })
 }
 
 pub fn loader_from_search_paths(paths: &Vec<PathBuf>) -> Box<dyn AdlLoader> {
-    let loaders = paths.iter().map(loader_from_dir_tree).collect();
+    let loaders = paths
+        .iter()
+        .map(|r| loader_from_dir_tree(r, None))
+        .collect();
     Box::new(MultiLoader::new(loaders))
 }
 
-pub fn loader_from_dir_tree(path: &PathBuf) -> Box<dyn AdlLoader> {
-    Box::new(DirTreeLoader::new(path.clone()))
+pub fn loader_from_dir_tree(root: &PathBuf, adl_pkg: Option<AdlPackage>) -> Box<dyn AdlLoader> {
+    Box::new(DirTreeLoader::new(root.clone(), adl_pkg))
 }
 
 pub trait AdlLoader {
     /// Find and load the specified ADL module
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error>;
+    fn load(
+        &mut self,
+        module_name: &adlast::ModuleName,
+    ) -> Result<Option<(Option<AdlPackage>, Module0)>, anyhow::Error>;
 }
 
 pub struct WorkspaceLoader {
     root: PathBuf,
     workspace: AdlWorkspace1,
-    // embedded: EmbeddedStdlibLoader,
+    embedded: EmbeddedStdlibLoader,
     loaders: HashMap<String, Box<dyn AdlLoader>>,
 }
 
-
 impl AdlLoader for WorkspaceLoader {
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
+    fn load(
+        &mut self,
+        module_name: &adlast::ModuleName,
+    ) -> Result<Option<(Option<AdlPackage>, Module0)>, anyhow::Error> {
+        if self.workspace.use_embedded_sys_loader {
+            if let Some(module) = self.embedded.load(module_name)? {
+                return Ok(Some(module));
+            }
+        }
         for pkg in &self.workspace.r#use {
-            let pkg_path = pkg.0.1.path.as_str();
-            println!("  looking for {} in {} or {:?}", module_name, pkg_path, pkg.0.1.global_alias.clone());
+            let pkg_path = pkg.0 .1.path.as_str();
+            println!(
+                "  looking for {} in {} or {:?}",
+                module_name,
+                pkg_path,
+                pkg.0 .1.global_alias.clone()
+            );
             let pkg_name = if module_name.starts_with(pkg_path) {
-                Some(pkg.0.1.path.clone())
-            } else if let Some(alias) = pkg.0.1.global_alias.clone() {
+                Some(pkg.0 .1.path.clone())
+            } else if let Some(alias) = pkg.0 .1.global_alias.clone() {
                 if module_name.starts_with(alias.as_str()) {
                     Some(alias)
                 } else {
@@ -59,7 +83,10 @@ impl AdlLoader for WorkspaceLoader {
                 let loader = self
                     .loaders
                     .entry(name)
-                    .or_insert(Box::new(DirTreeLoader::new(self.root.join(&pkg.0.0.path))));
+                    .or_insert(Box::new(DirTreeLoader::new(
+                        self.root.join(&pkg.0 .0.path),
+                        Some(pkg.0 .1.clone()),
+                    )));
                 return loader.load(module_name);
             }
         }
@@ -83,7 +110,10 @@ impl MultiLoader {
 }
 
 impl AdlLoader for MultiLoader {
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
+    fn load(
+        &mut self,
+        module_name: &adlast::ModuleName,
+    ) -> Result<Option<(Option<AdlPackage>, Module0)>, anyhow::Error> {
         if let Some(module) = self.embedded.load(module_name)? {
             return Ok(Some(module));
         }
@@ -98,11 +128,26 @@ impl AdlLoader for MultiLoader {
 
 pub struct EmbeddedStdlibLoader {}
 
+fn adl_runtime_pkg() -> AdlPackage {
+    AdlPackage {
+        path: "github.com/adl-lang/adl/adl/stdlib/sys".to_string(),
+        global_alias: Some(String::from("sys")),
+        adlc: String::from("0.0.0"),
+        requires: vec![],
+        excludes: vec![],
+        replaces: vec![],
+        retracts: vec![],
+    }
+}
+
 impl AdlLoader for EmbeddedStdlibLoader {
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
+    fn load(
+        &mut self,
+        module_name: &adlast::ModuleName,
+    ) -> Result<Option<(Option<AdlPackage>, Module0)>, anyhow::Error> {
         match crate::adlstdlib::get_stdlib(module_name, "") {
             Some(data) => match std::str::from_utf8(data.as_ref()) {
-                Ok(content) => return parse(&content).map(|m| Some(m)),
+                Ok(content) => return parse(&content).map(|m| Some((Some(adl_runtime_pkg()), m))),
                 Err(err) => return Err(anyhow::Error::from(err)),
             },
             None => return Ok(None),
@@ -112,16 +157,20 @@ impl AdlLoader for EmbeddedStdlibLoader {
 
 pub struct DirTreeLoader {
     root: PathBuf,
+    adl_pkg: Option<AdlPackage>,
 }
 
 impl DirTreeLoader {
-    pub fn new(root: PathBuf) -> Self {
-        DirTreeLoader { root }
+    pub fn new(root: PathBuf, adl_pkg: Option<AdlPackage>) -> Self {
+        DirTreeLoader { root, adl_pkg }
     }
 }
 
 impl AdlLoader for DirTreeLoader {
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
+    fn load(
+        &mut self,
+        module_name: &adlast::ModuleName,
+    ) -> Result<Option<(Option<AdlPackage>, Module0)>, anyhow::Error> {
         let mut path = self.root.clone();
         for mp in module_name.split(".") {
             path.push(mp);
@@ -136,7 +185,7 @@ impl AdlLoader for DirTreeLoader {
             Ok(content) => content,
         };
         log::info!("loaded {} from {}", module_name, path.display());
-        parse(&content).map(|m| Some(m))
+        parse(&content).map(|m| Some((self.adl_pkg.clone(), m)))
     }
 }
 
