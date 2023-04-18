@@ -1,10 +1,9 @@
-use super::TsOpts;
-
 extern crate regex;
 
 use regex::bytes::Regex;
 
 use std::collections::HashMap;
+use std::fs;
 use std::ops::Deref;
 use std::path::PathBuf;
 
@@ -13,6 +12,7 @@ use anyhow::anyhow;
 use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
+use crate::adlgen::adlc::packaging::{TsGenRuntime, TsRuntimeOpt, TsStyle, TypescriptGenOptions};
 use crate::adlgen::sys::adlast2::{self as adlast};
 use crate::adlgen::sys::adlast2::{Module, Module1, TypeExpr, TypeRef};
 use crate::processing::loader::{loader_from_search_paths, AdlLoader};
@@ -48,9 +48,72 @@ const TSC_B64: &[u8] =
     b"import {fromByteArray as b64Encode, toByteArray as b64Decode} from 'base64-js'";
 const DENO_B64: &[u8] = b"import {encode as b64Encode, decode as b64Decode} from 'https://deno.land/std@0.97.0/encoding/base64.ts'";
 
-pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts) -> anyhow::Result<()> {
+fn get_modules(
+    opts: &TypescriptGenOptions,
+    pkg_root: Option<PathBuf>,
+) -> Result<Vec<String>, anyhow::Error> {
+    match &opts.modules {
+        crate::adlgen::adlc::packaging::ModuleSrc::All => {
+            let pkg_root = if let Some(pkg_root) = pkg_root {
+                pkg_root
+            } else {
+                return Err(anyhow!("pkg_root needed when module src all specified"));
+            };
+            // let pkg_root = wrk1.0.join(pkg.0 .0.path.clone()).canonicalize()?;
+            // let pkg_root = wrk1_path.join(pkg_path).canonicalize()?;
+            if let Some(pkg_root_str) = pkg_root.as_os_str().to_str() {
+                Ok(walk_and_collect_adl_modules(pkg_root_str, &pkg_root))
+            } else {
+                return Err(anyhow!("Could get str from pkg_root"));
+            }
+        }
+        crate::adlgen::adlc::packaging::ModuleSrc::Modules(ms) => Ok(ms.clone()),
+    }
+}
+
+fn walk_and_collect_adl_modules(pkg_root: &str, cwd: &PathBuf) -> Vec<String> {
+    let mut mods = vec![];
+    if let Ok(files) = fs::read_dir(cwd) {
+        for file in files {
+            if let Ok(file) = file {
+                let path = file.path();
+                if path.is_file() {
+                    if let Some(ext) = path.extension() {
+                        if ext == "adl" {
+                            if let Some(name) = path.to_str() {
+                                let name1 = &name[(pkg_root.len() + 1)..(name.len() - 4)];
+                                let name2 = name1.replace("/", ".");
+                                println!("  adding module {}", name2);
+                                mods.push(name2);
+                            }
+                        }
+                    }
+                }
+                if path.is_dir() {
+                    mods.append(&mut walk_and_collect_adl_modules(pkg_root, &path));
+                }
+            }
+        }
+    }
+    mods
+}
+
+pub fn tsgen(
+    loader: Box<dyn AdlLoader>,
+    opts: &TypescriptGenOptions,
+    pkg_root: Option<PathBuf>,
+) -> anyhow::Result<()> {
+    let (manifest, outputdir) = match &opts.outputs {
+        crate::adlgen::adlc::packaging::OutputOpts::Ref(_) => return Ok(()),
+        crate::adlgen::adlc::packaging::OutputOpts::Gen(gen) => (
+            gen.manifest.as_ref().map(|m| PathBuf::from(m)),
+            PathBuf::from(gen.output_dir.clone()),
+        ),
+    };
+
     let mut resolver = Resolver::new(loader);
-    for m in &opts.modules {
+    let module_names = get_modules(opts, pkg_root)?;
+    for m in &module_names {
         let r = resolver.add_module(m);
         match r {
             Ok(()) => (),
@@ -58,25 +121,7 @@ pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts) -> anyhow::Result<()> {
         }
     }
 
-    let manifest = opts.output.manifest.clone();
-    // let manifest = opts.output.manifest.as_ref().map(|m| {
-    //     if m.extension() == None {
-    //         let mut m0 = m.clone();
-    //         m0.set_extension("json");
-    //         m0
-    //     } else {
-    //         m.clone()
-    //     }
-    // });
-
-    let mut writer = TreeWriter::new(opts.output.outputdir.clone(), manifest)?;
-
-    if !opts.include_rt {
-        if opts.runtime_dir != None {
-            eprintln!("Invalid flags; --runtime-dir only valid if --include-rt is set");
-            // return Err(anyhow!("Invalid flags; --runtime-dir only valid if --include-rt is set"));
-        }
-    }
+    let mut writer = TreeWriter::new(outputdir, manifest)?;
 
     let modules: Vec<&Module1> = resolver
         .get_module_names()
@@ -85,7 +130,7 @@ pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts) -> anyhow::Result<()> {
         .collect();
 
     for m in modules {
-        if opts.generate_transitive || opts.modules.contains(&m.name) {
+        if opts.generate_transitive || module_names.contains(&m.name) {
             let path = path_from_module_name(opts, m.name.to_owned());
             let code = gen_ts_module(m, &resolver, opts)?;
             writer.write(path.as_path(), code)?;
@@ -111,28 +156,36 @@ pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts) -> anyhow::Result<()> {
         writer.write(path.as_path(), code.to_string())?;
     }
 
-    if opts.include_rt {
-        gen_runtime(opts, &mut writer)?
+    if let TsRuntimeOpt::Generate(rt_gen_opts) = &opts.runtime_opts {
+        gen_runtime(rt_gen_opts, &opts.ts_style, &mut writer)?
     }
 
     Ok(())
 }
 
-fn gen_ts_module(m: &Module1, resolver: &Resolver, opts: &TsOpts) -> anyhow::Result<String> {
+fn gen_ts_module(
+    m: &Module1,
+    resolver: &Resolver,
+    opts: &TypescriptGenOptions,
+) -> anyhow::Result<String> {
     // TODO sys.annotations::SerializedName needs to be embedded
     let tokens = &mut js::Tokens::new();
-    let adlr = if opts.include_rt {
-        // TODO modify the import path with opts.runtime_dir
-        js::import(
-            utils::rel_import(&m.name, &"runtime.adl".to_string()),
-            "ADL",
-        )
-        .into_wildcard()
-    } else {
-        if let Some(pkg) = &opts.runtime_pkg {
+    // match opts.runtime_opts {
+    //     TsRuntimeOpt::PackageRef(pkg) => todo!(),
+    //     TsRuntimeOpt::Generate(_) => todo!(),
+    // }
+    let adlr = match &opts.runtime_opts {
+        TsRuntimeOpt::PackageRef(pkg) => {
+            // sdf
             js::import(pkg.clone() + "/adl", "ADL").into_wildcard()
-        } else {
-            return Err(anyhow!("runtime_pkg not specified"));
+        }
+        TsRuntimeOpt::Generate(gen) => {
+            // TODO modify the import path with opts.runtime_dir
+            js::import(
+                utils::rel_import(&m.name, &"runtime.adl".to_string()),
+                "ADL",
+            )
+            .into_wildcard()
         }
     };
     let mut mgen = generate::TsGenVisitor {
@@ -162,7 +215,7 @@ fn gen_ts_module(m: &Module1, resolver: &Resolver, opts: &TsOpts) -> anyhow::Res
     Ok(code.to_string())
 }
 
-fn path_from_module_name(_opts: &TsOpts, mname: adlast::ModuleName) -> PathBuf {
+fn path_from_module_name(_opts: &TypescriptGenOptions, mname: adlast::ModuleName) -> PathBuf {
     let mut path = PathBuf::new();
     // path.push(opts.module.clone());
     for el in mname.split(".") {
@@ -201,29 +254,24 @@ fn gen_resolver(t: &mut Tokens<JavaScript>, mut modules: Vec<String>) -> anyhow:
     Ok(())
 }
 
-fn gen_runtime(opts: &TsOpts, writer: &mut TreeWriter) -> anyhow::Result<()> {
+fn gen_runtime(
+    rt_gen_opts: &TsGenRuntime,
+    ts_style: &TsStyle,
+    writer: &mut TreeWriter,
+) -> anyhow::Result<()> {
     let re = Regex::new(r"\$TSEXT").unwrap();
     let re2 = Regex::new(r"\$TSB64IMPORT").unwrap();
     for rt in RUNTIME.iter() {
         let mut file_path = PathBuf::new();
-        if let Some(d) = &opts.runtime_dir {
-            file_path.push(d);
-        } else {
-            file_path.push("runtime");
-        };
+        file_path.push(&rt_gen_opts.runtime_dir);
         file_path.push(rt.0);
         let dir_path = file_path.parent().unwrap();
         std::fs::create_dir_all(dir_path)?;
 
         log::info!("writing {}", file_path.display());
 
-        let tss = if let Some(tss) = opts.ts_style {
-            tss
-        } else {
-            super::TsStyle::Tsc
-        };
-        match tss {
-            super::TsStyle::Tsc => {
+        match ts_style {
+            TsStyle::Tsc => {
                 let content = re.replace_all(rt.1, "".as_bytes());
                 let content = re2.replace(&content, TSC_B64);
                 let x = content.deref();
@@ -232,7 +280,7 @@ fn gen_runtime(opts: &TsOpts, writer: &mut TreeWriter) -> anyhow::Result<()> {
                 // std::fs::write(file_path, content)
                 //     .map_err(|e| anyhow!("error writing runtime file {}", e.to_string()))?;
             }
-            super::TsStyle::Deno => {
+            TsStyle::Deno => {
                 let content = re.replace_all(rt.1, ".ts".as_bytes());
                 let content = re2.replace(&content, DENO_B64);
                 let x = content.deref();

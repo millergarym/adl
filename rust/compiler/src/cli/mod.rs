@@ -4,7 +4,7 @@ use anyhow::{Error, anyhow};
 use clap::{Args, Parser};
 use std::str::{FromStr};
 
-use crate::processing::loader::loader_from_search_paths;
+use crate::{processing::loader::loader_from_search_paths, adlgen::adlc::packaging::{TypescriptGenOptions, GenOutput, ReferenceableScopeOption, ModuleSrc, TsRuntimeOpt, TsGenRuntime}};
 // use std::path{Path, PathBuf};
 
 pub mod ast;
@@ -23,7 +23,40 @@ pub fn run_cli() -> i32 {
         Command::Rust(opts) => rust::rust(&opts),
         Command::Tsgen(opts) => {
             let loader = loader_from_search_paths(&opts.search.path);
-            tsgen::tsgen(loader, &opts)
+            let ts_opts = TypescriptGenOptions {
+                npm_pkg_name: None,
+                outputs: crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput{
+                    referenceable: ReferenceableScopeOption::Local,
+                    output_dir: opts.output.outputdir.to_str().unwrap().to_string(),
+                    manifest: opts.output.manifest.map(|m| m.to_str().unwrap().to_string()),
+                }),
+                runtime_opts: if opts.include_rt {
+                    TsRuntimeOpt::Generate(TsGenRuntime{
+                        runtime_dir: match opts.runtime_dir {
+                            Some(d) => d,
+                            None => "runtime".to_string(),
+                        },
+                    })
+                } else {
+                    TsRuntimeOpt::PackageRef(match opts.runtime_pkg {
+                        Some(d) => d,
+                        None => "@adl-lang/runtime".to_string(),
+                    })
+                },
+                generate_transitive: opts.generate_transitive,
+                include_resolver: opts.include_resolver,
+                ts_style: match opts.ts_style {
+                    Some(style) => match style {
+                        TsStyle::Tsc => crate::adlgen::adlc::packaging::TsStyle::Tsc,
+                        TsStyle::Deno => crate::adlgen::adlc::packaging::TsStyle::Deno,
+                    },
+                    None => crate::adlgen::adlc::packaging::TsStyle::Tsc,
+                },
+                modules: ModuleSrc::Modules(opts.modules),
+                capitalize_branch_names_in_types: opts.capitalize_branch_names_in_types,
+                capitalize_type_names: opts.capitalize_type_names,
+            };
+            tsgen::tsgen(loader, &ts_opts, None)
         },
         Command::WriteStdlib(opts) => crate::adlstdlib::dump(&opts),
     };

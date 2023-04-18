@@ -7,11 +7,11 @@ use genco::prelude::js::Import as JsImport;
 use genco::prelude::*;
 use genco::tokens::{Item, ItemStr};
 
+use crate::adlgen::adlc::packaging::TypescriptGenOptions;
 use crate::adlgen::sys::adlast2::{
     Annotations, Decl1, DeclType, Module1, NewType, PrimitiveType, ScopedName, Struct1, TypeDef,
     TypeExpr, TypeRef, Union1,
 };
-use crate::cli::TsOpts;
 use crate::parser::docstring_scoped_name;
 use crate::processing::resolver::Resolver;
 
@@ -24,7 +24,7 @@ pub struct TsGenVisitor<'a> {
     pub resolver: &'a Resolver,
     pub adlr: JsImport,
     pub map: &'a mut HashMap<ScopedName, (String, JsImport)>,
-    pub opts: &'a crate::cli::TsOpts,
+    pub opts: &'a TypescriptGenOptions,
 }
 
 struct DeclPayload<'a> {
@@ -582,14 +582,14 @@ fn collect_used_type_params(te_trs: &Vec<TypeExpr<TypeRef>>, mut fnames: &mut Ve
     })
 }
 
-fn cap_opt(name: &String, opts: &TsOpts) -> String {
+fn cap_opt(name: &String, opts: &TypescriptGenOptions) -> String {
     if opts.capitalize_type_names {
         return to_title(name);
     }
     name.clone()
 }
 
-pub fn cap_or__(input: &String, opts: &TsOpts) -> String {
+pub fn cap_or__(input: &String, opts: &TypescriptGenOptions) -> String {
     if opts.capitalize_type_names {
         return to_title(input);
     }

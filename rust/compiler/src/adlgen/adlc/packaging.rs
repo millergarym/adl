@@ -61,7 +61,7 @@ impl AdlPackageRef {
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct TypescriptGenOptions {
-  pub npm_pkg_name: String,
+  pub npm_pkg_name: Option<String>,
 
   #[serde(default="TypescriptGenOptions::def_outputs")]
   pub outputs: OutputOpts,
@@ -89,7 +89,7 @@ pub struct TypescriptGenOptions {
 }
 
 impl TypescriptGenOptions {
-  pub fn new(npm_pkg_name: String) -> TypescriptGenOptions {
+  pub fn new(npm_pkg_name: Option<String>) -> TypescriptGenOptions {
     TypescriptGenOptions {
       npm_pkg_name: npm_pkg_name,
       outputs: TypescriptGenOptions::def_outputs(),

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
-use crate::{cli::{AdlSearchOpts, OutputOpts}, adlgen::adlc::testing_table::TestFilesMetaData};
+use crate::{cli::{AdlSearchOpts, OutputOpts}, adlgen::adlc::{testing_table::TestFilesMetaData, packaging::{GenOutput, ReferenceableScopeOption, ModuleSrc}}};
 
 use super::*;
 
@@ -30,25 +30,25 @@ fn generate_ts_from_test_files() {
                 }
                 let outdir = match &t.output_dir {
                     Some(dir) => {
-                        PathBuf::from(dir)
+                        dir.clone()
                     },
                     None => {
-                        let mut outdir = PathBuf::from("build/dev_adl");
-                        outdir.push(t.module_root.clone());
-                        outdir
+                        let mut outdir = String::from("build/dev_adl/");
+                        outdir.push_str(t.module_root.as_str());
+                        outdir.clone()
                     }
                 };
 
                 let manifest = match &t.output_dir {
                     Some(dir) => {
-                        let mut manifest = PathBuf::from(dir);
-                        manifest.push("manifest");
+                        let mut manifest = String::from(dir);
+                        manifest.push_str("manifest");
                         manifest
                     },
                     None => {
-                        let mut manifest = PathBuf::from("build/dev_adl");
-                        manifest.push(t.module_root.clone());
-                        manifest.push("manifest");
+                        let mut manifest = String::from("build/dev_adl/");
+                        manifest.push_str(t.module_root.as_str());
+                        manifest.push_str("/manifest");
                         manifest
                     },
                 };
@@ -68,26 +68,44 @@ fn generate_ts_from_test_files() {
                         search_path.push(sp);
                     })
                 }
-                let opts = TsOpts {
-                    search: AdlSearchOpts { path: search_path },
-                    output: OutputOpts {
-                        outputdir: outdir,
+                let modules = t.modules.clone();
+                // let opts = TsOpts {
+                //     search: AdlSearchOpts { path: search_path },
+                //     output: OutputOpts {
+                //         outputdir: outdir,
+                //         manifest: Some(manifest),
+                //     },
+                //     include_rt: true,
+                //     runtime_dir: Some("runtime".to_string()),
+                //     runtime_pkg: None,
+                //     ts_style: None,
+                //     modules: t.modules.clone(),
+                //     capitalize_branch_names_in_types: true,
+                //     capitalize_type_names: true,
+                //     generate_transitive: true,
+                //     include_resolver: true,
+                // };
+
+                let ts_opts = TypescriptGenOptions {
+                    npm_pkg_name: None,
+                    outputs: crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput{
+                        referenceable: ReferenceableScopeOption::Local,
+                        output_dir: outdir.clone(),
                         manifest: Some(manifest),
-                    },
-                    include_rt: true,
-                    runtime_dir: Some("runtime".to_string()),
-                    runtime_pkg: None,
-                    ts_style: None,
-                    modules: t.modules.clone(),
-                    capitalize_branch_names_in_types: true,
-                    capitalize_type_names: true,
+                    }),
+                    runtime_opts: TsRuntimeOpt::Generate(TsGenRuntime{ runtime_dir: "runtime".to_string() }),
                     generate_transitive: true,
                     include_resolver: true,
+                    ts_style: crate::adlgen::adlc::packaging::TsStyle::Tsc,
+                    modules: ModuleSrc::Modules(t.modules.clone()),
+                    capitalize_branch_names_in_types: true,
+                    capitalize_type_names: true,
                 };
+
                 if !t.fail && !t.skip {
                     let mut adlc_cmd = String::new();
                     adlc_cmd.push_str("adlc typescript");
-                    opts.search.path.iter().for_each(|p| {
+                    search_path.iter().for_each(|p| {
                         adlc_cmd.push_str(" --searchdir=");
                         adlc_cmd.push_str(p.to_str().unwrap());
                     });
@@ -114,7 +132,7 @@ fn generate_ts_from_test_files() {
                         adlc_cmd.push_str("/manifest");
                     // }
 
-                    opts.modules.iter().for_each(|m| {
+                    modules.iter().for_each(|m| {
                         adlc_cmd.push_str(" ");
                         adlc_cmd.push_str("../../adl/tests/");
                         adlc_cmd.push_str(t.module_root.clone().as_str());
@@ -128,7 +146,7 @@ fn generate_ts_from_test_files() {
 
                 // TODO consider failed.
                 // t.fail
-                match tsgen(loader_from_search_paths(&opts.search.path), &opts) {
+                match tsgen(loader_from_search_paths(&search_path), &ts_opts, None) {
                     Ok(_) => {
                         println!(
                             "{} {} - ts gen output;  {}",
