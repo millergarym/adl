@@ -17,43 +17,6 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
     // println!("{:?}", &wrk1);
     for pkg in &wrk1.1.r#use {
         if let Some(opts) = &pkg.0.0.ts_opts {
-            // let outputs = match &opts.outputs {
-            //     OutputOpts::Gen(output) => output,
-            //     OutputOpts::Ref(_) => continue,
-            // };
-            // let rt = match &opts.runtime_opts {
-            //     TsRuntimeOpt::PackageRef(rt) => (false, None, Some(rt.clone())),
-            //     TsRuntimeOpt::Generate(rt) => (true, Some(rt.runtime_dir.clone()), None),
-            // };
-            // let tsopts = TsOpts {
-            //     search: super::AdlSearchOpts { path: vec![] },
-            //     output: super::OutputOpts {
-            //         outputdir: wrk1.0.join(outputs.output_dir.clone()),
-            //         manifest: outputs.manifest.clone().map(|m| wrk1.0.join(m)),
-            //     },
-            //     include_rt: rt.0,
-            //     runtime_dir: rt.1,
-            //     runtime_pkg: rt.2,
-            //     generate_transitive: opts.generate_transitive,
-            //     include_resolver: opts.include_resolver,
-            //     ts_style: match opts.ts_style {
-            //         crate::adlgen::adlc::packaging::TsStyle::Tsc => Some(TsStyle::Tsc),
-            //         crate::adlgen::adlc::packaging::TsStyle::Deno => Some(TsStyle::Deno),
-            //     },
-            //     modules: match &opts.modules {
-            //         crate::adlgen::adlc::packaging::ModuleSrc::All => {
-            //             let pkg_root = wrk1.0.join(pkg.0 .0.path.clone()).canonicalize()?;
-            //             if let Some(pkg_root_str) = pkg_root.as_os_str().to_str() {
-            //                 walk_and_collect_adl_modules(pkg_root_str, &pkg_root)
-            //             } else {
-            //                 return Err(anyhow!("Could get str from pkg_root"));
-            //             }
-            //         }
-            //         crate::adlgen::adlc::packaging::ModuleSrc::Modules(ms) => ms.clone(),
-            //     },
-            //     capitalize_branch_names_in_types: opts.capitalize_branch_names_in_types,
-            //     capitalize_type_names: opts.capitalize_type_names,
-            // };
             let loader = loader_from_workspace(wrk1.0.clone(), wrk1.1.clone());
             println!(
                 "TsGen for pkg {:?} in workspace {:?} output dir {:?}",

@@ -1,5 +1,6 @@
 // @generated from adl module adlc.packaging
 
+use crate::adlgen::sys::adlast2::ScopedName;
 use crate::adlrt::custom::sys::types::pair::Pair;
 use serde::Deserialize;
 use serde::Serialize;
@@ -38,7 +39,7 @@ impl<T> AdlWorkspace<T> {
 
 pub type AdlPackageRefs = Vec<AdlPackageRef>;
 
-#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+#[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
 pub struct AdlPackageRef {
   pub path: String,
 
@@ -59,7 +60,7 @@ impl AdlPackageRef {
   }
 }
 
-#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+#[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
 pub struct TypescriptGenOptions {
   pub npm_pkg_name: Option<String>,
 
@@ -86,6 +87,9 @@ pub struct TypescriptGenOptions {
 
   #[serde(default="TypescriptGenOptions::def_capitalize_type_names")]
   pub capitalize_type_names: bool,
+
+  #[serde(default="TypescriptGenOptions::def_annotate")]
+  pub annotate: Vec<InjectAnnotation>,
 }
 
 impl TypescriptGenOptions {
@@ -100,6 +104,7 @@ impl TypescriptGenOptions {
       modules: TypescriptGenOptions::def_modules(),
       capitalize_branch_names_in_types: TypescriptGenOptions::def_capitalize_branch_names_in_types(),
       capitalize_type_names: TypescriptGenOptions::def_capitalize_type_names(),
+      annotate: TypescriptGenOptions::def_annotate(),
     }
   }
 
@@ -134,6 +139,16 @@ impl TypescriptGenOptions {
   pub fn def_capitalize_type_names() -> bool {
     true
   }
+
+  pub fn def_annotate() -> Vec<InjectAnnotation> {
+    vec![]
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
+pub enum InjectAnnotation {
+  #[serde(rename="module_")]
+  Module(Pair<ScopedName, serde_json::Value>),
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]

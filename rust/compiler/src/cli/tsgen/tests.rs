@@ -69,25 +69,9 @@ fn generate_ts_from_test_files() {
                     })
                 }
                 let modules = t.modules.clone();
-                // let opts = TsOpts {
-                //     search: AdlSearchOpts { path: search_path },
-                //     output: OutputOpts {
-                //         outputdir: outdir,
-                //         manifest: Some(manifest),
-                //     },
-                //     include_rt: true,
-                //     runtime_dir: Some("runtime".to_string()),
-                //     runtime_pkg: None,
-                //     ts_style: None,
-                //     modules: t.modules.clone(),
-                //     capitalize_branch_names_in_types: true,
-                //     capitalize_type_names: true,
-                //     generate_transitive: true,
-                //     include_resolver: true,
-                // };
-
                 let ts_opts = TypescriptGenOptions {
                     npm_pkg_name: None,
+                    annotate: vec![],
                     outputs: crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput{
                         referenceable: ReferenceableScopeOption::Local,
                         output_dir: outdir.clone(),

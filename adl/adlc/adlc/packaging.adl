@@ -4,6 +4,7 @@
 module adlc.packaging {
 
 import sys.types.Pair;
+import sys.adlast2.ScopedName;
 
 type AdlWorkspace0 = AdlWorkspace<AdlPackageRef>;
 type AdlWorkspace1 = AdlWorkspace<Pair<AdlPackageRef,AdlPackage>>;
@@ -35,12 +36,18 @@ struct TypescriptGenOptions {
     ModuleSrc modules = "all";
     Bool capitalize_branch_names_in_types = true;
     Bool capitalize_type_names = true;
+
+    Vector<InjectAnnotation> annotate = [];
 // Vector<> searchDir;
 // --merge-adlext=EXT
 // --verbose
 // --no-overwrite
 // --exclude-ast
 // --excluded-ast-annotations=SCOPEDNAMES
+};
+
+union InjectAnnotation {
+    Pair<ScopedName,Json> module_;
 };
 
 union TsRuntimeOpt {

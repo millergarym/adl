@@ -25,6 +25,7 @@ pub fn run_cli() -> i32 {
             let loader = loader_from_search_paths(&opts.search.path);
             let ts_opts = TypescriptGenOptions {
                 npm_pkg_name: None,
+                annotate: vec![],
                 outputs: crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput{
                     referenceable: ReferenceableScopeOption::Local,
                     output_dir: opts.output.outputdir.to_str().unwrap().to_string(),

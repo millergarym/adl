@@ -6,15 +6,12 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::PathBuf;
 
-use crate::adlgen::adlc::packaging::{AdlWorkspace1};
+use crate::adlgen::adlc::packaging::AdlWorkspace1;
 use crate::adlgen::sys::adlast2::{self as adlast, Module0};
 use crate::parser::{convert_error, raw_module};
 use crate::processing::annotations::apply_explicit_annotations_and_serialized_name;
 
-pub fn loader_from_workspace(
-    root: PathBuf,
-    workspace: AdlWorkspace1,
-) -> Box<dyn AdlLoader> {
+pub fn loader_from_workspace(root: PathBuf, workspace: AdlWorkspace1) -> Box<dyn AdlLoader> {
     Box::new(WorkspaceLoader {
         root,
         workspace,
@@ -52,11 +49,11 @@ impl AdlLoader for WorkspaceLoader {
             }
         }
         for pkg in &self.workspace.r#use {
-            let pkg_path = pkg.0.1.path.as_str();
-            println!("  looking for {} in {} or {:?}", module_name, pkg_path, pkg.0.1.global_alias.clone());
+            let pkg_path = pkg.0 .1.path.as_str();
+            // println!("  looking for {} in {} or {:?}", module_name, pkg_path, pkg.0.1.global_alias.clone());
             let pkg_name = if module_name.starts_with(pkg_path) {
-                Some(pkg.0.1.path.clone())
-            } else if let Some(alias) = pkg.0.1.global_alias.clone() {
+                Some(pkg.0 .1.path.clone())
+            } else if let Some(alias) = pkg.0 .1.global_alias.clone() {
                 if module_name.starts_with(alias.as_str()) {
                     Some(alias)
                 } else {
@@ -65,12 +62,33 @@ impl AdlLoader for WorkspaceLoader {
             } else {
                 None
             };
-            if let Some(name) = pkg_name {
+            if let Some(name) = &pkg_name {
                 let loader = self
                     .loaders
-                    .entry(name)
-                    .or_insert(Box::new(DirTreeLoader::new(self.root.join(&pkg.0.0.path))));
-                return loader.load(module_name);
+                    .entry(name.clone())
+                    .or_insert(Box::new(DirTreeLoader::new(self.root.join(&pkg.0 .0.path))));
+                let module = loader.load(module_name);
+                println!("--- {}", &name.clone());
+                match module {
+                    Ok(module) => {
+                        if let Some(mut moduleX) = module.clone() {
+                            if let Some(ts_opts) = &pkg.0 .0.ts_opts {
+                                if let Some(npm_pkg) = &ts_opts.npm_pkg_name {
+                                    moduleX.annotations.0.insert(
+                                        adlast::ScopedName {
+                                            module_name: "adlc.config.typescript".to_string(),
+                                            name: "NpmPackage".to_string(),
+                                        },
+                                        serde_json::json!(npm_pkg),
+                                    );
+                                    return Ok(Some(moduleX));
+                                }
+                            }
+                        }
+                        return Ok(module);
+                    }
+                    Err(_) => return module,
+                }
             }
         }
         Ok(None)

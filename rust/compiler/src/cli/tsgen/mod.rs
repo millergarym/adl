@@ -226,6 +226,7 @@ fn path_from_module_name(_opts: &TypescriptGenOptions, mname: adlast::ModuleName
 }
 
 fn gen_resolver(t: &mut Tokens<JavaScript>, mut modules: Vec<String>) -> anyhow::Result<()> {
+    // TODO remote or local imports
     let mut m_imports = vec![];
     for m in &modules {
         m_imports.push(
