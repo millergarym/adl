@@ -1,34 +1,34 @@
 {
     "adlc": "0.0.0",
+    "use_embedded_sys_loader": true,
     "use": [
         {
             "path": "./adlc"
         },
         {
-            "path": "./tests/test31/lib"
+            "path": "./tests/test31/lib",
+            "ts_opts": {
+                "npm_pkg_name": "@adl-lang/common"
+            }
         },
         {
-            "path": "./stdlib"
+            "path": "./stdlib",
+            "ts_opts": {
+                "npm_pkg_name": "@adl-lang/sys"
+            }
         },
         {
             "path": "./tests/test31/proj",
-            "genOptions": [
-                {
-                    "tsgen": {
-                        "outputs": {
-                            "outputDir": "../generated/typescript/tests/test31/src",
-                            "manifest": "../generated/typescript/tests/test31/.adl-manifest"
-                        },
-                        "includeRuntime": true,
-                        "runtimeDir": "./runtime",
-                        "generate_transitive": true,
-                        "include_resolver": true,
-                        "modules": "all",
-                        "capitalize_branch_names_in_types": true,
-                        "capitalize_type_names": true
+            "ts_opts": {
+                "npm_pkg_name": "@adl-lang/protoclient",
+                "outputs": {
+                    "gen": {
+                        "outputDir": "../generated/typescript/tests/test31/src",
+                        "manifest": "../generated/typescript/tests/test31/.adl-manifest"
                     }
-                }
-            ]
+                },
+                "include_resolver": true
+            }
         }
     ]
 }

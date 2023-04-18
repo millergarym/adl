@@ -5,7 +5,7 @@ use convert_case::{Case, Casing};
 use serde_json::Value;
 
 use crate::adlgen::sys::adlast2::{
-    Decl, DeclType, Field, Module, PrimitiveType, ScopedName, TypeExpr, TypeRef, Union,
+    Decl, DeclType, Field, Module, PrimitiveType, ScopedName, TypeExpr, TypeRef, Union, Decl1, Module1, Field1, Union1,
 };
 use crate::processing::resolver::Resolver;
 use genco::prelude::*;
@@ -19,13 +19,13 @@ const OSB: &str = "[";
 const CSB: &str = "]";
 
 pub struct ResolverModule<'a> {
-    pub module: &'a Module<TypeExpr<TypeRef>>,
+    pub module: &'a Module1,
     pub resolver: &'a Resolver,
 }
 
 pub struct TsDefaultValue<'a> {
     pub ctx: &'a ResolverModule<'a>,
-    pub decl: &'a Decl<TypeExpr<TypeRef>>,
+    pub decl: &'a Decl1,
     pub type_map: &'a HashMap<String, &'a TypeExpr<TypeRef>>,
     // pub depth: Box<i64>,
 }
@@ -182,7 +182,7 @@ impl TsDefaultValue<'_> {
     pub fn gen_default_value(
         &self,
         t: &mut Tokens<JavaScript>,
-        field: &Field<TypeExpr<TypeRef>>,
+        field: &Field1,
         val: Option<&Value>,
     ) -> anyhow::Result<()> {
         let val1 = match val {
@@ -262,7 +262,7 @@ impl TsDefaultValue<'_> {
     fn gen_decl(
         &self,
         t: &mut Tokens<JavaScript>,
-        decl: &Decl<TypeExpr<TypeRef>>,
+        decl: &Decl1,
         type_expr: &TypeExpr<TypeRef>,
         f_name: &String,
         val: &Value,
@@ -642,7 +642,7 @@ impl TsDefaultValue<'_> {
 
 }
 
-pub fn is_enum(m: &Union<TypeExpr<TypeRef>>) -> bool {
+pub fn is_enum(m: &Union1) -> bool {
     m.fields
         .iter()
         .find(|f| match &f.type_expr.type_ref {

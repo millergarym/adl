@@ -135,11 +135,20 @@ union TypeRef {
 
 // AST after initial parsing
 type TypeExpr0 = TypeExpr<ScopedName>;
+type Field0 = Field<TypeExpr0>;
+type Struct0 = Struct<TypeExpr0>;
+type Union0 = Union<TypeExpr0>;
+type DeclType0 = DeclType<TypeExpr0>;
+type Decl0 = Decl<TypeExpr0>;
 type Module0 = Module<TypeExpr0>;
 
 
 // AST after name resolution
 type TypeExpr1 = TypeExpr<TypeRef>;
+type Field1 = Field<TypeExpr1>;
+type Struct1 = Struct<TypeExpr1>;
+type Union1 = Union<TypeExpr1>;
+type DeclType1 = DeclType<TypeExpr1>;
 type Decl1 = Decl<TypeExpr1>;
 type Module1 = Module<TypeExpr1>;
 

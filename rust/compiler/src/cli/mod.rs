@@ -138,6 +138,9 @@ pub struct TsOpts {
     #[arg(long, short='R', value_name="DIR")]
     pub runtime_dir: Option<String>,
 
+    #[arg(long)]
+    pub runtime_pkg: Option<String>,
+
     /// Also generate code for the transitive dependencies of the specified adl files (default: true)
     #[arg(long, default_value_t = true)]
     pub generate_transitive: bool,

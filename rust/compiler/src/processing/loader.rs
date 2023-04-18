@@ -6,15 +6,21 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::PathBuf;
 
-use crate::adlgen::adlc::packaging::AdlWorkspace1;
-use crate::adlgen::sys::adlast2 as adlast;
+use crate::adlgen::adlc::packaging::{AdlWorkspace1};
+use crate::adlgen::sys::adlast2::{self as adlast, Module0};
 use crate::parser::{convert_error, raw_module};
 use crate::processing::annotations::apply_explicit_annotations_and_serialized_name;
 
-use super::Module0;
-
-pub fn loader_from_workspace(root: PathBuf, workspace: AdlWorkspace1) -> Box<dyn AdlLoader> {
-    Box::new(WorkspaceLoader{ root, workspace, loaders: HashMap::new() })
+pub fn loader_from_workspace(
+    root: PathBuf,
+    workspace: AdlWorkspace1,
+) -> Box<dyn AdlLoader> {
+    Box::new(WorkspaceLoader {
+        root,
+        workspace,
+        embedded: EmbeddedStdlibLoader {},
+        loaders: HashMap::new(),
+    })
 }
 
 pub fn loader_from_search_paths(paths: &Vec<PathBuf>) -> Box<dyn AdlLoader> {
@@ -34,13 +40,17 @@ pub trait AdlLoader {
 pub struct WorkspaceLoader {
     root: PathBuf,
     workspace: AdlWorkspace1,
-    // embedded: EmbeddedStdlibLoader,
+    embedded: EmbeddedStdlibLoader,
     loaders: HashMap<String, Box<dyn AdlLoader>>,
 }
 
-
 impl AdlLoader for WorkspaceLoader {
     fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
+        if self.workspace.use_embedded_sys_loader {
+            if let Some(module) = self.embedded.load(module_name)? {
+                return Ok(Some(module));
+            }
+        }
         for pkg in &self.workspace.r#use {
             let pkg_path = pkg.0.1.path.as_str();
             println!("  looking for {} in {} or {:?}", module_name, pkg_path, pkg.0.1.global_alias.clone());

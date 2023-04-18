@@ -72,7 +72,7 @@ pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts) -> anyhow::Result<()> {
     let mut writer = TreeWriter::new(opts.output.outputdir.clone(), manifest)?;
 
     if !opts.include_rt {
-        if opts.runtime_dir == None {
+        if opts.runtime_dir != None {
             eprintln!("Invalid flags; --runtime-dir only valid if --include-rt is set");
             // return Err(anyhow!("Invalid flags; --runtime-dir only valid if --include-rt is set"));
         }
@@ -85,9 +85,11 @@ pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts) -> anyhow::Result<()> {
         .collect();
 
     for m in modules {
-        let path = path_from_module_name(opts, m.name.to_owned());
-        let code = gen_ts_module(m, &resolver, opts)?;
-        writer.write(path.as_path(), code)?;
+        if opts.generate_transitive || opts.modules.contains(&m.name) {
+            let path = path_from_module_name(opts, m.name.to_owned());
+            let code = gen_ts_module(m, &resolver, opts)?;
+            writer.write(path.as_path(), code)?;
+        }
     }
 
     {
@@ -116,21 +118,27 @@ pub fn tsgen(loader: Box<dyn AdlLoader>, opts: &TsOpts) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn gen_ts_module(
-    m: &Module<TypeExpr<TypeRef>>,
-    resolver: &Resolver,
-    opts: &TsOpts,
-) -> anyhow::Result<String> {
+fn gen_ts_module(m: &Module1, resolver: &Resolver, opts: &TsOpts) -> anyhow::Result<String> {
     // TODO sys.annotations::SerializedName needs to be embedded
     let tokens = &mut js::Tokens::new();
-    let mut mgen = generate::TsGenVisitor {
-        module: m,
-        resolver: resolver,
-        adlr: js::import(
+    let adlr = if opts.include_rt {
+        // TODO modify the import path with opts.runtime_dir
+        js::import(
             utils::rel_import(&m.name, &"runtime.adl".to_string()),
             "ADL",
         )
-        .into_wildcard(),
+        .into_wildcard()
+    } else {
+        if let Some(pkg) = &opts.runtime_pkg {
+            js::import(pkg.clone() + "/adl", "ADL").into_wildcard()
+        } else {
+            return Err(anyhow!("runtime_pkg not specified"));
+        }
+    };
+    let mut mgen = generate::TsGenVisitor {
+        module: m,
+        resolver: resolver,
+        adlr,
         map: &mut HashMap::new(),
         opts,
     };

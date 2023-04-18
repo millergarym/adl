@@ -29,11 +29,11 @@ type Res<I, T> = IResult<I, T, VerboseError<I>>;
 type Input<'a> = LocatedSpan<&'a str>;
 
 type TypeExpr0 = adlast::TypeExpr<adlast::ScopedName>;
-type Module0 = adlast::Module<TypeExpr0>;
+type Module0 = adlast::Module0;
 pub type RawModule = (Module0, Vec<ExplicitAnnotation>);
 
 pub enum DeclOrAnnotation {
-    DADecl(adlast::Decl<adlast::TypeExpr<adlast::ScopedName>>),
+    DADecl(adlast::Decl0),
     DAAnnotation(ExplicitAnnotation),
 }
 
@@ -179,7 +179,7 @@ pub fn raw_module0(i: Input) -> Res<Input, RawModule> {
         ),
         wtag("}"),
     )(i)?;
-    let mut decls: Vec<adlast::Decl<TypeExpr0>> = vec![];
+    let mut decls: Vec<adlast::Decl0> = vec![];
     let mut explicit_annotations: Vec<ExplicitAnnotation> = Vec::new();
     for da in decls_or_annotations {
         match da {
@@ -227,7 +227,7 @@ pub fn decl_or_annotation(i: Input) -> Res<Input, DeclOrAnnotation> {
     ))(i)
 }
 
-pub fn decl(i: Input) -> Res<Input, adlast::Decl<TypeExpr0>> {
+pub fn decl(i: Input) -> Res<Input, adlast::Decl0> {
     let (i, annotations) = many0(prefix_annotation)(i)?;
     let ma = merge_annotations(annotations).map_err(|emsg| custom_error(i, emsg))?;
     let (i, (name, dtype)) = decl_type(i)?;
@@ -315,7 +315,7 @@ pub fn decl_type(i: Input) -> Res<Input, (&str, adlast::DeclType<TypeExpr0>)> {
     ))(i)
 }
 
-pub fn struct_(i: Input) -> Res<Input, (&str, adlast::Struct<TypeExpr0>)> {
+pub fn struct_(i: Input) -> Res<Input, (&str, adlast::Struct0)> {
     let (i, _) = ws(tag("struct"))(i)?;
     cut(|i| {
         let (i, name) = ws(ident0)(i)?;
@@ -330,7 +330,7 @@ pub fn struct_(i: Input) -> Res<Input, (&str, adlast::Struct<TypeExpr0>)> {
     })(i)
 }
 
-pub fn union(i: Input) -> Res<Input, (&str, adlast::Union<TypeExpr0>)> {
+pub fn union(i: Input) -> Res<Input, (&str, adlast::Union0)> {
     let (i, _) = wtag("union")(i)?;
     cut(|i| {
         let (i, name) = ws(ident0)(i)?;
@@ -388,11 +388,11 @@ fn oversion_(i: Input) -> Res<Input, u64> {
     Ok((i, ds.parse::<u64>().unwrap()))
 }
 
-pub fn field(i: Input) -> Res<Input, adlast::Field<TypeExpr0>> {
+pub fn field(i: Input) -> Res<Input, adlast::Field0> {
     context("field", field0)(i)
 }
 
-pub fn field0(i: Input) -> Res<Input, adlast::Field<TypeExpr0>> {
+pub fn field0(i: Input) -> Res<Input, adlast::Field0> {
     let (i, annotations) = many0(prefix_annotation)(i)?;
     let ma = merge_annotations(annotations).map_err(|emsg| custom_error(i, emsg))?;
     let (i, texpr) = ws(type_expr)(i)?;

@@ -5,7 +5,7 @@ use anyhow::anyhow;
 
 use serde::Deserialize;
 
-use crate::adlgen::adlc::packaging::{AdlPackage, AdlWorkspace0, AdlWorkspace1, GenOptions};
+use crate::adlgen::adlc::packaging::{AdlPackage, AdlWorkspace0, AdlWorkspace1, OutputOpts, TsRuntimeOpt};
 use crate::adlrt::custom::sys::types::pair::Pair;
 use crate::processing::loader::loader_from_workspace;
 
@@ -17,45 +17,50 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
     let wrk1 = collection_to_workspace(pkg_defs)?;
     // println!("{:?}", &wrk1);
     for pkg in &wrk1.1.r#use {
-        for gen in &pkg.0 .0.gen_options {
-            match gen {
-                GenOptions::Tsgen(opts) => {
-                    let tsopts = TsOpts {
-                        search: super::AdlSearchOpts { path: vec![] },
-                        output: super::OutputOpts {
-                            outputdir: PathBuf::from(opts.outputs.output_dir.clone()),
-                            manifest: opts.outputs.manifest.clone().map(|m| PathBuf::from(m)),
-                        },
-                        include_rt: opts.include_runtime,
-                        runtime_dir: opts.runtime_dir.clone(),
-                        generate_transitive: opts.generate_transitive,
-                        include_resolver: opts.include_resolver,
-                        ts_style: match opts.ts_style {
-                            crate::adlgen::adlc::packaging::TsStyle::Tsc => Some(TsStyle::Tsc),
-                            crate::adlgen::adlc::packaging::TsStyle::Deno => Some(TsStyle::Deno),
-                        },
-                        modules: match &opts.modules {
-                            crate::adlgen::adlc::packaging::ModuleSrc::All => {
-                                let pkg_root = wrk1.0.join(pkg.0 .0.path.clone()).canonicalize()?;
-                                if let Some(pkg_root_str) = pkg_root.as_os_str().to_str() {
-                                    walk_and_collect_adl_modules(pkg_root_str, &pkg_root)
-                                } else {
-                                    return Err(anyhow!("Could get str from pkg_root"));
-                                }
-                            }
-                            crate::adlgen::adlc::packaging::ModuleSrc::Modules(ms) => ms.clone(),
-                        },
-                        capitalize_branch_names_in_types: opts.capitalize_branch_names_in_types,
-                        capitalize_type_names: opts.capitalize_type_names,
-                    };
-                    let loader = loader_from_workspace(wrk1.0.clone(), wrk1.1.clone());
-                    println!(
-                        "TsGen for pkg {:?} in workspace {:?} output dir {}",
-                        pkg.0 .0, wrk1.0, opts.outputs.output_dir
-                    );
-                    tsgen::tsgen(loader, &tsopts)?;
-                }
-            }
+        if let Some(opts) = &pkg.0.0.ts_opts {
+            let outputs = match &opts.outputs {
+                OutputOpts::Gen(output) => output,
+                OutputOpts::Ref(_) => continue,
+            };
+            let rt = match &opts.runtime_opts {
+                TsRuntimeOpt::PackageRef(rt) => (false, None, Some(rt.clone())),
+                TsRuntimeOpt::Generate(rt) => (true, Some(rt.runtime_dir.clone()), None),
+            };
+            let tsopts = TsOpts {
+                search: super::AdlSearchOpts { path: vec![] },
+                output: super::OutputOpts {
+                    outputdir: wrk1.0.join(outputs.output_dir.clone()),
+                    manifest: outputs.manifest.clone().map(|m| wrk1.0.join(m)),
+                },
+                include_rt: rt.0,
+                runtime_dir: rt.1,
+                runtime_pkg: rt.2,
+                generate_transitive: opts.generate_transitive,
+                include_resolver: opts.include_resolver,
+                ts_style: match opts.ts_style {
+                    crate::adlgen::adlc::packaging::TsStyle::Tsc => Some(TsStyle::Tsc),
+                    crate::adlgen::adlc::packaging::TsStyle::Deno => Some(TsStyle::Deno),
+                },
+                modules: match &opts.modules {
+                    crate::adlgen::adlc::packaging::ModuleSrc::All => {
+                        let pkg_root = wrk1.0.join(pkg.0 .0.path.clone()).canonicalize()?;
+                        if let Some(pkg_root_str) = pkg_root.as_os_str().to_str() {
+                            walk_and_collect_adl_modules(pkg_root_str, &pkg_root)
+                        } else {
+                            return Err(anyhow!("Could get str from pkg_root"));
+                        }
+                    }
+                    crate::adlgen::adlc::packaging::ModuleSrc::Modules(ms) => ms.clone(),
+                },
+                capitalize_branch_names_in_types: opts.capitalize_branch_names_in_types,
+                capitalize_type_names: opts.capitalize_type_names,
+            };
+            let loader = loader_from_workspace(wrk1.0.clone(), wrk1.1.clone());
+            println!(
+                "TsGen for pkg {:?} in workspace {:?} output dir {}",
+                pkg.0 .0, wrk1.0, outputs.output_dir
+            );
+            tsgen::tsgen(loader, &tsopts)?;
         }
     }
     Ok(())
@@ -105,8 +110,8 @@ fn collection_to_workspace(
                     .map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
                 let mut wrk1 = AdlWorkspace1 {
                     adlc: wrk0.adlc.clone(),
-                    default_gen_options: wrk0.default_gen_options.clone(),
                     r#use: vec![],
+                    use_embedded_sys_loader: wrk0.use_embedded_sys_loader,
                 };
                 for p in wrk0.r#use.iter() {
                     let p_path = porw.1.join(&p.path).join("adl.pkg.json");

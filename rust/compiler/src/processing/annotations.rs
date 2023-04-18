@@ -1,7 +1,6 @@
 use std::fmt;
 
-use super::Module0;
-use crate::adlgen::sys::adlast2::{self as adlast};
+use crate::adlgen::sys::adlast2::{self as adlast, Module0};
 use crate::parser::{serializedname_scoped_name, ExplicitAnnotationRef, RawModule};
 
 fn apply_serialized_name(m0: &mut Module0) {

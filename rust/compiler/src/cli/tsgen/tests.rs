@@ -76,6 +76,7 @@ fn generate_ts_from_test_files() {
                     },
                     include_rt: true,
                     runtime_dir: Some("runtime".to_string()),
+                    runtime_pkg: None,
                     ts_style: None,
                     modules: t.modules.clone(),
                     capitalize_branch_names_in_types: true,

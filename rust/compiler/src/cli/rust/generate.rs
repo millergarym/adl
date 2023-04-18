@@ -65,8 +65,8 @@ pub fn gen_module(m: &Module1) -> anyhow::Result<String> {
 
 fn gen_struct(
     _m: &Module1,
-    d: &adlast::Decl<TypeExpr1>,
-    s: &adlast::Struct<TypeExpr1>,
+    d: &adlast::Decl1,
+    s: &adlast::Struct1,
     out: &mut RSFile,
 ) -> anyhow::Result<()> {
     let efields: Vec<ExtendedField> = s.fields
@@ -114,7 +114,7 @@ fn gen_struct(
 
 fn gen_type(
   _m: &Module1,
-  d: &adlast::Decl<TypeExpr1>,
+  d: &adlast::Decl1,
   t: &adlast::TypeDef<TypeExpr1>,
   out: &mut RSFile,
 ) -> anyhow::Result<()> {
@@ -130,14 +130,14 @@ fn gen_type(
 }
 
 struct ExtendedField<'a> {
-  field: &'a adlast::Field<TypeExpr1>,
+  field: &'a adlast::Field1,
   rs_field_name: String,
   type_str: String,
   type_expr_gen: TypeExprGen,
 }
 
 impl <'a> ExtendedField<'a> {
-  fn new(field: &'a adlast::Field<TypeExpr1>, out: &mut RSFile) -> Self {
+  fn new(field: &'a adlast::Field1, out: &mut RSFile) -> Self {
     let type_expr_gen = TypeExprGen::new(&field.type_expr);
     let type_str = type_expr_gen.gen_type(out);
     let rs_field_name = rs_field_name_from_adl(&field.name);

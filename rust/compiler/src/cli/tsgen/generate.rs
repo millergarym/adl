@@ -8,8 +8,8 @@ use genco::prelude::*;
 use genco::tokens::{Item, ItemStr};
 
 use crate::adlgen::sys::adlast2::{
-    Annotations, Decl, DeclType, Module, NewType, PrimitiveType, ScopedName, Struct, TypeDef,
-    TypeExpr, TypeRef, Union,
+    DeclType, NewType, PrimitiveType, ScopedName, TypeDef,
+    TypeExpr, TypeRef, Annotations, Module1, Decl1, Struct1, Union1
 };
 use crate::cli::TsOpts;
 use crate::parser::docstring_scoped_name;
@@ -19,7 +19,7 @@ const SP: &str = " ";
 const SQ: &str = "'";
 
 pub struct TsGenVisitor<'a> {
-    pub module: &'a Module<TypeExpr<TypeRef>>,
+    pub module: &'a Module1,
     pub resolver: &'a Resolver,
     pub adlr: JsImport,
     pub map: &'a mut HashMap<ScopedName, (String, JsImport)>,
@@ -27,7 +27,7 @@ pub struct TsGenVisitor<'a> {
 }
 
 struct DeclPayload<'a> {
-    decl: &'a Decl<TypeExpr<TypeRef>>,
+    decl: &'a Decl1,
     mname: &'a String,
 }
 
@@ -40,7 +40,7 @@ impl TsGenVisitor<'_> {
     pub fn gen_module(
         &mut self,
         t: &mut Tokens<JavaScript>,
-        m: &Module<TypeExpr<TypeRef>>,
+        m: &Module1,
     ) -> anyhow::Result<()> {
         quote_in! { *t =>
             $("/* @generated from adl module") $(m.name.clone()) $("*/")
@@ -90,7 +90,7 @@ impl TsGenVisitor<'_> {
     fn gen_struct(
         &mut self,
         t: &mut Tokens<JavaScript>,
-        m: &Struct<TypeExpr<TypeRef>>,
+        m: &Struct1,
         payload: DeclPayload<'_>,
     ) -> anyhow::Result<()> {
         let (decl, name) = (payload.decl, &payload.decl.name);
@@ -164,7 +164,7 @@ impl TsGenVisitor<'_> {
     fn gen_union(
         &mut self,
         t: &mut Tokens<JavaScript>,
-        m: &Union<TypeExpr<TypeRef>>,
+        m: &Union1,
         payload: DeclPayload<'_>,
     ) -> anyhow::Result<()> {
         let name = &payload.decl.name;
@@ -425,7 +425,7 @@ impl TsGenVisitor<'_> {
     fn gen_rtti(
         &mut self,
         t: &mut Tokens<JavaScript>,
-        decl: &Decl<TypeExpr<TypeRef>>,
+        decl: &Decl1,
         payload: &RttiPayload<'_>,
     ) -> anyhow::Result<()> {
         // Generation AST holder

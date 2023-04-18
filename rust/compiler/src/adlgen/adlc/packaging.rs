@@ -13,30 +13,26 @@ pub type AdlWorkspace1 = AdlWorkspace<Pair<AdlPackageRef, AdlPackage>>;
  */
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct AdlWorkspace<T> {
-  /**
-   * Version
-   */
   pub adlc: String,
-
-  #[serde(default="AdlWorkspace::<T>::def_default_gen_options")]
-  #[serde(rename="defaultGenOptions")]
-  pub default_gen_options: Vec<GenOptions>,
 
   #[serde(rename="use")]
   pub r#use: Vec<T>,
+
+  #[serde(default="AdlWorkspace::<T>::def_use_embedded_sys_loader")]
+  pub use_embedded_sys_loader: bool,
 }
 
 impl<T> AdlWorkspace<T> {
   pub fn new(adlc: String, r#use: Vec<T>) -> AdlWorkspace<T> {
     AdlWorkspace {
       adlc: adlc,
-      default_gen_options: AdlWorkspace::<T>::def_default_gen_options(),
       r#use: r#use,
+      use_embedded_sys_loader: AdlWorkspace::<T>::def_use_embedded_sys_loader(),
     }
   }
 
-  pub fn def_default_gen_options() -> Vec<GenOptions> {
-    vec![]
+  pub fn def_use_embedded_sys_loader() -> bool {
+    true
   }
 }
 
@@ -46,97 +42,166 @@ pub type AdlPackageRefs = Vec<AdlPackageRef>;
 pub struct AdlPackageRef {
   pub path: String,
 
-  #[serde(default="AdlPackageRef::def_gen_options")]
-  #[serde(rename="genOptions")]
-  pub gen_options: Vec<GenOptions>,
+  #[serde(default="AdlPackageRef::def_ts_opts")]
+  pub ts_opts: Option<TypescriptGenOptions>,
 }
 
 impl AdlPackageRef {
   pub fn new(path: String) -> AdlPackageRef {
     AdlPackageRef {
       path: path,
-      gen_options: AdlPackageRef::def_gen_options(),
+      ts_opts: AdlPackageRef::def_ts_opts(),
     }
   }
 
-  pub fn def_gen_options() -> Vec<GenOptions> {
-    vec![]
+  pub fn def_ts_opts() -> Option<TypescriptGenOptions> {
+    None
   }
-}
-
-#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub enum GenOptions {
-  #[serde(rename="tsgen")]
-  Tsgen(TypescriptGenOptions),
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct TypescriptGenOptions {
-  #[serde(default="TypescriptGenOptions::def_referenceable")]
-  pub referenceable: ReferenceableScopeOption,
+  pub npm_pkg_name: String,
 
+  #[serde(default="TypescriptGenOptions::def_outputs")]
   pub outputs: OutputOpts,
 
-  #[serde(rename="includeRuntime")]
-  pub include_runtime: bool,
+  #[serde(default="TypescriptGenOptions::def_runtime_opts")]
+  pub runtime_opts: TsRuntimeOpt,
 
-  #[serde(rename="runtimeDir")]
-  pub runtime_dir: Option<String>,
-
+  #[serde(default="TypescriptGenOptions::def_generate_transitive")]
   pub generate_transitive: bool,
 
+  #[serde(default="TypescriptGenOptions::def_include_resolver")]
   pub include_resolver: bool,
 
   #[serde(default="TypescriptGenOptions::def_ts_style")]
   pub ts_style: TsStyle,
 
+  #[serde(default="TypescriptGenOptions::def_modules")]
   pub modules: ModuleSrc,
 
+  #[serde(default="TypescriptGenOptions::def_capitalize_branch_names_in_types")]
   pub capitalize_branch_names_in_types: bool,
 
+  #[serde(default="TypescriptGenOptions::def_capitalize_type_names")]
   pub capitalize_type_names: bool,
 }
 
 impl TypescriptGenOptions {
-  pub fn new(outputs: OutputOpts, include_runtime: bool, runtime_dir: Option<String>, generate_transitive: bool, include_resolver: bool, modules: ModuleSrc, capitalize_branch_names_in_types: bool, capitalize_type_names: bool) -> TypescriptGenOptions {
+  pub fn new(npm_pkg_name: String) -> TypescriptGenOptions {
     TypescriptGenOptions {
-      referenceable: TypescriptGenOptions::def_referenceable(),
-      outputs: outputs,
-      include_runtime: include_runtime,
-      runtime_dir: runtime_dir,
-      generate_transitive: generate_transitive,
-      include_resolver: include_resolver,
+      npm_pkg_name: npm_pkg_name,
+      outputs: TypescriptGenOptions::def_outputs(),
+      runtime_opts: TypescriptGenOptions::def_runtime_opts(),
+      generate_transitive: TypescriptGenOptions::def_generate_transitive(),
+      include_resolver: TypescriptGenOptions::def_include_resolver(),
       ts_style: TypescriptGenOptions::def_ts_style(),
-      modules: modules,
-      capitalize_branch_names_in_types: capitalize_branch_names_in_types,
-      capitalize_type_names: capitalize_type_names,
+      modules: TypescriptGenOptions::def_modules(),
+      capitalize_branch_names_in_types: TypescriptGenOptions::def_capitalize_branch_names_in_types(),
+      capitalize_type_names: TypescriptGenOptions::def_capitalize_type_names(),
     }
   }
 
-  pub fn def_referenceable() -> ReferenceableScopeOption {
-    ReferenceableScopeOption::Local
+  pub fn def_outputs() -> OutputOpts {
+    OutputOpts::Ref(PkgRef{})
+  }
+
+  pub fn def_runtime_opts() -> TsRuntimeOpt {
+    TsRuntimeOpt::PackageRef("@adl-lang/runtime".to_string())
+  }
+
+  pub fn def_generate_transitive() -> bool {
+    false
+  }
+
+  pub fn def_include_resolver() -> bool {
+    false
   }
 
   pub fn def_ts_style() -> TsStyle {
     TsStyle::Tsc
   }
+
+  pub fn def_modules() -> ModuleSrc {
+    ModuleSrc::All
+  }
+
+  pub fn def_capitalize_branch_names_in_types() -> bool {
+    true
+  }
+
+  pub fn def_capitalize_type_names() -> bool {
+    true
+  }
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub struct OutputOpts {
+pub enum TsRuntimeOpt {
+  #[serde(rename="packageRef")]
+  PackageRef(String),
+
+  #[serde(rename="generate")]
+  Generate(TsGenRuntime),
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub struct TsGenRuntime {
+  #[serde(rename="runtimeDir")]
+  pub runtime_dir: String,
+}
+
+impl TsGenRuntime {
+  pub fn new(runtime_dir: String) -> TsGenRuntime {
+    TsGenRuntime {
+      runtime_dir: runtime_dir,
+    }
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub enum OutputOpts {
+  #[serde(rename="gen")]
+  Gen(GenOutput),
+
+  #[serde(rename="ref")]
+  Ref(PkgRef),
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub struct PkgRef {
+}
+
+impl PkgRef {
+  pub fn new() -> PkgRef {
+    PkgRef {
+    }
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub struct GenOutput {
+  #[serde(default="GenOutput::def_referenceable")]
+  pub referenceable: ReferenceableScopeOption,
+
   #[serde(rename="outputDir")]
   pub output_dir: String,
 
-  #[serde(default="OutputOpts::def_manifest")]
+  #[serde(default="GenOutput::def_manifest")]
   pub manifest: Option<String>,
 }
 
-impl OutputOpts {
-  pub fn new(output_dir: String) -> OutputOpts {
-    OutputOpts {
+impl GenOutput {
+  pub fn new(output_dir: String) -> GenOutput {
+    GenOutput {
+      referenceable: GenOutput::def_referenceable(),
       output_dir: output_dir,
-      manifest: OutputOpts::def_manifest(),
+      manifest: GenOutput::def_manifest(),
     }
+  }
+
+  pub fn def_referenceable() -> ReferenceableScopeOption {
+    ReferenceableScopeOption::Local
   }
 
   pub fn def_manifest() -> Option<String> {

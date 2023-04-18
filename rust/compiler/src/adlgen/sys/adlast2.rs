@@ -326,9 +326,27 @@ pub enum TypeRef {
 
 pub type TypeExpr0 = TypeExpr<ScopedName>;
 
+pub type Field0 = Field<TypeExpr0>;
+
+pub type Struct0 = Struct<TypeExpr0>;
+
+pub type Union0 = Union<TypeExpr0>;
+
+pub type DeclType0 = DeclType<TypeExpr0>;
+
+pub type Decl0 = Decl<TypeExpr0>;
+
 pub type Module0 = Module<TypeExpr0>;
 
 pub type TypeExpr1 = TypeExpr<TypeRef>;
+
+pub type Field1 = Field<TypeExpr1>;
+
+pub type Struct1 = Struct<TypeExpr1>;
+
+pub type Union1 = Union<TypeExpr1>;
+
+pub type DeclType1 = DeclType<TypeExpr1>;
 
 pub type Decl1 = Decl<TypeExpr1>;
 
