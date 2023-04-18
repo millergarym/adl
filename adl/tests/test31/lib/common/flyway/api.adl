@@ -1,4 +1,7 @@
+@NpmPackage "@adl-lang/common"
 module common.flyway.api {
+
+import adlc.config.typescript.*;
 
 import common.flyway.internals.FlywayAction;
 import common.flyway.internals.FlywayContext;

@@ -137,12 +137,13 @@ fn gen_ts_module(m: &Module1, resolver: &Resolver, opts: &TsOpts) -> anyhow::Res
     };
     let mut mgen = generate::TsGenVisitor {
         module: m,
+        npm_pkg: &None,
         resolver: resolver,
         adlr,
         map: &mut HashMap::new(),
         opts,
     };
-    mgen.gen_module(tokens, m)?;
+    mgen.gen_module(tokens)?;
     // let stdout = std::io::stdout();
     let mut w = fmt::IoWriter::new(Vec::<u8>::new());
     // let mut w = fmt::IoWriter::new(stdout.lock());

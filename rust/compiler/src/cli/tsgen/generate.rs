@@ -8,8 +8,8 @@ use genco::prelude::*;
 use genco::tokens::{Item, ItemStr};
 
 use crate::adlgen::sys::adlast2::{
-    DeclType, NewType, PrimitiveType, ScopedName, TypeDef,
-    TypeExpr, TypeRef, Annotations, Module1, Decl1, Struct1, Union1
+    Annotations, Decl1, DeclType, Module1, NewType, PrimitiveType, ScopedName, Struct1, TypeDef,
+    TypeExpr, TypeRef, Union1,
 };
 use crate::cli::TsOpts;
 use crate::parser::docstring_scoped_name;
@@ -19,6 +19,7 @@ const SP: &str = " ";
 const SQ: &str = "'";
 
 pub struct TsGenVisitor<'a> {
+    pub npm_pkg: &'a Option<String>,
     pub module: &'a Module1,
     pub resolver: &'a Resolver,
     pub adlr: JsImport,
@@ -37,18 +38,14 @@ struct RttiPayload<'a> {
 }
 
 impl TsGenVisitor<'_> {
-    pub fn gen_module(
-        &mut self,
-        t: &mut Tokens<JavaScript>,
-        m: &Module1,
-    ) -> anyhow::Result<()> {
+    pub fn gen_module(&mut self, t: &mut Tokens<JavaScript>) -> anyhow::Result<()> {
         quote_in! { *t =>
-            $("/* @generated from adl module") $(m.name.clone()) $("*/")
+            $("/* @generated from adl module") $(self.module.name.clone()) $("*/")
             $['\n']
         };
-        self.gen_doc_comment(t, &m.annotations)?;
-        let mname = &m.name;
-        for decl in m.decls.iter() {
+        self.gen_doc_comment(t, &self.module.annotations)?;
+        let mname = &self.module.name;
+        for decl in self.module.decls.iter() {
             let payload = DeclPayload {
                 decl: decl,
                 mname: &mname.clone(),
@@ -67,13 +64,13 @@ impl TsGenVisitor<'_> {
             t,
             "export const _AST_MAP: { [key: string]: ADL.ScopedDecl } = {\n",
         );
-        m.decls.iter().fold(false, |rest, decl| {
+        self.module.decls.iter().fold(false, |rest, decl| {
             if rest {
                 lit(t, ",\n")
             }
             lit(t, "  ");
             quote_in! { *t =>
-                $("\"")$(m.name.clone()).$(&decl.name)$("\"") : $(cap_opt(&decl.name, self.opts))_AST
+                $("\"")$(self.module.name.clone()).$(&decl.name)$("\"") : $(cap_opt(&decl.name, self.opts))_AST
             };
             true
         });
@@ -330,9 +327,37 @@ impl TsGenVisitor<'_> {
         scoped_name: &ScopedName,
         params: &Vec<TypeExpr<TypeRef>>,
     ) -> Result<(bool, String), String> {
+        let npm_pkg2 = if let Some(m2) = self.resolver.get_module(&scoped_name.module_name) {
+            get_npm_pkg(m2)
+        } else {
+            None
+        };
+        let npm_pkg = get_npm_pkg(self.module);
         let imp = self.map.entry(scoped_name.clone()).or_insert_with(|| {
-            let path =
-                crate::cli::tsgen::utils::rel_import(&self.module.name, &scoped_name.module_name);
+            let path = if npm_pkg2 != None && npm_pkg2 != npm_pkg {
+                let npm_pkg2 = npm_pkg2.unwrap();
+                let mn_parts: Vec<&str> = scoped_name.module_name.split(".").collect();
+                let npm_parts: Vec<&str> = npm_pkg2.rsplit("/").collect();
+                let mut mn = mn_parts.iter().peekable();
+                let mut npm = npm_parts.iter().peekable();
+                while let (Some(m), Some(n)) = (&mn.peek(), &npm.peek()) {
+                    if m != n {
+                        break;
+                    }
+                    mn.next(); npm.next();
+                }
+                let mut path = npm_pkg2;
+                path.push_str("/");
+                while let Some(p) = mn.next() {
+                    path.push_str(p);
+                    if let Some(_) = mn.peek() {
+                        path.push_str("/");
+                    }
+                }
+                path
+            } else {
+                crate::cli::tsgen::utils::rel_import(&self.module.name, &scoped_name.module_name)
+            };
             let i_name = scoped_name
                 .module_name
                 .replace(".", "_")
@@ -484,6 +509,14 @@ impl TsGenVisitor<'_> {
         }
         Ok(())
     }
+}
+
+fn get_npm_pkg(module: &Module1) -> Option<String> {
+    let npm_pkg = module.annotations.0.get(&ScopedName {
+        module_name: "adlc.config.typescript".to_string(),
+        name: "NpmPackage".to_string(),
+    });
+    npm_pkg.map(|p| p.as_str().unwrap().to_string())
 }
 
 fn lit(t: &mut Tokens<JavaScript>, s: &'static str) {
