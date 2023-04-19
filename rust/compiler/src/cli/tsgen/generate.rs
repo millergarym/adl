@@ -330,7 +330,7 @@ impl TsGenVisitor<'_> {
         params: &Vec<TypeExpr<TypeRef>>,
     ) -> Result<(bool, String), String> {
         let npm_pkg2 = if let Some(m2) = self.resolver.get_module(&scoped_name.module_name) {
-            get_npm_pkg(m2)
+            get_npm_pkg(&m2)
         } else {
             None
         };

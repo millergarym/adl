@@ -57,6 +57,9 @@ pub struct AdlWorkspace<T> {
   #[serde(rename="use")]
   pub r#use: Vec<T>,
 
+  #[serde(default="AdlWorkspace::<T>::def_runtimes")]
+  pub runtimes: Vec<RuntimeOpts>,
+
   #[serde(default="AdlWorkspace::<T>::def_use_embedded_sys_loader")]
   pub use_embedded_sys_loader: bool,
 }
@@ -66,12 +69,61 @@ impl<T> AdlWorkspace<T> {
     AdlWorkspace {
       adlc: adlc,
       r#use: r#use,
+      runtimes: AdlWorkspace::<T>::def_runtimes(),
       use_embedded_sys_loader: AdlWorkspace::<T>::def_use_embedded_sys_loader(),
     }
   }
 
+  pub fn def_runtimes() -> Vec<RuntimeOpts> {
+    vec![]
+  }
+
   pub fn def_use_embedded_sys_loader() -> bool {
     true
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub enum RuntimeOpts {
+  #[serde(rename="ts_runtime")]
+  TsRuntime(TsWriteRuntime),
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub struct TsWriteRuntime {
+  #[serde(rename="outputDir")]
+  pub output_dir: String,
+
+  #[serde(default="TsWriteRuntime::def_referenceable")]
+  pub referenceable: ReferenceableScopeOption,
+
+  #[serde(default="TsWriteRuntime::def_npm_pkg_name")]
+  pub npm_pkg_name: String,
+
+  #[serde(default="TsWriteRuntime::def_ts_style")]
+  pub ts_style: TsStyle,
+}
+
+impl TsWriteRuntime {
+  pub fn new(output_dir: String) -> TsWriteRuntime {
+    TsWriteRuntime {
+      output_dir: output_dir,
+      referenceable: TsWriteRuntime::def_referenceable(),
+      npm_pkg_name: TsWriteRuntime::def_npm_pkg_name(),
+      ts_style: TsWriteRuntime::def_ts_style(),
+    }
+  }
+
+  pub fn def_referenceable() -> ReferenceableScopeOption {
+    ReferenceableScopeOption::Local
+  }
+
+  pub fn def_npm_pkg_name() -> String {
+    "@adl-lang/runtime".to_string()
+  }
+
+  pub fn def_ts_style() -> TsStyle {
+    TsStyle::Tsc
   }
 }
 
@@ -103,7 +155,7 @@ pub struct TypescriptGenOptions {
   pub npm_pkg_name: Option<String>,
 
   #[serde(default="TypescriptGenOptions::def_outputs")]
-  pub outputs: OutputOpts,
+  pub outputs: Option<OutputOpts>,
 
   #[serde(default="TypescriptGenOptions::def_runtime_opts")]
   pub runtime_opts: TsRuntimeOpt,
@@ -146,8 +198,8 @@ impl TypescriptGenOptions {
     }
   }
 
-  pub fn def_outputs() -> OutputOpts {
-    OutputOpts::Ref(PkgRef{})
+  pub fn def_outputs() -> Option<OutputOpts> {
+    None
   }
 
   pub fn def_runtime_opts() -> TsRuntimeOpt {
@@ -200,14 +252,11 @@ pub enum TsRuntimeOpt {
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct TsGenRuntime {
-  #[serde(rename="runtimeDir")]
-  pub runtime_dir: String,
 }
 
 impl TsGenRuntime {
-  pub fn new(runtime_dir: String) -> TsGenRuntime {
+  pub fn new() -> TsGenRuntime {
     TsGenRuntime {
-      runtime_dir: runtime_dir,
     }
   }
 }
@@ -216,20 +265,6 @@ impl TsGenRuntime {
 pub enum OutputOpts {
   #[serde(rename="gen")]
   Gen(GenOutput),
-
-  #[serde(rename="ref")]
-  Ref(PkgRef),
-}
-
-#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub struct PkgRef {
-}
-
-impl PkgRef {
-  pub fn new() -> PkgRef {
-    PkgRef {
-    }
-  }
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
@@ -381,26 +416,41 @@ impl PackageDirective {
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct Require {
-  pub path: String,
+  #[serde(rename="ref")]
+  pub r#ref: PkgRef,
 
-  pub version: String,
+  #[serde(default="Require::def_version")]
+  pub version: Option<String>,
 
   #[serde(default="Require::def_indirect")]
   pub indirect: bool,
 }
 
 impl Require {
-  pub fn new(path: String, version: String) -> Require {
+  pub fn new(r#ref: PkgRef) -> Require {
     Require {
-      path: path,
-      version: version,
+      r#ref: r#ref,
+      version: Require::def_version(),
       indirect: Require::def_indirect(),
     }
+  }
+
+  pub fn def_version() -> Option<String> {
+    None
   }
 
   pub fn def_indirect() -> bool {
     false
   }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub enum PkgRef {
+  #[serde(rename="path")]
+  Path(String),
+
+  #[serde(rename="alias")]
+  Alias(String),
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
@@ -455,3 +505,37 @@ impl Retract {
     None
   }
 }
+
+#[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
+pub struct NpmPackage {
+  pub name: String,
+
+  pub scripts: std::collections::HashMap<String,String>,
+
+  pub dependencies: std::collections::HashMap<String,DependencySpec>,
+
+  #[serde(rename="devDependencies")]
+  pub dev_dependencies: std::collections::HashMap<String,DependencySpec>,
+}
+
+impl NpmPackage {
+  pub fn new(name: String, scripts: std::collections::HashMap<String,String>, dependencies: std::collections::HashMap<String,DependencySpec>, dev_dependencies: std::collections::HashMap<String,DependencySpec>) -> NpmPackage {
+    NpmPackage {
+      name: name,
+      scripts: scripts,
+      dependencies: dependencies,
+      dev_dependencies: dev_dependencies,
+    }
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub enum DependencySpec {
+  #[serde(rename="workspace")]
+  Workspace,
+
+  #[serde(rename="semverSpec")]
+  SemverSpec(VersionSpec),
+}
+
+pub type VersionSpec = String;

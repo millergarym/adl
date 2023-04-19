@@ -1,5 +1,3 @@
-#![warn(rust_2018_idioms)]
-
 use anyhow::anyhow;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -31,6 +29,18 @@ pub struct ResolvedModule {
     decls: HashMap<String, Decl1>,
 }
 
+fn insert_annotation(m: Module1, sn: adlast::ScopedName, jv: serde_json::Value) -> Module1 {
+    let mut ann = m.annotations.0.clone();
+    ann.insert(sn, jv);
+    Module1 {
+        annotations: Map(ann),
+        ..m
+        // name: m.name.clone(),
+        // imports: m.imports.clone(),
+        // decls: m.decls.clone(),
+    }
+}
+
 impl Resolver {
     pub fn new(loader: Box<dyn AdlLoader>) -> Self {
         Self {
@@ -53,31 +63,22 @@ impl Resolver {
         rmodule
     }
 
-    pub fn get_module(&self, module_name: &ModuleName) -> Option<&Module1> {
-        let rmodule = self.modules.get(module_name);
-        rmodule.map(|rm| &rm.module1)
-        // let mut module = self.modules.get(module_name).map(|rm| &rm.module1);
-
-        // if let Some(mut rmodule) = rmodule {
-        //     let mut module = &rmodule.module1;
-        //     if let Some(payload) = rmodule.payload1.clone() {
-        //         if let Some(ts_opts) = &payload.p_ref.ts_opts {
-        //             if let Some(npm_pkg) = &ts_opts.npm_pkg_name {
-        //                 let mut annotations = module.annotations.clone();
-        //                 module.annotations.0.insert(
-        //                     adlast::ScopedName {
-        //                         module_name: "adlc.config.typescript".to_string(),
-        //                         name: "NpmPackage".to_string(),
-        //                     },
-        //                     serde_json::json!(npm_pkg),
-        //                 );
-        //                 module.annotations = annotations;
-        //             }
-        //         }
-        //     }
-        //     return Some(module);
-        // }
-        // None
+    pub fn get_module(&self, module_name: &ModuleName) -> Option<Module1> {
+        self.modules.get(module_name).map(|rm| {
+            if let Some(payload) = &rm.payload1 {
+                if let Some(ts_opts) = &payload.p_ref.ts_opts {
+                    if let Some(npm_pkg) = &ts_opts.npm_pkg_name {
+                        let sn = adlast::ScopedName {
+                            module_name: "adlc.config.typescript".to_string(),
+                            name: "NpmPackage".to_string(),
+                        };
+                        let jv = serde_json::json!(npm_pkg);
+                        return insert_annotation(rm.module1.clone(), sn, jv);
+                    }
+                }
+            }
+            return rm.module1.clone();
+        })
     }
 
     pub fn get_decl(&self, scoped_name: &adlast::ScopedName) -> Option<&Decl1> {

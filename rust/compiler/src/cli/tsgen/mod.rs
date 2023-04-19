@@ -1,4 +1,4 @@
-extern crate regex;
+use regex;
 
 use regex::bytes::Regex;
 
@@ -12,11 +12,13 @@ use anyhow::anyhow;
 use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
-use crate::adlgen::adlc::packaging::{TsGenRuntime, TsRuntimeOpt, TsStyle, TypescriptGenOptions};
+use crate::adlgen::adlc::packaging::{
+    TsGenRuntime, TsRuntimeOpt, TsStyle, TsWriteRuntime, TypescriptGenOptions,
+};
+use crate::adlgen::sys::adlast2::Module1;
 use crate::adlgen::sys::adlast2::{self as adlast};
-use crate::adlgen::sys::adlast2::{Module1};
 use crate::cli::tsgen::utils::{get_npm_pkg, npm_pkg_import};
-use crate::processing::loader::{AdlLoader};
+use crate::processing::loader::AdlLoader;
 use crate::processing::resolver::Resolver;
 use crate::processing::writer::TreeWriter;
 
@@ -104,8 +106,12 @@ pub fn tsgen(
     opts: &TypescriptGenOptions,
     pkg_root: Option<PathBuf>,
 ) -> anyhow::Result<()> {
-    let (manifest, outputdir) = match &opts.outputs {
-        crate::adlgen::adlc::packaging::OutputOpts::Ref(_) => return Ok(()),
+    if opts.outputs == None {
+        // not gen for this pkg
+        return Ok(());
+    }
+    let outputs = opts.outputs.as_ref().unwrap();
+    let (manifest, outputdir) = match outputs {
         crate::adlgen::adlc::packaging::OutputOpts::Gen(gen) => (
             gen.manifest.as_ref().map(|m| PathBuf::from(m)),
             PathBuf::from(gen.output_dir.clone()),
@@ -124,7 +130,7 @@ pub fn tsgen(
 
     let mut writer = TreeWriter::new(outputdir, manifest)?;
 
-    let modules: Vec<&Module1> = resolver
+    let modules: Vec<Module1> = resolver
         .get_module_names()
         .into_iter()
         .map(|mn| resolver.get_module(&mn).unwrap())
@@ -141,24 +147,32 @@ pub fn tsgen(
     {
         let tokens = &mut js::Tokens::new();
         // let modules = resolver.get_module_names();
-        gen_resolver(tokens, opts.npm_pkg_name.clone(), &resolver, &modules)?;
-        let config = js::Config::default();
-        // let config = js::Config{
-        //     ..Default::default()
-        // };
-        let mut w = fmt::IoWriter::new(Vec::<u8>::new());
-        // let mut w = fmt::IoWriter::new(stdout.lock());
-        let fmt = fmt::Config::from_lang::<JavaScript>();
-        let fmt = fmt::Config::with_indentation(fmt, Indentation::Space(2));
-        tokens.format_file(&mut w.as_formatter(&fmt), &config)?;
-        let vector = w.into_inner();
-        let code = std::str::from_utf8(&vector)?;
-        let path = path_from_module_name(opts, "resolver".to_string());
-        writer.write(path.as_path(), code.to_string())?;
+        if opts.include_resolver {
+            gen_resolver(
+                tokens,
+                opts.npm_pkg_name.clone(),
+                &opts.runtime_opts,
+                &resolver,
+                &modules,
+            )?;
+            let config = js::Config::default();
+            // let config = js::Config{
+            //     ..Default::default()
+            // };
+            let mut w = fmt::IoWriter::new(Vec::<u8>::new());
+            // let mut w = fmt::IoWriter::new(stdout.lock());
+            let fmt = fmt::Config::from_lang::<JavaScript>();
+            let fmt = fmt::Config::with_indentation(fmt, Indentation::Space(2));
+            tokens.format_file(&mut w.as_formatter(&fmt), &config)?;
+            let vector = w.into_inner();
+            let code = std::str::from_utf8(&vector)?;
+            let path = path_from_module_name(opts, "resolver".to_string());
+            writer.write(path.as_path(), code.to_string())?;
+        }
     }
 
-    if let TsRuntimeOpt::Generate(rt_gen_opts) = &opts.runtime_opts {
-        gen_runtime(rt_gen_opts, &opts.ts_style, &mut writer)?
+    if let TsRuntimeOpt::Generate(_) = &opts.runtime_opts {
+        gen_runtime(&opts.ts_style, &mut writer)?
     }
 
     Ok(())
@@ -177,10 +191,10 @@ fn gen_ts_module(
     // }
     let adlr = match &opts.runtime_opts {
         TsRuntimeOpt::PackageRef(pkg) => {
-            // sdf
+            // comment here as I like the layout
             js::import(pkg.clone() + "/adl", "ADL").into_wildcard()
         }
-        TsRuntimeOpt::Generate(_gen) => {
+        TsRuntimeOpt::Generate(gen) => {
             // TODO modify the import path with opts.runtime_dir
             js::import(
                 utils::rel_import(&m.name, &"runtime.adl".to_string()),
@@ -226,31 +240,46 @@ fn path_from_module_name(_opts: &TypescriptGenOptions, mname: adlast::ModuleName
     return path;
 }
 
-fn gen_resolver(t: &mut Tokens<JavaScript>, npm_pkg: Option<String>, resolver: &Resolver, modules: &Vec<&Module1>) -> anyhow::Result<()> {
+fn gen_resolver(
+    t: &mut Tokens<JavaScript>,
+    npm_pkg: Option<String>,
+    runtime_opts: &TsRuntimeOpt,
+    resolver: &Resolver,
+    modules: &Vec<Module1>,
+) -> anyhow::Result<()> {
     // TODO remote or local imports
     let mut m_imports = vec![];
 
     for m in modules {
-
         let npm_pkg2 = if let Some(m2) = resolver.get_module(&m.name) {
-            get_npm_pkg(m2)
+            get_npm_pkg(&m2)
         } else {
             None
         };
-    
+
         let path = if npm_pkg2 != None && npm_pkg2 != npm_pkg {
             npm_pkg_import(npm_pkg2, m.name.clone())
         } else {
             format!("./{}", m.name.replace(".", "/"))
         };
 
-        m_imports.push(
-            js::import(path, "_AST_MAP")
-                .with_alias(m.name.replace(".", "_")),
-        );
+        m_imports.push(js::import(path, "_AST_MAP").with_alias(m.name.replace(".", "_")));
     }
-    let adlr1 = js::import("./runtime/adl", "declResolver");
-    let adlr2 = js::import("./runtime/adl", "ScopedDecl");
+
+    let (adlr1, adlr2) = match runtime_opts {
+        TsRuntimeOpt::PackageRef(pref) => (
+            js::import(format!("{}/adl", pref.as_str()), "declResolver"),
+            js::import(format!("{}/adl", pref.as_str()), "ScopedDecl"),
+        ),
+        TsRuntimeOpt::Generate(gen) => {
+            // js::import(format!("{}/adl", gen.runtime_dir), "declResolver"),
+            // js::import(format!("{}/adl", gen.runtime_dir), "ScopedDecl")
+            (
+                js::import("./runtime/adl", "declResolver"),
+                js::import("./runtime/adl", "ScopedDecl"),
+            )
+        }
+    };
     let gened = "/* @generated from adl */";
     // modules.sort_by(|a, b| a.name.cmp(&b.name));
     let mut keys: Vec<String> = modules.iter().map(|m| m.name.clone()).collect();
@@ -273,8 +302,14 @@ fn gen_resolver(t: &mut Tokens<JavaScript>, npm_pkg: Option<String>, resolver: &
     Ok(())
 }
 
+pub fn write_runtime(rt_opts: &TsWriteRuntime) -> anyhow::Result<()> {
+    let mut writer = TreeWriter::new(PathBuf::from(&rt_opts.output_dir), None)?;
+    gen_runtime(&rt_opts.ts_style, &mut writer)?;
+    Ok(())
+}
+
 fn gen_runtime(
-    rt_gen_opts: &TsGenRuntime,
+    // rt_gen_opts: &TsGenRuntime,
     ts_style: &TsStyle,
     writer: &mut TreeWriter,
 ) -> anyhow::Result<()> {
@@ -282,7 +317,8 @@ fn gen_runtime(
     let re2 = Regex::new(r"\$TSB64IMPORT").unwrap();
     for rt in RUNTIME.iter() {
         let mut file_path = PathBuf::new();
-        file_path.push(&rt_gen_opts.runtime_dir);
+        file_path.push("./runtime");
+        // file_path.push(&rt_gen_opts.runtime_dir);
         file_path.push(rt.0);
         let dir_path = file_path.parent().unwrap();
         std::fs::create_dir_all(dir_path)?;

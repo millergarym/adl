@@ -27,7 +27,19 @@ struct Payload2 {
 struct AdlWorkspace<T> {
     String adlc;
     Vector<T> use;
+    Vector<RuntimeOpts> runtimes = [];
     Bool use_embedded_sys_loader = true;
+};
+
+union RuntimeOpts {
+    TsWriteRuntime ts_runtime;
+};
+
+struct TsWriteRuntime {
+    String outputDir;
+    ReferenceableScopeOption referenceable = "local";
+    String npm_pkg_name = "@adl-lang/runtime";
+    TsStyle ts_style = "tsc";
 };
 
 // key must be a path to a directory directly under the folder containing the `adl.work.json` file.
@@ -42,7 +54,7 @@ struct AdlPackageRef {
 
 struct TypescriptGenOptions {
     Nullable<String> npm_pkg_name;
-    OutputOpts outputs = { "ref": {}};
+    Nullable<OutputOpts> outputs = null;
     TsRuntimeOpt runtime_opts = { "packageRef": "@adl-lang/runtime" };
     Bool generate_transitive = false;
     Bool include_resolver = false;
@@ -70,16 +82,17 @@ union TsRuntimeOpt {
 };
 
 struct TsGenRuntime {
-    String runtimeDir;
+    // this is currently hardcoded to "./runtime"
+    // String runtimeDir;
 };
 
 union OutputOpts {
     GenOutput gen;
-    PkgRef ref;
+    // PkgRef ref;
 };
 
-struct PkgRef {
-};
+// struct PkgRef {
+// };
 
 struct GenOutput {
     ReferenceableScopeOption referenceable = "local";
@@ -122,9 +135,14 @@ struct PackageDirective {
 };
 
 struct Require {
-    String path;
-    String version;
+    PkgRef ref;
+    Nullable<String> version = null;
     Bool indirect = false;
+};
+
+union PkgRef {
+    String path;
+    String alias;
 };
 
 struct Exclude {
@@ -141,5 +159,19 @@ struct Retract {
     String version;
     Nullable<String> comment = null;
 };
+
+struct NpmPackage {
+    String name;
+    StringMap<String> scripts;
+    StringMap<DependencySpec> dependencies;
+    StringMap<DependencySpec> devDependencies;
+};
+
+union DependencySpec {
+    Void workspace;
+    VersionSpec semverSpec;
+};
+
+type VersionSpec = String;
 
 };

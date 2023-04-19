@@ -1,10 +1,16 @@
-use std::path::{PathBuf};
+use std::path::PathBuf;
 
-use anyhow::{Error, anyhow};
+use anyhow::{anyhow, Error};
 use clap::{Args, Parser};
-use std::str::{FromStr};
+use std::str::FromStr;
 
-use crate::{processing::loader::loader_from_search_paths, adlgen::adlc::packaging::{TypescriptGenOptions, GenOutput, ReferenceableScopeOption, ModuleSrc, TsRuntimeOpt, TsGenRuntime}};
+use crate::{
+    adlgen::adlc::packaging::{
+        GenOutput, ModuleSrc, ReferenceableScopeOption, TsGenRuntime, TsRuntimeOpt,
+        TypescriptGenOptions,
+    },
+    processing::loader::loader_from_search_paths,
+};
 // use std::path{Path, PathBuf};
 
 pub mod ast;
@@ -22,21 +28,30 @@ pub fn run_cli() -> i32 {
         Command::Ast(opts) => ast::ast(&opts),
         Command::Rust(opts) => rust::rust(&opts),
         Command::Tsgen(opts) => {
+            if let Some(d) = opts.runtime_dir {
+                if d != "./runtime" {
+                    eprintln!("only value for runtime_dir which is supported in './runtime'");
+                    return 1;
+                }
+            }
             let loader = loader_from_search_paths(&opts.search.path);
             let ts_opts = TypescriptGenOptions {
                 npm_pkg_name: None,
                 annotate: vec![],
-                outputs: crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput{
+                outputs: Some(crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput {
                     referenceable: ReferenceableScopeOption::Local,
                     output_dir: opts.output.outputdir.to_str().unwrap().to_string(),
-                    manifest: opts.output.manifest.map(|m| m.to_str().unwrap().to_string()),
-                }),
+                    manifest: opts
+                        .output
+                        .manifest
+                        .map(|m| m.to_str().unwrap().to_string()),
+                })),
                 runtime_opts: if opts.include_rt {
                     TsRuntimeOpt::Generate(TsGenRuntime{
-                        runtime_dir: match opts.runtime_dir {
-                            Some(d) => d,
-                            None => "runtime".to_string(),
-                        },
+                        // runtime_dir: match opts.runtime_dir {
+                        //     Some(d) => d,
+                        //     None => "runtime".to_string(),
+                        // },
                     })
                 } else {
                     TsRuntimeOpt::PackageRef(match opts.runtime_pkg {
@@ -58,7 +73,7 @@ pub fn run_cli() -> i32 {
                 capitalize_type_names: opts.capitalize_type_names,
             };
             tsgen::tsgen(loader, &ts_opts, None)
-        },
+        }
         Command::WriteStdlib(opts) => crate::adlstdlib::dump(&opts),
     };
     match r {
@@ -91,7 +106,7 @@ pub enum Command {
     /// generate rust code for the some ADL modules
     Rust(RustOpts),
     /// generate typescript code for the some ADL modules
-    #[clap(name="typescript")]
+    #[clap(name = "typescript")]
     Tsgen(TsOpts),
     /// dump the embedded stdlib to the filesystem.
     WriteStdlib(DumpStdlibOpts),
@@ -102,12 +117,20 @@ pub struct GenOpts {
     /// The module where the code is generated, relative to crate root
     #[arg(default_value_t={".".to_string()})]
     pub dir: String,
+
+    /// The workspace file to use relative to the dir
+    #[arg(long, short='f', default_value_t={"adl.work.json".to_string()})]
+    pub workspace_filename: String,
+
+    /// The package filenames to look for in the pkg dir specified in the use fields
+    #[arg(long, short='p', default_value_t={"adl.pkg.json".to_string()})]
+    pub package_filenames: String,
 }
 
 #[derive(Debug, Args)]
 pub struct DumpStdlibOpts {
     /// writes generated code to the specified directory
-    #[arg(long, short='O', value_name="DIR")]
+    #[arg(long, short = 'O', value_name = "DIR")]
     pub outputdir: PathBuf,
 }
 
@@ -125,7 +148,7 @@ pub struct AstOpts {
     pub search: AdlSearchOpts,
 
     /// writes the AST to the specified file"
-    #[arg(long, short='O', value_name="FILE")]
+    #[arg(long, short = 'O', value_name = "FILE")]
     pub outfile: Option<PathBuf>,
 
     pub modules: Vec<String>,
@@ -151,10 +174,9 @@ pub struct RustOpts {
     #[arg(long, value_name="RSMODULE", default_value_t={"adlrt".to_string()})]
     pub runtime_module: String,
 
-    #[arg(value_name="ADLMODULE")]
+    #[arg(value_name = "ADLMODULE")]
     pub modules: Vec<String>,
 }
-
 
 #[derive(Debug, Args)]
 pub struct TsOpts {
@@ -169,7 +191,7 @@ pub struct TsOpts {
     pub include_rt: bool,
 
     /// Set the directory where runtime code is written (relative to output dir).
-    #[arg(long, short='R', value_name="DIR")]
+    #[arg(long, short = 'R', value_name = "DIR")]
     pub runtime_dir: Option<String>,
 
     #[arg(long)]
@@ -186,9 +208,9 @@ pub struct TsOpts {
     /// Select the style of typescript to be generated
     // #[clap(arg_senum)]
     #[arg(long)]
-    pub ts_style: Option<TsStyle>,//=tsc|deno
+    pub ts_style: Option<TsStyle>, //=tsc|deno
 
-    #[arg(value_name="ADLMODULE")]
+    #[arg(value_name = "ADLMODULE")]
     pub modules: Vec<String>,
 
     /// If set capitalizes branch (field) name in the exported interfaces (used to generate backward code).
@@ -201,9 +223,7 @@ pub struct TsOpts {
     /// Capitalizes type names (default: true).
     #[arg(long, default_value_t = true)]
     pub capitalize_type_names: bool,
-
 }
-
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TsStyle {
@@ -226,18 +246,17 @@ impl FromStr for TsStyle {
 #[derive(Debug, Args)]
 pub struct AdlSearchOpts {
     /// adds the given directory to the ADL search path
-    #[arg(long="searchdir", short='I', value_name="DIR")]
+    #[arg(long = "searchdir", short = 'I', value_name = "DIR")]
     pub path: Vec<PathBuf>,
 }
 
 #[derive(Debug, Args)]
 pub struct OutputOpts {
     /// writes generated code to the specified directory
-    #[arg(long, short='O', value_name="DIR")]
+    #[arg(long, short = 'O', value_name = "DIR")]
     pub outputdir: PathBuf,
 
     /// write a manifest file recording generated files
-    #[arg(long, value_name="FILE")]
+    #[arg(long, value_name = "FILE")]
     pub manifest: Option<PathBuf>,
 }
-

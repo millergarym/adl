@@ -1,9 +1,19 @@
 {
     "adlc": "0.0.0",
     "use_embedded_sys_loader": true,
+    "runtimes": [
+        {
+            "ts_runtime": {
+                "outputDir": "../generated/typescript/tests"
+            }
+        }
+    ],
     "use": [
         {
-            "path": "./adlc"
+            "path": "./adlc",
+            "ts_opts": {
+                "npm_pkg_name": "@adl-lang/adlc"
+            }
         },
         {
             "path": "./tests/test31/lib",
@@ -21,6 +31,9 @@
             "path": "./tests/test31/proj",
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/protoclient",
+                "runtime_opts": {
+                    "packageRef": "@adl-lang/runtime"
+                },
                 "outputs": {
                     "gen": {
                         "outputDir": "../generated/typescript/tests/test31/src",

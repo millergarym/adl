@@ -212,7 +212,7 @@ impl TsDefaultValue<'_> {
                     if let Some(decl) = resolver.get_decl(sn) {
                         let dvg = TsDefaultValue {
                             ctx: &ResolverModule {
-                                module: m_remote,
+                                module: &m_remote,
                                 resolver,
                             },
                             decl,

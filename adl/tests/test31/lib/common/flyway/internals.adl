@@ -1,7 +1,4 @@
-@NpmPackage "@adl-lang/common"
 module common.flyway.internals {
-
-import adlc.config.typescript.*;
 
 struct FlywayCommand {
   FlywayContext ctx;

@@ -1,0 +1,68 @@
+{
+    "adlc": "0.0.0",
+    "use_embedded_sys_loader": true,
+    "runtimes": [
+        {
+            "ts_runtime": {
+                "outputDir": "../generated2/typescript/tests"
+            }
+        }
+    ],
+    "use": [
+        {
+            "path": "./adlc",
+            "ts_opts": {
+                "npm_pkg_name": "@adl-lang/adlc",
+                "outputs": {
+                    "gen": {
+                        "outputDir": "../generated2/typescript/tests",
+                        "manifest": "../generated2/typescript/tests/adlc/.adl-manifest"
+                    }
+                },
+                "include_resolver": false
+            }
+        },
+        {
+            "path": "./tests/test31/lib",
+            "ts_opts": {
+                "npm_pkg_name": "@adl-lang/common",
+                "outputs": {
+                    "gen": {
+                        "outputDir": "../generated2/typescript/tests",
+                        "manifest": "../generated2/typescript/tests/common/.adl-manifest"
+                    }
+                },
+                "include_resolver": false
+            }
+        },
+        {
+            "path": "./stdlib",
+            "ts_opts": {
+                "npm_pkg_name": "@adl-lang/sys",
+                "outputs": {
+                    "gen": {
+                        "outputDir": "../generated2/typescript/tests",
+                        "manifest": "../generated2/typescript/tests/sys/.adl-manifest"
+                    }
+                },
+                "include_resolver": false
+            }
+        },
+        {
+            "path": "./tests/test31/proj",
+            "ts_opts": {
+                "npm_pkg_name": "@adl-lang/protoclient",
+                "runtime_opts": {
+                    "packageRef": "@adl-lang/runtime"
+                },
+                "outputs": {
+                    "gen": {
+                        "outputDir": "../generated2/typescript/tests/test31/src",
+                        "manifest": "../generated2/typescript/tests/test31/.adl-manifest"
+                    }
+                },
+                "include_resolver": true
+            }
+        }
+    ]
+}

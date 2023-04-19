@@ -4,7 +4,13 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
-use crate::{cli::{AdlSearchOpts, OutputOpts}, adlgen::adlc::{testing_table::TestFilesMetaData, packaging::{GenOutput, ReferenceableScopeOption, ModuleSrc}}, processing::loader::loader_from_search_paths};
+use crate::{
+    adlgen::adlc::{
+        packaging::{GenOutput, ModuleSrc, ReferenceableScopeOption},
+        testing_table::TestFilesMetaData,
+    },
+    processing::loader::loader_from_search_paths,
+};
 
 use super::*;
 
@@ -29,9 +35,7 @@ fn generate_ts_from_test_files() {
                     continue;
                 }
                 let outdir = match &t.output_dir {
-                    Some(dir) => {
-                        dir.clone()
-                    },
+                    Some(dir) => dir.clone(),
                     None => {
                         let mut outdir = String::from("build/dev_adl/");
                         outdir.push_str(t.module_root.as_str());
@@ -44,13 +48,13 @@ fn generate_ts_from_test_files() {
                         let mut manifest = String::from(dir);
                         manifest.push_str("manifest");
                         manifest
-                    },
+                    }
                     None => {
                         let mut manifest = String::from("build/dev_adl/");
                         manifest.push_str(t.module_root.as_str());
                         manifest.push_str("/manifest");
                         manifest
-                    },
+                    }
                 };
 
                 let mut search_path = vec![];
@@ -72,12 +76,12 @@ fn generate_ts_from_test_files() {
                 let ts_opts = TypescriptGenOptions {
                     npm_pkg_name: None,
                     annotate: vec![],
-                    outputs: crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput{
+                    outputs: Some(crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput {
                         referenceable: ReferenceableScopeOption::Local,
                         output_dir: outdir.clone(),
                         manifest: Some(manifest),
-                    }),
-                    runtime_opts: TsRuntimeOpt::Generate(TsGenRuntime{ runtime_dir: "runtime".to_string() }),
+                    })),
+                    runtime_opts: TsRuntimeOpt::Generate(TsGenRuntime {}),
                     generate_transitive: true,
                     include_resolver: true,
                     ts_style: crate::adlgen::adlc::packaging::TsStyle::Tsc,
@@ -97,8 +101,8 @@ fn generate_ts_from_test_files() {
                     // if let Some(dir) = &t.output_dir {
                     //     adlc_cmd.push_str(dir.as_str());
                     // } else {
-                        adlc_cmd.push_str("build/adlc_out/");
-                        adlc_cmd.push_str(t.module_root.clone().as_str());
+                    adlc_cmd.push_str("build/adlc_out/");
+                    adlc_cmd.push_str(t.module_root.clone().as_str());
                     // }
                     // adlc_cmd.push_str(opts.output.outdir.to_str().unwrap());
                     adlc_cmd.push_str(" --generate-transitive");
@@ -111,9 +115,9 @@ fn generate_ts_from_test_files() {
                     //     adlc_cmd.push_str(dir.as_str());
                     //     adlc_cmd.push_str("/manifest");
                     // } else {
-                        adlc_cmd.push_str("build/adlc_out/");
-                        adlc_cmd.push_str(t.module_root.clone().as_str());
-                        adlc_cmd.push_str("/manifest");
+                    adlc_cmd.push_str("build/adlc_out/");
+                    adlc_cmd.push_str(t.module_root.clone().as_str());
+                    adlc_cmd.push_str("/manifest");
                     // }
 
                     modules.iter().for_each(|m| {
