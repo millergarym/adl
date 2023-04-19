@@ -26,6 +26,7 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
             let pkg_root = wrk1.0.join(pkg.p_ref.path.clone()).canonicalize()?;
             std::env::set_current_dir(&wrk1.0)?;
             tsgen::tsgen(loader, &opts, Some(pkg_root))?;
+            tsgen::gen_npm_package(pkg.p_ref.path.clone(), &wrk1.1)?;
         }
     }
     for rt in &wrk1.1.runtimes {

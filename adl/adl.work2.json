@@ -4,7 +4,8 @@
     "runtimes": [
         {
             "ts_runtime": {
-                "outputDir": "../generated2/typescript/tests"
+                "outputDir": "../generated2/typescript/tests/runtime",
+                "npm_pkg_name": "@adl-lang/runtime"
             }
         }
     ],
@@ -15,7 +16,7 @@
                 "npm_pkg_name": "@adl-lang/adlc",
                 "outputs": {
                     "gen": {
-                        "outputDir": "../generated2/typescript/tests",
+                        "outputDir": "../generated2/typescript/tests/adlc",
                         "manifest": "../generated2/typescript/tests/adlc/.adl-manifest"
                     }
                 },
@@ -28,7 +29,7 @@
                 "npm_pkg_name": "@adl-lang/common",
                 "outputs": {
                     "gen": {
-                        "outputDir": "../generated2/typescript/tests",
+                        "outputDir": "../generated2/typescript/tests/common",
                         "manifest": "../generated2/typescript/tests/common/.adl-manifest"
                     }
                 },
@@ -41,7 +42,7 @@
                 "npm_pkg_name": "@adl-lang/sys",
                 "outputs": {
                     "gen": {
-                        "outputDir": "../generated2/typescript/tests",
+                        "outputDir": "../generated2/typescript/tests/sys",
                         "manifest": "../generated2/typescript/tests/sys/.adl-manifest"
                     }
                 },
@@ -52,12 +53,19 @@
             "path": "./tests/test31/proj",
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/protoclient",
+                "extraDependencies": {
+                    "base64-js": "^1.5.1"
+                },
+                "extraDevDependencies": {
+                    "tsconfig": "workspace:*",
+                    "typescript": "^4.9.3"
+                },
                 "runtime_opts": {
-                    "packageRef": "@adl-lang/runtime"
+                    "workspaceRef": "@adl-lang/runtime"
                 },
                 "outputs": {
                     "gen": {
-                        "outputDir": "../generated2/typescript/tests/test31/src",
+                        "outputDir": "../generated2/typescript/tests/test31",
                         "manifest": "../generated2/typescript/tests/test31/.adl-manifest"
                     }
                 },

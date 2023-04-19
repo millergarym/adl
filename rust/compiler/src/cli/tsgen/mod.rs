@@ -5,7 +5,7 @@ use regex::bytes::Regex;
 use std::collections::HashMap;
 use std::fs;
 use std::ops::Deref;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 use anyhow::anyhow;
 
@@ -13,7 +13,8 @@ use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
 use crate::adlgen::adlc::packaging::{
-    TsGenRuntime, TsRuntimeOpt, TsStyle, TsWriteRuntime, TypescriptGenOptions,
+    AdlWorkspace, NpmPackageRef, Payload1, TsGenRuntime, TsRuntimeOpt, TsStyle, TsWriteRuntime,
+    TypescriptGenOptions, NpmPackage,
 };
 use crate::adlgen::sys::adlast2::Module1;
 use crate::adlgen::sys::adlast2::{self as adlast};
@@ -178,6 +179,86 @@ pub fn tsgen(
     Ok(())
 }
 
+pub fn gen_npm_package(pkg_path: String, wrk1: &AdlWorkspace<Payload1>) -> anyhow::Result<()> {
+    let payload = wrk1
+        .r#use
+        .iter()
+        .find(|w| w.p_ref.path == pkg_path)
+        .unwrap();
+    let opts = payload.p_ref.ts_opts.as_ref().unwrap();
+
+    if opts.outputs == None {
+        // not gen for this pkg
+        return Ok(());
+    }
+    let outputs = opts.outputs.as_ref().unwrap();
+    let outputdir = match outputs {
+        crate::adlgen::adlc::packaging::OutputOpts::Gen(gen) => {
+            PathBuf::from(gen.output_dir.clone())
+        }
+    };
+    let mut writer = TreeWriter::new(outputdir.clone(), None)?;
+
+    let mut npm_package = NpmPackage::new(opts.npm_pkg_name.clone(), opts.npm_version.clone());
+    match &opts.runtime_opts {
+        TsRuntimeOpt::WorkspaceRef(rt) => {
+            npm_package.dependencies.insert(rt.clone(), "workspace:*".to_string());
+        },
+        TsRuntimeOpt::PackageRef(rt) => {
+            npm_package.dependencies.insert(rt.name.clone(), rt.version.clone());
+        },
+        TsRuntimeOpt::Generate(_) => {},
+    };
+
+    for d in &opts.extra_dependencies {
+        npm_package.dependencies.insert(d.0.clone(), d.1.clone());
+    }
+    for d in &opts.extra_dev_dependencies {
+        npm_package.dev_dependencies.insert(d.0.clone(), d.1.clone());
+    }
+
+    for r in payload.pkg.requires.iter() {
+        match &r.r#ref {
+            crate::adlgen::adlc::packaging::PkgRef::Path(p0) => {
+                match wrk1.r#use.iter().find(|p| p.pkg.path == *p0) {
+                    Some(p1) => {
+                        match &p1.p_ref.ts_opts {
+                            Some(ts_opts) => {
+                                npm_package.dependencies.insert(ts_opts.npm_pkg_name.clone(), "workspace:*".to_string());
+                            },
+                            None => {
+                                return Err(anyhow!("no ts_opts in workspace file for package '{}'", p1.p_ref.path))
+                            },
+                        }
+                    },
+                    None => return Err(anyhow!("no package is workspace with path '{}'", p0)),
+                }
+            },
+            crate::adlgen::adlc::packaging::PkgRef::Alias(a) => {
+                match wrk1.r#use.iter().find(|p| p.pkg.global_alias == Some(a.to_string())) {
+                    Some(p1) => {
+                        match &p1.p_ref.ts_opts {
+                            Some(ts_opts) => {
+                                npm_package.dependencies.insert(ts_opts.npm_pkg_name.clone(), "workspace:*".to_string());
+                            },
+                            None => {
+                                return Err(anyhow!("no ts_opts in workspace file for package '{}'", p1.p_ref.path))
+                            },
+                        }
+                    },
+                    None => return Err(anyhow!("no package is workspace with alias '{}'", a)),
+                }
+            },
+        };
+    };
+
+    let content = serde_json::to_string_pretty(&npm_package)?;
+    writer.write(Path::new("package.json"), content)?;
+    eprintln!("generated {:?}", outputdir.clone().join("package.json"));
+
+    Ok(())
+}
+
 fn gen_ts_module(
     m: &Module1,
     resolver: &Resolver,
@@ -190,9 +271,9 @@ fn gen_ts_module(
     //     TsRuntimeOpt::Generate(_) => todo!(),
     // }
     let adlr = match &opts.runtime_opts {
+        TsRuntimeOpt::WorkspaceRef(pkg) => js::import(pkg.clone() + "/adl", "ADL").into_wildcard(),
         TsRuntimeOpt::PackageRef(pkg) => {
-            // comment here as I like the layout
-            js::import(pkg.clone() + "/adl", "ADL").into_wildcard()
+            js::import(pkg.name.clone() + "/adl", "ADL").into_wildcard()
         }
         TsRuntimeOpt::Generate(gen) => {
             // TODO modify the import path with opts.runtime_dir
@@ -242,7 +323,7 @@ fn path_from_module_name(_opts: &TypescriptGenOptions, mname: adlast::ModuleName
 
 fn gen_resolver(
     t: &mut Tokens<JavaScript>,
-    npm_pkg: Option<String>,
+    npm_pkg: String,
     runtime_opts: &TsRuntimeOpt,
     resolver: &Resolver,
     modules: &Vec<Module1>,
@@ -257,8 +338,13 @@ fn gen_resolver(
             None
         };
 
-        let path = if npm_pkg2 != None && npm_pkg2 != npm_pkg {
-            npm_pkg_import(npm_pkg2, m.name.clone())
+        let path = if npm_pkg2 != None {
+            let npm_pkg2 = npm_pkg2.unwrap();
+            if npm_pkg2 != npm_pkg {
+                npm_pkg_import(npm_pkg2, m.name.clone())
+            } else {
+                format!("./{}", m.name.replace(".", "/"))
+            }
         } else {
             format!("./{}", m.name.replace(".", "/"))
         };
@@ -267,9 +353,13 @@ fn gen_resolver(
     }
 
     let (adlr1, adlr2) = match runtime_opts {
-        TsRuntimeOpt::PackageRef(pref) => (
+        TsRuntimeOpt::WorkspaceRef(pref) => (
             js::import(format!("{}/adl", pref.as_str()), "declResolver"),
             js::import(format!("{}/adl", pref.as_str()), "ScopedDecl"),
+        ),
+        TsRuntimeOpt::PackageRef(pref) => (
+            js::import(format!("{}/adl", pref.name.as_str()), "declResolver"),
+            js::import(format!("{}/adl", pref.name.as_str()), "ScopedDecl"),
         ),
         TsRuntimeOpt::Generate(gen) => {
             // js::import(format!("{}/adl", gen.runtime_dir), "declResolver"),

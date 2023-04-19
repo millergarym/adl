@@ -6,7 +6,9 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::PathBuf;
 
-use crate::adlgen::adlc::packaging::{AdlWorkspace1, Payload1, AdlPackageRef, AdlPackage, TypescriptGenOptions};
+use crate::adlgen::adlc::packaging::{
+    AdlPackage, AdlPackageRef, AdlWorkspace1, Payload1, TypescriptGenOptions,
+};
 use crate::adlgen::sys::adlast2::{self as adlast, Module0};
 use crate::parser::{convert_error, raw_module};
 use crate::processing::annotations::apply_explicit_annotations_and_serialized_name;
@@ -31,7 +33,10 @@ pub fn loader_from_dir_tree(path: &PathBuf) -> Box<dyn AdlLoader> {
 
 pub trait AdlLoader {
     /// Find and load the specified ADL module
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<(Module0,Option<Payload1>)>, anyhow::Error>;
+    fn load(
+        &mut self,
+        module_name: &adlast::ModuleName,
+    ) -> Result<Option<(Module0, Option<Payload1>)>, anyhow::Error>;
 }
 
 pub struct WorkspaceLoader {
@@ -41,23 +46,40 @@ pub struct WorkspaceLoader {
     loaders: HashMap<String, Box<dyn AdlLoader>>,
 }
 
+fn tuple_str_to_map(arg: &[(&str, &str)]) -> HashMap<String, String> {
+    arg.iter()
+        .map(|a| (String::from(a.0), String::from(a.1)))
+        .collect()
+}
+
 impl AdlLoader for WorkspaceLoader {
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<(Module0,Option<Payload1>)>, anyhow::Error> {
+    fn load(
+        &mut self,
+        module_name: &adlast::ModuleName,
+    ) -> Result<Option<(Module0, Option<Payload1>)>, anyhow::Error> {
         if self.workspace.use_embedded_sys_loader {
             if let Some(mut module) = self.embedded.load(module_name)? {
                 module.1 = Some(Payload1 {
                     p_ref: AdlPackageRef {
                         path: "".to_string(),
-                        ts_opts: Some(TypescriptGenOptions{
-                            npm_pkg_name: Some("@adl-lang/sys".to_string()),
+                        ts_opts: Some(TypescriptGenOptions {
+                            npm_pkg_name: "@adl-lang/sys".to_string(),
+                            npm_version: TypescriptGenOptions::def_npm_version(),
+                            extra_dependencies: tuple_str_to_map(&[("base64-js", "^1.5.1")]),
+                            extra_dev_dependencies: tuple_str_to_map(&[
+                                ("tsconfig", "workspace:*"),
+                                ("typescript", "^4.9.3"),
+                            ]),
                             outputs: TypescriptGenOptions::def_outputs(),
                             runtime_opts: TypescriptGenOptions::def_runtime_opts(),
                             generate_transitive: false,
                             include_resolver: false,
                             ts_style: TypescriptGenOptions::def_ts_style(),
                             modules: TypescriptGenOptions::def_modules(),
-                            capitalize_branch_names_in_types: TypescriptGenOptions::def_capitalize_branch_names_in_types(),
-                            capitalize_type_names: TypescriptGenOptions::def_capitalize_type_names(),
+                            capitalize_branch_names_in_types:
+                                TypescriptGenOptions::def_capitalize_branch_names_in_types(),
+                            capitalize_type_names: TypescriptGenOptions::def_capitalize_type_names(
+                            ),
                             annotate: TypescriptGenOptions::def_annotate(),
                         }),
                     },
@@ -89,10 +111,12 @@ impl AdlLoader for WorkspaceLoader {
                 None
             };
             if let Some(name) = &pkg_name {
-                let loader = self
-                    .loaders
-                    .entry(name.clone())
-                    .or_insert(Box::new(DirTreeLoader::new(self.root.join(&pkg.p_ref.path))));
+                let loader =
+                    self.loaders
+                        .entry(name.clone())
+                        .or_insert(Box::new(DirTreeLoader::new(
+                            self.root.join(&pkg.p_ref.path),
+                        )));
                 let module = loader.load(module_name);
                 println!("--- {} {}", &name.clone(), module_name);
                 match module {
@@ -139,7 +163,10 @@ impl MultiLoader {
 }
 
 impl AdlLoader for MultiLoader {
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<(Module0,Option<Payload1>)>, anyhow::Error> {
+    fn load(
+        &mut self,
+        module_name: &adlast::ModuleName,
+    ) -> Result<Option<(Module0, Option<Payload1>)>, anyhow::Error> {
         if let Some(module) = self.embedded.load(module_name)? {
             return Ok(Some(module));
         }
@@ -155,10 +182,13 @@ impl AdlLoader for MultiLoader {
 pub struct EmbeddedStdlibLoader {}
 
 impl AdlLoader for EmbeddedStdlibLoader {
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<(Module0,Option<Payload1>)>, anyhow::Error> {
+    fn load(
+        &mut self,
+        module_name: &adlast::ModuleName,
+    ) -> Result<Option<(Module0, Option<Payload1>)>, anyhow::Error> {
         match crate::adlstdlib::get_stdlib(module_name, "") {
             Some(data) => match std::str::from_utf8(data.as_ref()) {
-                Ok(content) => return parse(&content).map(|m| Some((m,None))),
+                Ok(content) => return parse(&content).map(|m| Some((m, None))),
                 Err(err) => return Err(anyhow::Error::from(err)),
             },
             None => return Ok(None),
@@ -177,7 +207,10 @@ impl DirTreeLoader {
 }
 
 impl AdlLoader for DirTreeLoader {
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<(Module0,Option<Payload1>)>, anyhow::Error> {
+    fn load(
+        &mut self,
+        module_name: &adlast::ModuleName,
+    ) -> Result<Option<(Module0, Option<Payload1>)>, anyhow::Error> {
         let mut path = self.root.clone();
         for mp in module_name.split(".") {
             path.push(mp);
@@ -192,7 +225,7 @@ impl AdlLoader for DirTreeLoader {
             Ok(content) => content,
         };
         log::info!("loaded {} from {}", module_name, path.display());
-        parse(&content).map(|m| Some((m,None)))
+        parse(&content).map(|m| Some((m, None)))
     }
 }
 

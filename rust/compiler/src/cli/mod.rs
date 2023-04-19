@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use crate::{
     adlgen::adlc::packaging::{
-        GenOutput, ModuleSrc, ReferenceableScopeOption, TsGenRuntime, TsRuntimeOpt,
+        GenOutput, ModuleSrc, NpmPackageRef, ReferenceableScopeOption, TsGenRuntime, TsRuntimeOpt,
         TypescriptGenOptions,
     },
     processing::loader::loader_from_search_paths,
@@ -36,7 +36,10 @@ pub fn run_cli() -> i32 {
             }
             let loader = loader_from_search_paths(&opts.search.path);
             let ts_opts = TypescriptGenOptions {
-                npm_pkg_name: None,
+                npm_pkg_name: opts.npm_pkg_name,
+                npm_version: TypescriptGenOptions::def_npm_version(),
+                extra_dependencies: TypescriptGenOptions::def_extra_dependencies(),
+                extra_dev_dependencies: TypescriptGenOptions::def_extra_dev_dependencies(),
                 annotate: vec![],
                 outputs: Some(crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput {
                     referenceable: ReferenceableScopeOption::Local,
@@ -54,10 +57,13 @@ pub fn run_cli() -> i32 {
                         // },
                     })
                 } else {
-                    TsRuntimeOpt::PackageRef(match opts.runtime_pkg {
-                        Some(d) => d,
-                        None => "@adl-lang/runtime".to_string(),
-                    })
+                    match opts.runtime_pkg {
+                        Some(d) => TsRuntimeOpt::PackageRef(NpmPackageRef {
+                            name: d,
+                            version: "^1.0.0".to_string(),
+                        }),
+                        None => TypescriptGenOptions::def_runtime_opts(),
+                    }
                 },
                 generate_transitive: opts.generate_transitive,
                 include_resolver: opts.include_resolver,
@@ -200,6 +206,10 @@ pub struct TsOpts {
     /// Also generate code for the transitive dependencies of the specified adl files (default: true)
     #[arg(long, default_value_t = true)]
     pub generate_transitive: bool,
+
+    /// The name to use in the package.json file
+    #[arg(long, default_value_t = String::from("my_data"))]
+    pub npm_pkg_name: String,
 
     /// Generate the resolver map for all generated adl files (default: true)
     #[arg(long, default_value_t = true)]

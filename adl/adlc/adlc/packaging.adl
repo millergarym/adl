@@ -53,9 +53,12 @@ struct AdlPackageRef {
 };
 
 struct TypescriptGenOptions {
-    Nullable<String> npm_pkg_name;
+    String npm_pkg_name;
+    String npm_version = "1.0.0";
+    StringMap<VersionSpec> extraDependencies = {};
+    StringMap<VersionSpec> extraDevDependencies = {};
     Nullable<OutputOpts> outputs = null;
-    TsRuntimeOpt runtime_opts = { "packageRef": "@adl-lang/runtime" };
+    TsRuntimeOpt runtime_opts = { "packageRef": {"name": "@adl-lang/runtime", "version": "^1.0.0"} };
     Bool generate_transitive = false;
     Bool include_resolver = false;
     TsStyle ts_style = "tsc";
@@ -77,7 +80,8 @@ union InjectAnnotation {
 };
 
 union TsRuntimeOpt {
-    String packageRef;
+    String workspaceRef;
+    NpmPackageRef packageRef;
     TsGenRuntime generate;
 };
 
@@ -162,14 +166,20 @@ struct Retract {
 
 struct NpmPackage {
     String name;
-    StringMap<String> scripts;
-    StringMap<DependencySpec> dependencies;
-    StringMap<DependencySpec> devDependencies;
+    String version;
+    StringMap<String> scripts = {};
+    StringMap<String> dependencies = {};
+    StringMap<String> devDependencies = {};
 };
 
-union DependencySpec {
-    Void workspace;
-    VersionSpec semverSpec;
+// union DependencySpec {
+//     Void workspace;
+//     VersionSpec semverSpec;
+// };
+
+struct NpmPackageRef {
+    String name;
+    VersionSpec version;
 };
 
 type VersionSpec = String;

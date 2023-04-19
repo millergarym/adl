@@ -8,8 +8,7 @@ pub fn get_npm_pkg(module: &Module1) -> Option<String> {
     npm_pkg.map(|p| p.as_str().unwrap().to_string())
 }
 
-pub fn npm_pkg_import(npm_pkg2: Option<String>, module_name: String) -> String {
-    let npm_pkg2 = npm_pkg2.unwrap();
+pub fn npm_pkg_import(npm_pkg2: String, module_name: String) -> String {
     let mn_parts: Vec<&str> = module_name.split(".").collect();
     let npm_parts: Vec<&str> = npm_pkg2.rsplit("/").collect();
     let mut mn = mn_parts.iter().peekable();

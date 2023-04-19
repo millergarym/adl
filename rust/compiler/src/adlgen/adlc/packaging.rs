@@ -152,7 +152,18 @@ impl AdlPackageRef {
 
 #[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
 pub struct TypescriptGenOptions {
-  pub npm_pkg_name: Option<String>,
+  pub npm_pkg_name: String,
+
+  #[serde(default="TypescriptGenOptions::def_npm_version")]
+  pub npm_version: String,
+
+  #[serde(default="TypescriptGenOptions::def_extra_dependencies")]
+  #[serde(rename="extraDependencies")]
+  pub extra_dependencies: std::collections::HashMap<String,VersionSpec>,
+
+  #[serde(default="TypescriptGenOptions::def_extra_dev_dependencies")]
+  #[serde(rename="extraDevDependencies")]
+  pub extra_dev_dependencies: std::collections::HashMap<String,VersionSpec>,
 
   #[serde(default="TypescriptGenOptions::def_outputs")]
   pub outputs: Option<OutputOpts>,
@@ -183,9 +194,12 @@ pub struct TypescriptGenOptions {
 }
 
 impl TypescriptGenOptions {
-  pub fn new(npm_pkg_name: Option<String>) -> TypescriptGenOptions {
+  pub fn new(npm_pkg_name: String) -> TypescriptGenOptions {
     TypescriptGenOptions {
       npm_pkg_name: npm_pkg_name,
+      npm_version: TypescriptGenOptions::def_npm_version(),
+      extra_dependencies: TypescriptGenOptions::def_extra_dependencies(),
+      extra_dev_dependencies: TypescriptGenOptions::def_extra_dev_dependencies(),
       outputs: TypescriptGenOptions::def_outputs(),
       runtime_opts: TypescriptGenOptions::def_runtime_opts(),
       generate_transitive: TypescriptGenOptions::def_generate_transitive(),
@@ -198,12 +212,24 @@ impl TypescriptGenOptions {
     }
   }
 
+  pub fn def_npm_version() -> String {
+    "1.0.0".to_string()
+  }
+
+  pub fn def_extra_dependencies() -> std::collections::HashMap<String,VersionSpec> {
+    [].iter().cloned().collect()
+  }
+
+  pub fn def_extra_dev_dependencies() -> std::collections::HashMap<String,VersionSpec> {
+    [].iter().cloned().collect()
+  }
+
   pub fn def_outputs() -> Option<OutputOpts> {
     None
   }
 
   pub fn def_runtime_opts() -> TsRuntimeOpt {
-    TsRuntimeOpt::PackageRef("@adl-lang/runtime".to_string())
+    TsRuntimeOpt::PackageRef(NpmPackageRef{name : "@adl-lang/runtime".to_string(), version : "^1.0.0".to_string()})
   }
 
   pub fn def_generate_transitive() -> bool {
@@ -243,8 +269,11 @@ pub enum InjectAnnotation {
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub enum TsRuntimeOpt {
+  #[serde(rename="workspaceRef")]
+  WorkspaceRef(String),
+
   #[serde(rename="packageRef")]
-  PackageRef(String),
+  PackageRef(NpmPackageRef),
 
   #[serde(rename="generate")]
   Generate(TsGenRuntime),
@@ -510,32 +539,57 @@ impl Retract {
 pub struct NpmPackage {
   pub name: String,
 
+  pub version: String,
+
+  #[serde(default="NpmPackage::def_scripts")]
   pub scripts: std::collections::HashMap<String,String>,
 
-  pub dependencies: std::collections::HashMap<String,DependencySpec>,
+  #[serde(default="NpmPackage::def_dependencies")]
+  pub dependencies: std::collections::HashMap<String,String>,
 
+  #[serde(default="NpmPackage::def_dev_dependencies")]
   #[serde(rename="devDependencies")]
-  pub dev_dependencies: std::collections::HashMap<String,DependencySpec>,
+  pub dev_dependencies: std::collections::HashMap<String,String>,
 }
 
 impl NpmPackage {
-  pub fn new(name: String, scripts: std::collections::HashMap<String,String>, dependencies: std::collections::HashMap<String,DependencySpec>, dev_dependencies: std::collections::HashMap<String,DependencySpec>) -> NpmPackage {
+  pub fn new(name: String, version: String) -> NpmPackage {
     NpmPackage {
       name: name,
-      scripts: scripts,
-      dependencies: dependencies,
-      dev_dependencies: dev_dependencies,
+      version: version,
+      scripts: NpmPackage::def_scripts(),
+      dependencies: NpmPackage::def_dependencies(),
+      dev_dependencies: NpmPackage::def_dev_dependencies(),
     }
+  }
+
+  pub fn def_scripts() -> std::collections::HashMap<String,String> {
+    [].iter().cloned().collect()
+  }
+
+  pub fn def_dependencies() -> std::collections::HashMap<String,String> {
+    [].iter().cloned().collect()
+  }
+
+  pub fn def_dev_dependencies() -> std::collections::HashMap<String,String> {
+    [].iter().cloned().collect()
   }
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub enum DependencySpec {
-  #[serde(rename="workspace")]
-  Workspace,
+pub struct NpmPackageRef {
+  pub name: String,
 
-  #[serde(rename="semverSpec")]
-  SemverSpec(VersionSpec),
+  pub version: VersionSpec,
+}
+
+impl NpmPackageRef {
+  pub fn new(name: String, version: VersionSpec) -> NpmPackageRef {
+    NpmPackageRef {
+      name: name,
+      version: version,
+    }
+  }
 }
 
 pub type VersionSpec = String;

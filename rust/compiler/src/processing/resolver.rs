@@ -67,14 +67,14 @@ impl Resolver {
         self.modules.get(module_name).map(|rm| {
             if let Some(payload) = &rm.payload1 {
                 if let Some(ts_opts) = &payload.p_ref.ts_opts {
-                    if let Some(npm_pkg) = &ts_opts.npm_pkg_name {
+                    // if let Some(npm_pkg) = &ts_opts.npm_pkg_name {
                         let sn = adlast::ScopedName {
                             module_name: "adlc.config.typescript".to_string(),
                             name: "NpmPackage".to_string(),
                         };
-                        let jv = serde_json::json!(npm_pkg);
+                        let jv = serde_json::json!(&ts_opts.npm_pkg_name);
                         return insert_annotation(rm.module1.clone(), sn, jv);
-                    }
+                    // }
                 }
             }
             return rm.module1.clone();
