@@ -44,6 +44,7 @@ pub fn run_cli() -> i32 {
                 outputs: Some(crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput {
                     referenceable: ReferenceableScopeOption::Local,
                     output_dir: opts.output.outputdir.to_str().unwrap().to_string(),
+                    strip_first: opts.strip_first,
                     manifest: opts
                         .output
                         .manifest
@@ -222,6 +223,10 @@ pub struct TsOpts {
 
     #[arg(value_name = "ADLMODULE")]
     pub modules: Vec<String>,
+
+    /// When creating the path for output ts files delete the first part of the module name
+    #[arg(long, default_value_t = true)]
+    pub strip_first: bool,
 
     /// If set capitalizes branch (field) name in the exported interfaces (used to generate backward code).
     ///

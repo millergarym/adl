@@ -1,5 +1,12 @@
 {
     "path" : "github.com/adl-lang/adl/adl/tests/test31/lib",
     "globalAlias": "common",
-    "adlc": "0.0.0"
+    "adlc": "0.0.0",
+    "requires": [
+        {
+            "ref": {
+                "alias": "sys"
+            }
+        }
+    ]
 }

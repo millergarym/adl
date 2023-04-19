@@ -102,6 +102,8 @@ struct GenOutput {
     ReferenceableScopeOption referenceable = "local";
     String outputDir;
     Nullable<String> manifest = null;
+    /// When creating the path for output ts files delete the first part of the module name
+    Bool strip_first = true;
 };
 
 union TsStyle {

@@ -30,6 +30,7 @@ mod generate;
 mod tests;
 mod utils;
 
+const RUNTIME_PACKAGE: &[u8] = include_bytes!("runtime/package.json");
 const RUNTIME_JSON: &[u8] = include_bytes!("runtime/json.ts");
 const RUNTIME_ADL: &[u8] = include_bytes!("runtime/adl.ts");
 const RUNTIME_UTILS: &[u8] = include_bytes!("runtime/utils.ts");
@@ -38,7 +39,8 @@ const RUNTIME_SYS_DYNAMIC: &[u8] = include_bytes!("runtime/sys/dynamic.ts");
 const RUNTIME_SYS_ADLAST: &[u8] = include_bytes!("runtime/sys/adlast.ts");
 const RUNTIME_SYS_TYPES: &[u8] = include_bytes!("runtime/sys/types.ts");
 
-const RUNTIME: [&'static (&str, &[u8]); 7] = [
+const RUNTIME: [&'static (&str, &[u8]); 8] = [
+    &("package.json", RUNTIME_PACKAGE),
     &("json.ts", RUNTIME_JSON),
     &("adl.ts", RUNTIME_ADL),
     &("utils.ts", RUNTIME_UTILS),
@@ -112,10 +114,11 @@ pub fn tsgen(
         return Ok(());
     }
     let outputs = opts.outputs.as_ref().unwrap();
-    let (manifest, outputdir) = match outputs {
+    let (manifest, outputdir, strip_first) = match outputs {
         crate::adlgen::adlc::packaging::OutputOpts::Gen(gen) => (
             gen.manifest.as_ref().map(|m| PathBuf::from(m)),
             PathBuf::from(gen.output_dir.clone()),
+            gen.strip_first,
         ),
     };
 
@@ -129,7 +132,11 @@ pub fn tsgen(
         }
     }
 
-    let mut writer = TreeWriter::new(outputdir, manifest)?;
+    let mut writer = TreeWriter::new(outputdir.clone(), manifest)?;
+
+    println!("----");
+    let parent = outputdir.file_name().unwrap().to_str().unwrap().to_string();
+    println!("!!!'{}'", parent);
 
     let modules: Vec<Module1> = resolver
         .get_module_names()
@@ -139,7 +146,8 @@ pub fn tsgen(
 
     for m in &modules {
         if opts.generate_transitive || module_names.contains(&m.name) {
-            let path = path_from_module_name(opts, m.name.to_owned());
+            let path = path_from_module_name(strip_first, m.name.to_owned());
+            println!("~~~{} - {:?}", m.name.to_owned(), path);
             let code = gen_ts_module(m, &resolver, opts)?;
             writer.write(path.as_path(), code)?;
         }
@@ -167,7 +175,7 @@ pub fn tsgen(
             tokens.format_file(&mut w.as_formatter(&fmt), &config)?;
             let vector = w.into_inner();
             let code = std::str::from_utf8(&vector)?;
-            let path = path_from_module_name(opts, "resolver".to_string());
+            let path = path_from_module_name(false, "resolver".to_string());
             writer.write(path.as_path(), code.to_string())?;
         }
     }
@@ -311,10 +319,12 @@ fn gen_ts_module(
     Ok(code.to_string())
 }
 
-fn path_from_module_name(_opts: &TypescriptGenOptions, mname: adlast::ModuleName) -> PathBuf {
+fn path_from_module_name(strip_first: bool, mname: adlast::ModuleName) -> PathBuf {
     let mut path = PathBuf::new();
-    // path.push(opts.module.clone());
-    for el in mname.split(".") {
+    for (i,el) in mname.split(".").enumerate() {
+        if i == 0 && strip_first {
+            continue;
+        }
         path.push(el);
     }
     path.set_extension("ts");
@@ -407,7 +417,7 @@ fn gen_runtime(
     let re2 = Regex::new(r"\$TSB64IMPORT").unwrap();
     for rt in RUNTIME.iter() {
         let mut file_path = PathBuf::new();
-        file_path.push("./runtime");
+        // file_path.push("./runtime");
         // file_path.push(&rt_gen_opts.runtime_dir);
         file_path.push(rt.0);
         let dir_path = file_path.parent().unwrap();

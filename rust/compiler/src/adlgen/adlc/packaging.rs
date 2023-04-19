@@ -306,6 +306,12 @@ pub struct GenOutput {
 
   #[serde(default="GenOutput::def_manifest")]
   pub manifest: Option<String>,
+
+  /**
+   * When creating the path for output ts files delete the first part of the module name
+   */
+  #[serde(default="GenOutput::def_strip_first")]
+  pub strip_first: bool,
 }
 
 impl GenOutput {
@@ -314,6 +320,7 @@ impl GenOutput {
       referenceable: GenOutput::def_referenceable(),
       output_dir: output_dir,
       manifest: GenOutput::def_manifest(),
+      strip_first: GenOutput::def_strip_first(),
     }
   }
 
@@ -323,6 +330,10 @@ impl GenOutput {
 
   pub fn def_manifest() -> Option<String> {
     None
+  }
+
+  pub fn def_strip_first() -> bool {
+    true
   }
 }
 

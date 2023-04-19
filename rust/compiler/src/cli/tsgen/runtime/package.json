@@ -1,0 +1,20 @@
+{
+  "name": "@adl-lang/runtime",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "author": "Helix",
+  "license": "CLOSED",
+  "private": true,
+  "scripts": {
+    "build": "tsc && cp package-dist.json ./dist/package.json",
+    "dev": "cp package-dist.json ./dist/package.json && pnpm run tsc --watch",
+    "tsc": "tsc"
+  },
+  "dependencies": {
+    "base64-js": "^1.5.1"
+  },
+  "devDependencies": {
+    "tsconfig": "workspace:*",
+    "typescript": "^4.9.3"
+  }
+}
