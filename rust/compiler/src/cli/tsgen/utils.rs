@@ -1,3 +1,36 @@
+use crate::adlgen::sys::adlast2::{Module1, ScopedName};
+
+pub fn get_npm_pkg(module: &Module1) -> Option<String> {
+    let npm_pkg = module.annotations.0.get(&ScopedName {
+        module_name: "adlc.config.typescript".to_string(),
+        name: "NpmPackage".to_string(),
+    });
+    npm_pkg.map(|p| p.as_str().unwrap().to_string())
+}
+
+pub fn npm_pkg_import(npm_pkg2: Option<String>, module_name: String) -> String {
+    let npm_pkg2 = npm_pkg2.unwrap();
+    let mn_parts: Vec<&str> = module_name.split(".").collect();
+    let npm_parts: Vec<&str> = npm_pkg2.rsplit("/").collect();
+    let mut mn = mn_parts.iter().peekable();
+    let mut npm = npm_parts.iter().peekable();
+    while let (Some(m), Some(n)) = (&mn.peek(), &npm.peek()) {
+        if m != n {
+            break;
+        }
+        mn.next(); npm.next();
+    }
+    let mut path = npm_pkg2;
+    path.push_str("/");
+    while let Some(p) = mn.next() {
+        path.push_str(p);
+        if let Some(_) = mn.peek() {
+            path.push_str("/");
+        }
+    }
+    path
+}
+
 pub fn rel_import(src: &String, dst: &String) -> String {
     let src_v: Vec<&str> = src.split(['.']).collect();
     let src_v = &src_v[..src_v.len() - 1];

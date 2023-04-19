@@ -1,5 +1,7 @@
 module protoclient.protoapp.api {
 
+import sys.types.Map;
+
 import common.Instant;
 import common.db.WithDbId;
 import common.config.log.LogLevel;
@@ -18,6 +20,7 @@ import protoclient.protoapp.db.MessageId;
 
 /// The app API
 struct ApiRequests {
+  Map imamap;
   /// Login a user
   HttpPost<String, Vector<StringMap<Int64>>> with_prim = {
     "path": "/login",

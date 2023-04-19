@@ -1,5 +1,6 @@
 // @generated from adl module adlc.packaging
 
+use crate::adlgen::sys::adlast2::Module1;
 use crate::adlgen::sys::adlast2::ScopedName;
 use crate::adlrt::custom::sys::types::pair::Pair;
 use serde::Deserialize;
@@ -7,7 +8,44 @@ use serde::Serialize;
 
 pub type AdlWorkspace0 = AdlWorkspace<AdlPackageRef>;
 
-pub type AdlWorkspace1 = AdlWorkspace<Pair<AdlPackageRef, AdlPackage>>;
+pub type AdlWorkspace1 = AdlWorkspace<Payload1>;
+
+pub type AdlWorkspace2 = AdlWorkspace<Payload2>;
+
+#[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
+pub struct Payload1 {
+  pub p_ref: AdlPackageRef,
+
+  pub pkg: AdlPackage,
+}
+
+impl Payload1 {
+  pub fn new(p_ref: AdlPackageRef, pkg: AdlPackage) -> Payload1 {
+    Payload1 {
+      p_ref: p_ref,
+      pkg: pkg,
+    }
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
+pub struct Payload2 {
+  pub p_ref: AdlPackageRef,
+
+  pub pkg: AdlPackage,
+
+  pub modules: Vec<Module1>,
+}
+
+impl Payload2 {
+  pub fn new(p_ref: AdlPackageRef, pkg: AdlPackage, modules: Vec<Module1>) -> Payload2 {
+    Payload2 {
+      p_ref: p_ref,
+      pkg: pkg,
+      modules: modules,
+    }
+  }
+}
 
 /**
  * Expected to live in a file named `adl.work.json`

@@ -5,9 +5,23 @@ module adlc.packaging {
 
 import sys.types.Pair;
 import sys.adlast2.ScopedName;
+import sys.adlast2.Module1;
 
+// AdlWorkspace0 is the serilization format
 type AdlWorkspace0 = AdlWorkspace<AdlPackageRef>;
-type AdlWorkspace1 = AdlWorkspace<Pair<AdlPackageRef,AdlPackage>>;
+type AdlWorkspace1 = AdlWorkspace<Payload1>;
+type AdlWorkspace2 = AdlWorkspace<Payload2>;
+
+struct Payload1 {
+    AdlPackageRef p_ref;
+    AdlPackage pkg;
+};
+
+struct Payload2 {
+    AdlPackageRef p_ref;
+    AdlPackage pkg;
+    Vector<Module1> modules;
+};
 
 /// Expected to live in a file named `adl.work.json`
 struct AdlWorkspace<T> {

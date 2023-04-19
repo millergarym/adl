@@ -5,8 +5,8 @@ use anyhow::anyhow;
 
 use serde::Deserialize;
 
-use crate::adlgen::adlc::packaging::{AdlPackage, AdlWorkspace0, AdlWorkspace1, OutputOpts, TsRuntimeOpt};
-use crate::adlrt::custom::sys::types::pair::Pair;
+use crate::adlgen::adlc::packaging::{AdlPackage, AdlWorkspace0, AdlWorkspace1, Payload1};
+
 use crate::processing::loader::loader_from_workspace;
 
 use super::{tsgen};
@@ -16,13 +16,13 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
     let wrk1 = collection_to_workspace(pkg_defs)?;
     // println!("{:?}", &wrk1);
     for pkg in &wrk1.1.r#use {
-        if let Some(opts) = &pkg.0.0.ts_opts {
+        if let Some(opts) = &pkg.p_ref.ts_opts {
             let loader = loader_from_workspace(wrk1.0.clone(), wrk1.1.clone());
             println!(
                 "TsGen for pkg {:?} in workspace {:?} output dir {:?}",
-                pkg.0 .0, wrk1.0, &opts.outputs
+                pkg.p_ref, wrk1.0, &opts.outputs
             );
-            let pkg_root = wrk1.0.join(pkg.0 .0.path.clone()).canonicalize()?;
+            let pkg_root = wrk1.0.join(pkg.p_ref.path.clone()).canonicalize()?;
             tsgen::tsgen(loader, &opts, Some(pkg_root))?;
         }
     }
@@ -55,7 +55,7 @@ fn collection_to_workspace(
                     let mut de = serde_json::Deserializer::from_str(&content);
                     let pkg = AdlPackage::deserialize(&mut de)
                         .map_err(|e| anyhow!("{:?}: {}", p_path, e.to_string()))?;
-                    wrk1.r#use.push(Pair::new(p.clone(), pkg));
+                    wrk1.r#use.push(Payload1::new(p.clone(), pkg));
                 }
                 // println!("wrk {:?}", wrk1);
                 return Ok((porw.1, wrk1));

@@ -5,7 +5,7 @@ use convert_case::{Case, Casing};
 use serde_json::Value;
 
 use crate::adlgen::sys::adlast2::{
-    Decl, DeclType, Field, Module, PrimitiveType, ScopedName, TypeExpr, TypeRef, Union, Decl1, Module1, Field1, Union1,
+    DeclType, PrimitiveType, ScopedName, TypeExpr, TypeRef, Decl1, Module1, Field1, Union1,
 };
 use crate::processing::resolver::Resolver;
 use genco::prelude::*;

@@ -15,6 +15,8 @@ use crate::adlgen::sys::adlast2::{
 use crate::parser::docstring_scoped_name;
 use crate::processing::resolver::Resolver;
 
+use super::utils::{get_npm_pkg, npm_pkg_import, rel_import};
+
 const SP: &str = " ";
 const SQ: &str = "'";
 
@@ -335,28 +337,9 @@ impl TsGenVisitor<'_> {
         let npm_pkg = get_npm_pkg(self.module);
         let imp = self.map.entry(scoped_name.clone()).or_insert_with(|| {
             let path = if npm_pkg2 != None && npm_pkg2 != npm_pkg {
-                let npm_pkg2 = npm_pkg2.unwrap();
-                let mn_parts: Vec<&str> = scoped_name.module_name.split(".").collect();
-                let npm_parts: Vec<&str> = npm_pkg2.rsplit("/").collect();
-                let mut mn = mn_parts.iter().peekable();
-                let mut npm = npm_parts.iter().peekable();
-                while let (Some(m), Some(n)) = (&mn.peek(), &npm.peek()) {
-                    if m != n {
-                        break;
-                    }
-                    mn.next(); npm.next();
-                }
-                let mut path = npm_pkg2;
-                path.push_str("/");
-                while let Some(p) = mn.next() {
-                    path.push_str(p);
-                    if let Some(_) = mn.peek() {
-                        path.push_str("/");
-                    }
-                }
-                path
+                npm_pkg_import(npm_pkg2, scoped_name.module_name.clone())
             } else {
-                crate::cli::tsgen::utils::rel_import(&self.module.name, &scoped_name.module_name)
+                rel_import(&self.module.name, &scoped_name.module_name)
             };
             let i_name = scoped_name
                 .module_name
@@ -509,14 +492,6 @@ impl TsGenVisitor<'_> {
         }
         Ok(())
     }
-}
-
-fn get_npm_pkg(module: &Module1) -> Option<String> {
-    let npm_pkg = module.annotations.0.get(&ScopedName {
-        module_name: "adlc.config.typescript".to_string(),
-        name: "NpmPackage".to_string(),
-    });
-    npm_pkg.map(|p| p.as_str().unwrap().to_string())
 }
 
 fn lit(t: &mut Tokens<JavaScript>, s: &'static str) {

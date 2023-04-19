@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
-use crate::{cli::{AdlSearchOpts, OutputOpts}, adlgen::adlc::{testing_table::TestFilesMetaData, packaging::{GenOutput, ReferenceableScopeOption, ModuleSrc}}};
+use crate::{cli::{AdlSearchOpts, OutputOpts}, adlgen::adlc::{testing_table::TestFilesMetaData, packaging::{GenOutput, ReferenceableScopeOption, ModuleSrc}}, processing::loader::loader_from_search_paths};
 
 use super::*;
 

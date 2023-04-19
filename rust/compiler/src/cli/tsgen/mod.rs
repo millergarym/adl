@@ -14,8 +14,9 @@ use genco::prelude::*;
 
 use crate::adlgen::adlc::packaging::{TsGenRuntime, TsRuntimeOpt, TsStyle, TypescriptGenOptions};
 use crate::adlgen::sys::adlast2::{self as adlast};
-use crate::adlgen::sys::adlast2::{Module, Module1, TypeExpr, TypeRef};
-use crate::processing::loader::{loader_from_search_paths, AdlLoader};
+use crate::adlgen::sys::adlast2::{Module1};
+use crate::cli::tsgen::utils::{get_npm_pkg, npm_pkg_import};
+use crate::processing::loader::{AdlLoader};
 use crate::processing::resolver::Resolver;
 use crate::processing::writer::TreeWriter;
 
@@ -129,7 +130,7 @@ pub fn tsgen(
         .map(|mn| resolver.get_module(&mn).unwrap())
         .collect();
 
-    for m in modules {
+    for m in &modules {
         if opts.generate_transitive || module_names.contains(&m.name) {
             let path = path_from_module_name(opts, m.name.to_owned());
             let code = gen_ts_module(m, &resolver, opts)?;
@@ -139,8 +140,8 @@ pub fn tsgen(
 
     {
         let tokens = &mut js::Tokens::new();
-        let modules = resolver.get_module_names();
-        gen_resolver(tokens, modules)?;
+        // let modules = resolver.get_module_names();
+        gen_resolver(tokens, opts.npm_pkg_name.clone(), &resolver, &modules)?;
         let config = js::Config::default();
         // let config = js::Config{
         //     ..Default::default()
@@ -179,7 +180,7 @@ fn gen_ts_module(
             // sdf
             js::import(pkg.clone() + "/adl", "ADL").into_wildcard()
         }
-        TsRuntimeOpt::Generate(gen) => {
+        TsRuntimeOpt::Generate(_gen) => {
             // TODO modify the import path with opts.runtime_dir
             js::import(
                 utils::rel_import(&m.name, &"runtime.adl".to_string()),
@@ -225,19 +226,36 @@ fn path_from_module_name(_opts: &TypescriptGenOptions, mname: adlast::ModuleName
     return path;
 }
 
-fn gen_resolver(t: &mut Tokens<JavaScript>, mut modules: Vec<String>) -> anyhow::Result<()> {
+fn gen_resolver(t: &mut Tokens<JavaScript>, npm_pkg: Option<String>, resolver: &Resolver, modules: &Vec<&Module1>) -> anyhow::Result<()> {
     // TODO remote or local imports
     let mut m_imports = vec![];
-    for m in &modules {
+
+    for m in modules {
+
+        let npm_pkg2 = if let Some(m2) = resolver.get_module(&m.name) {
+            get_npm_pkg(m2)
+        } else {
+            None
+        };
+    
+        let path = if npm_pkg2 != None && npm_pkg2 != npm_pkg {
+            npm_pkg_import(npm_pkg2, m.name.clone())
+        } else {
+            format!("./{}", m.name.replace(".", "/"))
+        };
+
         m_imports.push(
-            js::import(format!("./{}", m.replace(".", "/")), "_AST_MAP")
-                .with_alias(m.replace(".", "_")),
+            js::import(path, "_AST_MAP")
+                .with_alias(m.name.replace(".", "_")),
         );
     }
     let adlr1 = js::import("./runtime/adl", "declResolver");
     let adlr2 = js::import("./runtime/adl", "ScopedDecl");
     let gened = "/* @generated from adl */";
-    modules.sort();
+    // modules.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut keys: Vec<String> = modules.iter().map(|m| m.name.clone()).collect();
+    // let m_map: HashMap<String,&Module1> = modules.iter().map(|m| (m.name.clone(),*m)).collect();
+    keys.sort();
     quote_in! { *t =>
     $gened
     $(register (adlr2))
@@ -246,7 +264,7 @@ fn gen_resolver(t: &mut Tokens<JavaScript>, mut modules: Vec<String>) -> anyhow:
 
 
     export const ADL: { [key: string]: ScopedDecl } = {
-      $(for m in &modules => ...$(m.replace(".", "_")),$['\r'])
+      $(for m in keys => ...$(m.replace(".", "_")),$['\r'])
     };
 
     export const RESOLVER = declResolver(ADL);

@@ -6,7 +6,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::PathBuf;
 
-use crate::adlgen::adlc::packaging::AdlWorkspace1;
+use crate::adlgen::adlc::packaging::{AdlWorkspace1, Payload1, AdlPackageRef, AdlPackage, TypescriptGenOptions};
 use crate::adlgen::sys::adlast2::{self as adlast, Module0};
 use crate::parser::{convert_error, raw_module};
 use crate::processing::annotations::apply_explicit_annotations_and_serialized_name;
@@ -31,7 +31,7 @@ pub fn loader_from_dir_tree(path: &PathBuf) -> Box<dyn AdlLoader> {
 
 pub trait AdlLoader {
     /// Find and load the specified ADL module
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error>;
+    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<(Module0,Option<Payload1>)>, anyhow::Error>;
 }
 
 pub struct WorkspaceLoader {
@@ -42,18 +42,44 @@ pub struct WorkspaceLoader {
 }
 
 impl AdlLoader for WorkspaceLoader {
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
+    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<(Module0,Option<Payload1>)>, anyhow::Error> {
         if self.workspace.use_embedded_sys_loader {
-            if let Some(module) = self.embedded.load(module_name)? {
+            if let Some(mut module) = self.embedded.load(module_name)? {
+                module.1 = Some(Payload1 {
+                    p_ref: AdlPackageRef {
+                        path: "".to_string(),
+                        ts_opts: Some(TypescriptGenOptions{
+                            npm_pkg_name: Some("@adl-lang/sys".to_string()),
+                            outputs: TypescriptGenOptions::def_outputs(),
+                            runtime_opts: TypescriptGenOptions::def_runtime_opts(),
+                            generate_transitive: false,
+                            include_resolver: false,
+                            ts_style: TypescriptGenOptions::def_ts_style(),
+                            modules: TypescriptGenOptions::def_modules(),
+                            capitalize_branch_names_in_types: TypescriptGenOptions::def_capitalize_branch_names_in_types(),
+                            capitalize_type_names: TypescriptGenOptions::def_capitalize_type_names(),
+                            annotate: TypescriptGenOptions::def_annotate(),
+                        }),
+                    },
+                    pkg: AdlPackage {
+                        path: "github.com/adl-lang/adl/adl/stdlib/sys".to_string(),
+                        global_alias: Some("sys".to_string()),
+                        adlc: "0.0.0".to_string(),
+                        requires: vec![],
+                        excludes: vec![],
+                        replaces: vec![],
+                        retracts: vec![],
+                    },
+                });
                 return Ok(Some(module));
             }
         }
         for pkg in &self.workspace.r#use {
-            let pkg_path = pkg.0 .1.path.as_str();
+            let pkg_path = pkg.pkg.path.as_str();
             // println!("  looking for {} in {} or {:?}", module_name, pkg_path, pkg.0.1.global_alias.clone());
             let pkg_name = if module_name.starts_with(pkg_path) {
-                Some(pkg.0 .1.path.clone())
-            } else if let Some(alias) = pkg.0 .1.global_alias.clone() {
+                Some(pkg.pkg.path.clone())
+            } else if let Some(alias) = pkg.pkg.global_alias.clone() {
                 if module_name.starts_with(alias.as_str()) {
                     Some(alias)
                 } else {
@@ -66,29 +92,31 @@ impl AdlLoader for WorkspaceLoader {
                 let loader = self
                     .loaders
                     .entry(name.clone())
-                    .or_insert(Box::new(DirTreeLoader::new(self.root.join(&pkg.0 .0.path))));
+                    .or_insert(Box::new(DirTreeLoader::new(self.root.join(&pkg.p_ref.path))));
                 let module = loader.load(module_name);
-                println!("--- {}", &name.clone());
+                println!("--- {} {}", &name.clone(), module_name);
                 match module {
                     Ok(module) => {
-                        if let Some(mut moduleX) = module.clone() {
-                            if let Some(ts_opts) = &pkg.0 .0.ts_opts {
-                                if let Some(npm_pkg) = &ts_opts.npm_pkg_name {
-                                    moduleX.annotations.0.insert(
-                                        adlast::ScopedName {
-                                            module_name: "adlc.config.typescript".to_string(),
-                                            name: "NpmPackage".to_string(),
-                                        },
-                                        serde_json::json!(npm_pkg),
-                                    );
-                                    return Ok(Some(moduleX));
-                                }
-                            }
+                        if let Some(mut module2) = module.clone() {
+                            // TODO annotate ADL so this is Boxed
+                            module2.1 = Some(pkg.clone());
+                            // if let Some(ts_opts) = &pkg.p_ref.ts_opts {
+                            //     if let Some(npm_pkg) = &ts_opts.npm_pkg_name {
+                            //         module2.0.annotations.0.insert(
+                            //             adlast::ScopedName {
+                            //                 module_name: "adlc.config.typescript".to_string(),
+                            //                 name: "NpmPackage".to_string(),
+                            //             },
+                            //             serde_json::json!(npm_pkg),
+                            //         );
+                            //     }
+                            // }
+                            return Ok(Some(module2));
                         }
-                        return Ok(module);
                     }
                     Err(_) => return module,
                 }
+                todo!()
             }
         }
         Ok(None)
@@ -111,7 +139,7 @@ impl MultiLoader {
 }
 
 impl AdlLoader for MultiLoader {
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
+    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<(Module0,Option<Payload1>)>, anyhow::Error> {
         if let Some(module) = self.embedded.load(module_name)? {
             return Ok(Some(module));
         }
@@ -127,10 +155,10 @@ impl AdlLoader for MultiLoader {
 pub struct EmbeddedStdlibLoader {}
 
 impl AdlLoader for EmbeddedStdlibLoader {
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
+    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<(Module0,Option<Payload1>)>, anyhow::Error> {
         match crate::adlstdlib::get_stdlib(module_name, "") {
             Some(data) => match std::str::from_utf8(data.as_ref()) {
-                Ok(content) => return parse(&content).map(|m| Some(m)),
+                Ok(content) => return parse(&content).map(|m| Some((m,None))),
                 Err(err) => return Err(anyhow::Error::from(err)),
             },
             None => return Ok(None),
@@ -149,7 +177,7 @@ impl DirTreeLoader {
 }
 
 impl AdlLoader for DirTreeLoader {
-    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<Module0>, anyhow::Error> {
+    fn load(&mut self, module_name: &adlast::ModuleName) -> Result<Option<(Module0,Option<Payload1>)>, anyhow::Error> {
         let mut path = self.root.clone();
         for mp in module_name.split(".") {
             path.push(mp);
@@ -164,7 +192,7 @@ impl AdlLoader for DirTreeLoader {
             Ok(content) => content,
         };
         log::info!("loaded {} from {}", module_name, path.display());
-        parse(&content).map(|m| Some(m))
+        parse(&content).map(|m| Some((m,None)))
     }
 }
 
