@@ -14,6 +14,7 @@ use crate::adlgen::sys::adlast2::{
 };
 use crate::parser::docstring_scoped_name;
 use crate::processing::resolver::Resolver;
+use crate::utils::ast::get_type_params;
 
 use super::utils::{get_npm_pkg, npm_pkg_import, rel_import};
 
@@ -317,11 +318,46 @@ impl TsGenVisitor<'_> {
     /// returns (has_make_function,ts type)
     fn rust_type(&mut self, te: &TypeExpr<TypeRef>) -> Result<(bool, String), String> {
         match &te.type_ref {
-            TypeRef::ScopedName(n) => self.tstype_from_scoped_name(n, &te.parameters),
-            TypeRef::LocalName(n) => self.tstype_from_local_name(n, &te.parameters),
+            TypeRef::ScopedName(n) => {
+                self.check_type_params_len(n, &te.parameters)?;
+                self.tstype_from_scoped_name(n, &te.parameters)
+            }
+            TypeRef::LocalName(n) => {
+                let sn = &ScopedName {
+                    module_name: self.module.name.to_string(),
+                    name: n.to_string(),
+                };
+                self.check_type_params_len(sn, &te.parameters)?;
+                self.tstype_from_local_name(n, &te.parameters)
+            }
             TypeRef::Primitive(n) => self.tstype_from_prim(n, &te.parameters),
             TypeRef::TypeParam(n) => Ok((true, n.clone())),
         }
+    }
+
+    fn check_type_params_len(
+        &mut self,
+        scoped_name: &ScopedName,
+        params: &Vec<TypeExpr<TypeRef>>,
+    ) -> Result<(), String> {
+        if let Some(decl) = self.resolver.get_decl(scoped_name) {
+            let type_params = get_type_params(&decl);
+            if type_params.len() != params.len() {
+                return Err(format!(
+                    "Mismatch number of type params. Need {} received {}. For {}.{}",
+                    type_params.len(),
+                    params.len(),
+                    scoped_name.module_name,
+                    scoped_name.name
+                ));
+            }
+        } else {
+            return Err(format!(
+                "Can't resolve decl {}.{}",
+                scoped_name.module_name, scoped_name.name
+            ));
+        }
+        Ok(())
     }
 
     fn tstype_from_scoped_name(
