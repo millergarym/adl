@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::{env, fs};
 
@@ -6,7 +7,7 @@ use anyhow::anyhow;
 use serde::Deserialize;
 
 use crate::adlgen::adlc::packaging::{
-    AdlPackage, AdlWorkspace0, AdlWorkspace1, Payload1,
+    AdlPackage, AdlWorkspace0, AdlWorkspace1, Payload1
 };
 use crate::processing::loader::loader_from_workspace;
 
@@ -39,6 +40,49 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+fn tuple_str_to_map(arg: &[(&str, &str)]) -> HashMap<String, String> {
+    arg.iter()
+        .map(|a| (String::from(a.0), String::from(a.1)))
+        .collect()
+}
+
+// fn embedded_payload() -> Option<Payload1> {
+//     Some(Payload1 {
+//         p_ref: AdlPackageRef {
+//             path: "".to_string(),
+//             ts_opts: Some(TypescriptGenOptions {
+//                 npm_pkg_name: "@adl-lang/sys".to_string(),
+//                 npm_version: TypescriptGenOptions::def_npm_version(),
+//                 extra_dependencies: tuple_str_to_map(&[("base64-js", "^1.5.1")]),
+//                 extra_dev_dependencies: tuple_str_to_map(&[
+//                     ("tsconfig", "workspace:*"),
+//                     ("typescript", "^4.9.3"),
+//                 ]),
+//                 outputs: TypescriptGenOptions::def_outputs(),
+//                 runtime_opts: TypescriptGenOptions::def_runtime_opts(),
+//                 generate_transitive: false,
+//                 include_resolver: false,
+//                 ts_style: TypescriptGenOptions::def_ts_style(),
+//                 modules: TypescriptGenOptions::def_modules(),
+//                 capitalize_branch_names_in_types:
+//                     TypescriptGenOptions::def_capitalize_branch_names_in_types(),
+//                 capitalize_type_names: TypescriptGenOptions::def_capitalize_type_names(
+//                 ),
+//                 annotate: TypescriptGenOptions::def_annotate(),
+//             }),
+//         },
+//         pkg: AdlPackage {
+//             path: "github.com/adl-lang/adl/adl/stdlib/sys".to_string(),
+//             global_alias: Some("sys".to_string()),
+//             adlc: "0.0.0".to_string(),
+//             requires: vec![],
+//             excludes: vec![],
+//             replaces: vec![],
+//             retracts: vec![],
+//         },
+//     })
+// }
+
 fn collection_to_workspace(
     pkg_defs: Vec<(PkgDef, PathBuf, &str)>,
 ) -> Result<(PathBuf, AdlWorkspace1), anyhow::Error> {
@@ -59,7 +103,7 @@ fn collection_to_workspace(
                     adlc: wrk0.adlc.clone(),
                     runtimes: wrk0.runtimes,
                     r#use: vec![],
-                    use_embedded_sys_loader: wrk0.use_embedded_sys_loader,
+                    embedded_sys_loader: wrk0.embedded_sys_loader,
                 };
                 for p in wrk0.r#use.iter() {
                     let p_path = porw.1.join(&p.path).join("adl.pkg.json");

@@ -74,12 +74,16 @@ fn generate_ts_from_test_files() {
                 }
                 let modules = t.modules.clone();
                 let ts_opts = TypescriptGenOptions {
-                    npm_pkg_name: None,
+                    npm_pkg_name: "testing".to_string(),
+                    npm_version: "0.0.0".to_string(),
+                    extra_dependencies: TypescriptGenOptions::def_extra_dependencies(),
+                    extra_dev_dependencies: TypescriptGenOptions::def_extra_dev_dependencies(),
                     annotate: vec![],
                     outputs: Some(crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput {
                         referenceable: ReferenceableScopeOption::Local,
                         output_dir: outdir.clone(),
                         manifest: Some(manifest),
+                        strip_first: false,
                     })),
                     runtime_opts: TsRuntimeOpt::Generate(TsGenRuntime {}),
                     generate_transitive: true,

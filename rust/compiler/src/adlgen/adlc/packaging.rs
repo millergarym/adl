@@ -50,7 +50,7 @@ impl Payload2 {
 /**
  * Expected to live in a file named `adl.work.json`
  */
-#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+#[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
 pub struct AdlWorkspace<T> {
   pub adlc: String,
 
@@ -60,8 +60,8 @@ pub struct AdlWorkspace<T> {
   #[serde(default="AdlWorkspace::<T>::def_runtimes")]
   pub runtimes: Vec<RuntimeOpts>,
 
-  #[serde(default="AdlWorkspace::<T>::def_use_embedded_sys_loader")]
-  pub use_embedded_sys_loader: bool,
+  #[serde(default="AdlWorkspace::<T>::def_embedded_sys_loader")]
+  pub embedded_sys_loader: Option<Payload1>,
 }
 
 impl<T> AdlWorkspace<T> {
@@ -70,7 +70,7 @@ impl<T> AdlWorkspace<T> {
       adlc: adlc,
       r#use: r#use,
       runtimes: AdlWorkspace::<T>::def_runtimes(),
-      use_embedded_sys_loader: AdlWorkspace::<T>::def_use_embedded_sys_loader(),
+      embedded_sys_loader: AdlWorkspace::<T>::def_embedded_sys_loader(),
     }
   }
 
@@ -78,8 +78,8 @@ impl<T> AdlWorkspace<T> {
     vec![]
   }
 
-  pub fn def_use_embedded_sys_loader() -> bool {
-    true
+  pub fn def_embedded_sys_loader() -> Option<Payload1> {
+    Some(Payload1{p_ref : AdlPackageRef{path : "".to_string(), ts_opts : Some(TypescriptGenOptions{npm_pkg_name : "@adl-lang/sys".to_string(), npm_version : "1.0.0".to_string(), extra_dependencies : [("base64-js".to_string(), "^1.5.1".to_string())].iter().cloned().collect(), extra_dev_dependencies : [("tsconfig".to_string(), "workspace:*".to_string()), ("typescript".to_string(), "^4.9.3".to_string())].iter().cloned().collect(), outputs : None, runtime_opts : TsRuntimeOpt::PackageRef(NpmPackageRef{name : "@adl-lang/runtime".to_string(), version : "^1.0.0".to_string()}), generate_transitive : false, include_resolver : false, ts_style : TsStyle::Tsc, modules : ModuleSrc::All, capitalize_branch_names_in_types : true, capitalize_type_names : true, annotate : vec![]})}, pkg : AdlPackage{path : "github.com/adl-lang/adl/adl/stdlib/sys".to_string(), global_alias : Some("sys".to_string()), adlc : "0.0.0".to_string(), requires : vec![], excludes : vec![], replaces : vec![], retracts : vec![]}})
   }
 }
 
@@ -91,7 +91,6 @@ pub enum RuntimeOpts {
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct TsWriteRuntime {
-  #[serde(rename="outputDir")]
   pub output_dir: String,
 
   #[serde(default="TsWriteRuntime::def_referenceable")]
@@ -102,6 +101,9 @@ pub struct TsWriteRuntime {
 
   #[serde(default="TsWriteRuntime::def_ts_style")]
   pub ts_style: TsStyle,
+
+  #[serde(default="TsWriteRuntime::def_strip_first")]
+  pub strip_first: bool,
 }
 
 impl TsWriteRuntime {
@@ -111,6 +113,7 @@ impl TsWriteRuntime {
       referenceable: TsWriteRuntime::def_referenceable(),
       npm_pkg_name: TsWriteRuntime::def_npm_pkg_name(),
       ts_style: TsWriteRuntime::def_ts_style(),
+      strip_first: TsWriteRuntime::def_strip_first(),
     }
   }
 
@@ -124,6 +127,10 @@ impl TsWriteRuntime {
 
   pub fn def_ts_style() -> TsStyle {
     TsStyle::Tsc
+  }
+
+  pub fn def_strip_first() -> bool {
+    true
   }
 }
 
@@ -158,11 +165,9 @@ pub struct TypescriptGenOptions {
   pub npm_version: String,
 
   #[serde(default="TypescriptGenOptions::def_extra_dependencies")]
-  #[serde(rename="extraDependencies")]
   pub extra_dependencies: std::collections::HashMap<String,VersionSpec>,
 
   #[serde(default="TypescriptGenOptions::def_extra_dev_dependencies")]
-  #[serde(rename="extraDevDependencies")]
   pub extra_dev_dependencies: std::collections::HashMap<String,VersionSpec>,
 
   #[serde(default="TypescriptGenOptions::def_outputs")]
@@ -269,10 +274,10 @@ pub enum InjectAnnotation {
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub enum TsRuntimeOpt {
-  #[serde(rename="workspaceRef")]
+  #[serde(rename="workspace_ref")]
   WorkspaceRef(String),
 
-  #[serde(rename="packageRef")]
+  #[serde(rename="package_ref")]
   PackageRef(NpmPackageRef),
 
   #[serde(rename="generate")]
@@ -301,7 +306,6 @@ pub struct GenOutput {
   #[serde(default="GenOutput::def_referenceable")]
   pub referenceable: ReferenceableScopeOption,
 
-  #[serde(rename="outputDir")]
   pub output_dir: String,
 
   #[serde(default="GenOutput::def_manifest")]
@@ -309,6 +313,8 @@ pub struct GenOutput {
 
   /**
    * When creating the path for output ts files delete the first part of the module name
+   * This needs to be false for "generate_transitive" and 
+   * packages like "common" where the module and directory at the top level named the same.
    */
   #[serde(default="GenOutput::def_strip_first")]
   pub strip_first: bool,
@@ -378,7 +384,6 @@ pub struct AdlPackage {
   pub path: String,
 
   #[serde(default="AdlPackage::def_global_alias")]
-  #[serde(rename="globalAlias")]
   pub global_alias: Option<String>,
 
   /**

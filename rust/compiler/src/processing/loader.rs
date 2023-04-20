@@ -6,19 +6,22 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::PathBuf;
 
-use crate::adlgen::adlc::packaging::{
-    AdlPackage, AdlPackageRef, AdlWorkspace1, Payload1, TypescriptGenOptions,
-};
+use crate::adlgen::adlc::packaging::{ AdlWorkspace1, Payload1 };
 use crate::adlgen::sys::adlast2::{self as adlast, Module0};
 use crate::parser::{convert_error, raw_module};
 use crate::processing::annotations::apply_explicit_annotations_and_serialized_name;
 
-pub fn loader_from_workspace(root: PathBuf, workspace: AdlWorkspace1) -> Box<dyn AdlLoader> {
+pub fn loader_from_workspace(
+    root: PathBuf,
+    workspace: AdlWorkspace1,
+    // embedded_payload: Option<Payload1>,
+) -> Box<dyn AdlLoader> {
     Box::new(WorkspaceLoader {
         root,
         workspace,
         embedded: EmbeddedStdlibLoader {},
         loaders: HashMap::new(),
+        // embedded_payload,
     })
 }
 
@@ -43,13 +46,8 @@ pub struct WorkspaceLoader {
     root: PathBuf,
     workspace: AdlWorkspace1,
     embedded: EmbeddedStdlibLoader,
+    // embedded_payload: Option<Payload1>,
     loaders: HashMap<String, Box<dyn AdlLoader>>,
-}
-
-fn tuple_str_to_map(arg: &[(&str, &str)]) -> HashMap<String, String> {
-    arg.iter()
-        .map(|a| (String::from(a.0), String::from(a.1)))
-        .collect()
 }
 
 impl AdlLoader for WorkspaceLoader {
@@ -57,42 +55,9 @@ impl AdlLoader for WorkspaceLoader {
         &mut self,
         module_name: &adlast::ModuleName,
     ) -> Result<Option<(Module0, Option<Payload1>)>, anyhow::Error> {
-        if self.workspace.use_embedded_sys_loader {
+        if let Some(_) = &self.workspace.embedded_sys_loader {
             if let Some(mut module) = self.embedded.load(module_name)? {
-                module.1 = Some(Payload1 {
-                    p_ref: AdlPackageRef {
-                        path: "".to_string(),
-                        ts_opts: Some(TypescriptGenOptions {
-                            npm_pkg_name: "@adl-lang/sys".to_string(),
-                            npm_version: TypescriptGenOptions::def_npm_version(),
-                            extra_dependencies: tuple_str_to_map(&[("base64-js", "^1.5.1")]),
-                            extra_dev_dependencies: tuple_str_to_map(&[
-                                ("tsconfig", "workspace:*"),
-                                ("typescript", "^4.9.3"),
-                            ]),
-                            outputs: TypescriptGenOptions::def_outputs(),
-                            runtime_opts: TypescriptGenOptions::def_runtime_opts(),
-                            generate_transitive: false,
-                            include_resolver: false,
-                            ts_style: TypescriptGenOptions::def_ts_style(),
-                            modules: TypescriptGenOptions::def_modules(),
-                            capitalize_branch_names_in_types:
-                                TypescriptGenOptions::def_capitalize_branch_names_in_types(),
-                            capitalize_type_names: TypescriptGenOptions::def_capitalize_type_names(
-                            ),
-                            annotate: TypescriptGenOptions::def_annotate(),
-                        }),
-                    },
-                    pkg: AdlPackage {
-                        path: "github.com/adl-lang/adl/adl/stdlib/sys".to_string(),
-                        global_alias: Some("sys".to_string()),
-                        adlc: "0.0.0".to_string(),
-                        requires: vec![],
-                        excludes: vec![],
-                        replaces: vec![],
-                        retracts: vec![],
-                    },
-                });
+                module.1 = self.workspace.embedded_sys_loader.clone();
                 return Ok(Some(module));
             }
         }
@@ -118,24 +83,26 @@ impl AdlLoader for WorkspaceLoader {
                             self.root.join(&pkg.p_ref.path),
                         )));
                 let module = loader.load(module_name);
-                println!("--- {} {}", &name.clone(), module_name);
                 match module {
                     Ok(module) => {
-                        if let Some(mut module2) = module.clone() {
+                        if let Some((mut module1, _)) = module.clone() {
                             // TODO annotate ADL so this is Boxed
-                            module2.1 = Some(pkg.clone());
-                            // if let Some(ts_opts) = &pkg.p_ref.ts_opts {
-                            //     if let Some(npm_pkg) = &ts_opts.npm_pkg_name {
-                            //         module2.0.annotations.0.insert(
-                            //             adlast::ScopedName {
-                            //                 module_name: "adlc.config.typescript".to_string(),
-                            //                 name: "NpmPackage".to_string(),
-                            //             },
-                            //             serde_json::json!(npm_pkg),
-                            //         );
-                            //     }
-                            // }
-                            return Ok(Some(module2));
+                            // let payload = Some(pkg.clone());
+                            if let Some(ts_opts) = &pkg.p_ref.ts_opts {
+                                let mn1 = "adlc.config.typescript".to_string();
+                                module1.annotations.0.insert(
+                                    adlast::ScopedName {
+                                        module_name: if *module_name == mn1 {
+                                            "".to_string()
+                                        } else {
+                                            mn1
+                                        },
+                                        name: "NpmPackage".to_string(),
+                                    },
+                                    serde_json::json!(&ts_opts.npm_pkg_name),
+                                );
+                            }
+                            return Ok(Some((module1, Some(pkg.clone()))));
                         }
                     }
                     Err(_) => return module,

@@ -23,22 +23,11 @@ pub struct Resolver {
     modules: HashMap<ModuleName, ResolvedModule>,
 }
 
+#[derive(Debug)]
 pub struct ResolvedModule {
     module1: Module1,
-    payload1: Option<Payload1>,
+    _payload1: Option<Payload1>,
     decls: HashMap<String, Decl1>,
-}
-
-fn insert_annotation(m: Module1, sn: adlast::ScopedName, jv: serde_json::Value) -> Module1 {
-    let mut ann = m.annotations.0.clone();
-    ann.insert(sn, jv);
-    Module1 {
-        annotations: Map(ann),
-        ..m
-        // name: m.name.clone(),
-        // imports: m.imports.clone(),
-        // decls: m.decls.clone(),
-    }
 }
 
 impl Resolver {
@@ -59,26 +48,11 @@ impl Resolver {
     }
 
     pub fn get_rmodule(&self, module_name: &ModuleName) -> Option<&ResolvedModule> {
-        let rmodule = self.modules.get(module_name);
-        rmodule
+        self.modules.get(module_name)
     }
 
-    pub fn get_module(&self, module_name: &ModuleName) -> Option<Module1> {
-        self.modules.get(module_name).map(|rm| {
-            if let Some(payload) = &rm.payload1 {
-                if let Some(ts_opts) = &payload.p_ref.ts_opts {
-                    // if let Some(npm_pkg) = &ts_opts.npm_pkg_name {
-                        let sn = adlast::ScopedName {
-                            module_name: "adlc.config.typescript".to_string(),
-                            name: "NpmPackage".to_string(),
-                        };
-                        let jv = serde_json::json!(&ts_opts.npm_pkg_name);
-                        return insert_annotation(rm.module1.clone(), sn, jv);
-                    // }
-                }
-            }
-            return rm.module1.clone();
-        })
+    pub fn get_module(&self, module_name: &ModuleName) -> Option<&Module1> {
+        self.modules.get(module_name).map(|rm| &rm.module1)
     }
 
     pub fn get_decl(&self, scoped_name: &adlast::ScopedName) -> Option<&Decl1> {
@@ -98,7 +72,7 @@ impl Resolver {
         }
 
         if in_progress.contains(module_name) {
-            return Err(anyhow!("Circular reference loop including {}", module_name));
+            return Err(anyhow!("Circular reference loop including module_name: '{}' in_progress: {:?}", module_name, in_progress));
         }
 
         in_progress.insert(module_name.clone());
@@ -134,7 +108,7 @@ impl Resolver {
 
         let rmodule = ResolvedModule {
             module1,
-            payload1: module0.1,
+            _payload1: module0.1,
             decls,
         };
         self.modules.insert(module_name.clone(), rmodule);
@@ -145,7 +119,9 @@ impl Resolver {
     }
 
     fn add_default_imports(&self, module: &mut Module0) {
-        let default_imports = vec!["sys.annotations"];
+        // sys.annotations does not need to be in default imports since Doc and SerializedName are processed in a way that does not require it.
+        // let default_imports = vec!["sys.annotations"];
+        let default_imports: Vec<&str> = vec![];
         for din in default_imports {
             let di = adlast::Import::ModuleName(din.to_owned());
             if module.name != din && !module.imports.contains(&di) {
@@ -229,8 +205,8 @@ fn resolve_decl(
     Ok(decl)
 }
 
-fn resolve_struct(
-    ctx0: &mut ResolveCtx<'_>,
+fn resolve_struct<'a>(
+    ctx0: &mut ResolveCtx<'a>,
     struct0: &adlast::Struct<TypeExpr0>,
 ) -> Result<adlast::DeclType<TypeExpr1>> {
     let ctx = with_type_params(ctx0, &struct0.type_params);

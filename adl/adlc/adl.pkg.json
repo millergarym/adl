@@ -1,6 +1,6 @@
 {
     "path" : "github.com/adl-lang/adl/adl/adlc",
-    "globalAlias": "adlc",
+    "global_alias": "adlc",
     "adlc": "0.0.0",
     "requires": [
         {

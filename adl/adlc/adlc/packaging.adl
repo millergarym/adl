@@ -28,18 +28,49 @@ struct AdlWorkspace<T> {
     String adlc;
     Vector<T> use;
     Vector<RuntimeOpts> runtimes = [];
-    Bool use_embedded_sys_loader = true;
+    Nullable<Payload1> embedded_sys_loader = {
+        "p_ref": {
+            "path": "",
+            "ts_opts": {
+                "npm_pkg_name": "@adl-lang/sys",
+                "npm_version": "1.0.0",
+                "extra_dependencies": {
+                    "base64-js": "^1.5.1"
+                },
+                "extra_dev_dependencies": {
+                    "tsconfig": "workspace:*",
+                    "typescript": "^4.9.3"
+                }
+            }
+        },
+        "pkg": {
+            "path": "github.com/adl-lang/adl/adl/stdlib/sys",
+            "global_alias": "sys",
+            "adlc": "0.0.0"
+        }
+    };
 };
+
+// struct EmbeddedSysLoaderOpt {
+//     AdlPackageRef p_ref;
+//     AdlPackage pkg;
+//     // String npm_pkg_name;
+//     // String npm_version = "1.0.0";
+//     // TsStyle ts_style = "tsc";
+//     // StringMap<String> dependencies = {};
+//     // StringMap<String> devDependencies = {};
+// };
 
 union RuntimeOpts {
     TsWriteRuntime ts_runtime;
 };
 
 struct TsWriteRuntime {
-    String outputDir;
+    String output_dir;
     ReferenceableScopeOption referenceable = "local";
     String npm_pkg_name = "@adl-lang/runtime";
     TsStyle ts_style = "tsc";
+    Bool strip_first = true;
 };
 
 // key must be a path to a directory directly under the folder containing the `adl.work.json` file.
@@ -55,10 +86,10 @@ struct AdlPackageRef {
 struct TypescriptGenOptions {
     String npm_pkg_name;
     String npm_version = "1.0.0";
-    StringMap<VersionSpec> extraDependencies = {};
-    StringMap<VersionSpec> extraDevDependencies = {};
+    StringMap<VersionSpec> extra_dependencies = {};
+    StringMap<VersionSpec> extra_dev_dependencies = {};
     Nullable<OutputOpts> outputs = null;
-    TsRuntimeOpt runtime_opts = { "packageRef": {"name": "@adl-lang/runtime", "version": "^1.0.0"} };
+    TsRuntimeOpt runtime_opts = { "package_ref": {"name": "@adl-lang/runtime", "version": "^1.0.0"} };
     Bool generate_transitive = false;
     Bool include_resolver = false;
     TsStyle ts_style = "tsc";
@@ -80,8 +111,8 @@ union InjectAnnotation {
 };
 
 union TsRuntimeOpt {
-    String workspaceRef;
-    NpmPackageRef packageRef;
+    String workspace_ref;
+    NpmPackageRef package_ref;
     TsGenRuntime generate;
 };
 
@@ -100,9 +131,11 @@ union OutputOpts {
 
 struct GenOutput {
     ReferenceableScopeOption referenceable = "local";
-    String outputDir;
+    String output_dir;
     Nullable<String> manifest = null;
     /// When creating the path for output ts files delete the first part of the module name
+    /// This needs to be false for "generate_transitive" and 
+    /// packages like "common" where the module and directory at the top level named the same.
     Bool strip_first = true;
 };
 
@@ -126,7 +159,7 @@ union ReferenceableScopeOption {
 /// Expected to live in a file named `adl.pkg.json`
 struct AdlPackage {
     String path;
-    Nullable<String> globalAlias = null;
+    Nullable<String> global_alias = null;
     /// Version
     String adlc;
     Vector<Require> requires = [];
@@ -171,7 +204,8 @@ struct NpmPackage {
     String version;
     StringMap<String> scripts = {};
     StringMap<String> dependencies = {};
-    StringMap<String> devDependencies = {};
+    @SerializedName "devDependencies"
+    StringMap<String> dev_dependencies = {};
 };
 
 // union DependencySpec {

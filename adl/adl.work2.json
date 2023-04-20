@@ -4,7 +4,7 @@
     "runtimes": [
         {
             "ts_runtime": {
-                "outputDir": "../generated2/runtime",
+                "output_dir": "../generated2/runtime",
                 "npm_pkg_name": "@adl-lang/runtime"
             }
         }
@@ -14,16 +14,16 @@
             "path": "./adlc",
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/adlc",
-                "extraDevDependencies": {
+                "extra_dev_dependencies": {
                     "tsconfig": "workspace:*",
                     "typescript": "^4.9.3"
                 },
                 "runtime_opts": {
-                    "workspaceRef": "@adl-lang/runtime"
+                    "workspace_ref": "@adl-lang/runtime"
                 },
                 "outputs": {
                     "gen": {
-                        "outputDir": "../generated2/adlc",
+                        "output_dir": "../generated2/adlc",
                         "manifest": "../generated2/adlc/.adl-manifest"
                     }
                 },
@@ -34,16 +34,16 @@
             "path": "./tests/test31/lib",
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/common",
-                "extraDevDependencies": {
+                "extra_dev_dependencies": {
                     "tsconfig": "workspace:*",
                     "typescript": "^4.9.3"
                 },
                 "runtime_opts": {
-                    "workspaceRef": "@adl-lang/runtime"
+                    "workspace_ref": "@adl-lang/runtime"
                 },
                 "outputs": {
                     "gen": {
-                        "outputDir": "../generated2/common",
+                        "output_dir": "../generated2/common",
                         "manifest": "../generated2/common/.adl-manifest",
                         "strip_first": false
                     }
@@ -55,16 +55,16 @@
             "path": "./stdlib",
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/sys",
-                "extraDevDependencies": {
+                "extra_dev_dependencies": {
                     "tsconfig": "workspace:*",
                     "typescript": "^4.9.3"
                 },
                 "runtime_opts": {
-                    "workspaceRef": "@adl-lang/runtime"
+                    "workspace_ref": "@adl-lang/runtime"
                 },
                 "outputs": {
                     "gen": {
-                        "outputDir": "../generated2/sys",
+                        "output_dir": "../generated2/sys",
                         "manifest": "../generated2/sys/.adl-manifest"
                     }
                 },
@@ -75,19 +75,19 @@
             "path": "./tests/test31/proj",
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/protoclient",
-                "extraDependencies": {
+                "extra_dependencies": {
                     "base64-js": "^1.5.1"
                 },
-                "extraDevDependencies": {
+                "extra_dev_dependencies": {
                     "tsconfig": "workspace:*",
                     "typescript": "^4.9.3"
                 },
                 "runtime_opts": {
-                    "workspaceRef": "@adl-lang/runtime"
+                    "workspace_ref": "@adl-lang/runtime"
                 },
                 "outputs": {
                     "gen": {
-                        "outputDir": "../generated2/test31",
+                        "output_dir": "../generated2/test31",
                         "manifest": "../generated2/test31/.adl-manifest"
                     }
                 },

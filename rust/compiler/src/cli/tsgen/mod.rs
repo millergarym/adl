@@ -5,7 +5,7 @@ use regex::bytes::Regex;
 use std::collections::HashMap;
 use std::fs;
 use std::ops::Deref;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
 
@@ -13,8 +13,8 @@ use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
 use crate::adlgen::adlc::packaging::{
-    AdlWorkspace, NpmPackageRef, Payload1, TsGenRuntime, TsRuntimeOpt, TsStyle, TsWriteRuntime,
-    TypescriptGenOptions, NpmPackage,
+    AdlWorkspace, NpmPackage, NpmPackageRef, Payload1, TsGenRuntime, TsRuntimeOpt, TsStyle,
+    TsWriteRuntime, TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::Module1;
 use crate::adlgen::sys::adlast2::{self as adlast};
@@ -124,6 +124,7 @@ pub fn tsgen(
 
     let mut resolver = Resolver::new(loader);
     let module_names = get_modules(opts, pkg_root)?;
+    println!("module_names:{:?}", module_names);
     for m in &module_names {
         let r = resolver.add_module(m);
         match r {
@@ -138,7 +139,7 @@ pub fn tsgen(
     let parent = outputdir.file_name().unwrap().to_str().unwrap().to_string();
     println!("!!!'{}'", parent);
 
-    let modules: Vec<Module1> = resolver
+    let modules: Vec<&Module1> = resolver
         .get_module_names()
         .into_iter()
         .map(|mn| resolver.get_module(&mn).unwrap())
@@ -160,6 +161,7 @@ pub fn tsgen(
             gen_resolver(
                 tokens,
                 opts.npm_pkg_name.clone(),
+                opts.generate_transitive,
                 &opts.runtime_opts,
                 &resolver,
                 &modules,
@@ -181,7 +183,7 @@ pub fn tsgen(
     }
 
     if let TsRuntimeOpt::Generate(_) = &opts.runtime_opts {
-        gen_runtime(&opts.ts_style, &mut writer)?
+        gen_runtime(strip_first, &opts.ts_style, &mut writer)?
     }
 
     Ok(())
@@ -210,55 +212,71 @@ pub fn gen_npm_package(pkg_path: String, wrk1: &AdlWorkspace<Payload1>) -> anyho
     let mut npm_package = NpmPackage::new(opts.npm_pkg_name.clone(), opts.npm_version.clone());
     match &opts.runtime_opts {
         TsRuntimeOpt::WorkspaceRef(rt) => {
-            npm_package.dependencies.insert(rt.clone(), "workspace:*".to_string());
-        },
+            npm_package
+                .dependencies
+                .insert(rt.clone(), "workspace:*".to_string());
+        }
         TsRuntimeOpt::PackageRef(rt) => {
-            npm_package.dependencies.insert(rt.name.clone(), rt.version.clone());
-        },
-        TsRuntimeOpt::Generate(_) => {},
+            npm_package
+                .dependencies
+                .insert(rt.name.clone(), rt.version.clone());
+        }
+        TsRuntimeOpt::Generate(_) => {}
     };
 
     for d in &opts.extra_dependencies {
         npm_package.dependencies.insert(d.0.clone(), d.1.clone());
     }
     for d in &opts.extra_dev_dependencies {
-        npm_package.dev_dependencies.insert(d.0.clone(), d.1.clone());
+        npm_package
+            .dev_dependencies
+            .insert(d.0.clone(), d.1.clone());
     }
 
     for r in payload.pkg.requires.iter() {
         match &r.r#ref {
             crate::adlgen::adlc::packaging::PkgRef::Path(p0) => {
                 match wrk1.r#use.iter().find(|p| p.pkg.path == *p0) {
-                    Some(p1) => {
-                        match &p1.p_ref.ts_opts {
-                            Some(ts_opts) => {
-                                npm_package.dependencies.insert(ts_opts.npm_pkg_name.clone(), "workspace:*".to_string());
-                            },
-                            None => {
-                                return Err(anyhow!("no ts_opts in workspace file for package '{}'", p1.p_ref.path))
-                            },
+                    Some(p1) => match &p1.p_ref.ts_opts {
+                        Some(ts_opts) => {
+                            npm_package
+                                .dependencies
+                                .insert(ts_opts.npm_pkg_name.clone(), "workspace:*".to_string());
+                        }
+                        None => {
+                            return Err(anyhow!(
+                                "no ts_opts in workspace file for package '{}'",
+                                p1.p_ref.path
+                            ))
                         }
                     },
                     None => return Err(anyhow!("no package is workspace with path '{}'", p0)),
                 }
-            },
+            }
             crate::adlgen::adlc::packaging::PkgRef::Alias(a) => {
-                match wrk1.r#use.iter().find(|p| p.pkg.global_alias == Some(a.to_string())) {
-                    Some(p1) => {
-                        match &p1.p_ref.ts_opts {
-                            Some(ts_opts) => {
-                                npm_package.dependencies.insert(ts_opts.npm_pkg_name.clone(), "workspace:*".to_string());
-                            },
-                            None => {
-                                return Err(anyhow!("no ts_opts in workspace file for package '{}'", p1.p_ref.path))
-                            },
+                match wrk1
+                    .r#use
+                    .iter()
+                    .find(|p| p.pkg.global_alias == Some(a.to_string()))
+                {
+                    Some(p1) => match &p1.p_ref.ts_opts {
+                        Some(ts_opts) => {
+                            npm_package
+                                .dependencies
+                                .insert(ts_opts.npm_pkg_name.clone(), "workspace:*".to_string());
+                        }
+                        None => {
+                            return Err(anyhow!(
+                                "no ts_opts in workspace file for package '{}'",
+                                p1.p_ref.path
+                            ))
                         }
                     },
                     None => return Err(anyhow!("no package is workspace with alias '{}'", a)),
                 }
-            },
+            }
         };
-    };
+    }
 
     let content = serde_json::to_string_pretty(&npm_package)?;
     writer.write(Path::new("package.json"), content)?;
@@ -321,7 +339,7 @@ fn gen_ts_module(
 
 fn path_from_module_name(strip_first: bool, mname: adlast::ModuleName) -> PathBuf {
     let mut path = PathBuf::new();
-    for (i,el) in mname.split(".").enumerate() {
+    for (i, el) in mname.split(".").enumerate() {
         if i == 0 && strip_first {
             continue;
         }
@@ -334,9 +352,10 @@ fn path_from_module_name(strip_first: bool, mname: adlast::ModuleName) -> PathBu
 fn gen_resolver(
     t: &mut Tokens<JavaScript>,
     npm_pkg: String,
+    generate_transitive: bool,
     runtime_opts: &TsRuntimeOpt,
     resolver: &Resolver,
-    modules: &Vec<Module1>,
+    modules: &Vec<&Module1>,
 ) -> anyhow::Result<()> {
     // TODO remote or local imports
     let mut m_imports = vec![];
@@ -348,7 +367,7 @@ fn gen_resolver(
             None
         };
 
-        let path = if npm_pkg2 != None {
+        let path = if !generate_transitive && npm_pkg2 != None {
             let npm_pkg2 = npm_pkg2.unwrap();
             if npm_pkg2 != npm_pkg {
                 npm_pkg_import(npm_pkg2, m.name.clone())
@@ -404,11 +423,12 @@ fn gen_resolver(
 
 pub fn write_runtime(rt_opts: &TsWriteRuntime) -> anyhow::Result<()> {
     let mut writer = TreeWriter::new(PathBuf::from(&rt_opts.output_dir), None)?;
-    gen_runtime(&rt_opts.ts_style, &mut writer)?;
+    gen_runtime(rt_opts.strip_first, &rt_opts.ts_style, &mut writer)?;
     Ok(())
 }
 
 fn gen_runtime(
+    strip_first: bool,
     // rt_gen_opts: &TsGenRuntime,
     ts_style: &TsStyle,
     writer: &mut TreeWriter,
@@ -417,7 +437,9 @@ fn gen_runtime(
     let re2 = Regex::new(r"\$TSB64IMPORT").unwrap();
     for rt in RUNTIME.iter() {
         let mut file_path = PathBuf::new();
-        // file_path.push("./runtime");
+        if !strip_first {
+            file_path.push("./runtime");
+        }
         // file_path.push(&rt_gen_opts.runtime_dir);
         file_path.push(rt.0);
         let dir_path = file_path.parent().unwrap();

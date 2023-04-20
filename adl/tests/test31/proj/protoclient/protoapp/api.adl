@@ -18,9 +18,15 @@ import protoclient.protoapp.db.AppUser;
 import protoclient.protoapp.db.AppUserId;
 import protoclient.protoapp.db.MessageId;
 
+struct X<A> {
+
+};
+
 /// The app API
 struct ApiRequests {
-  Map imamap;
+  X<String> x;
+  // Vector y;
+  Map<String,String> imamap;
   /// Login a user
   HttpPost<String, Vector<StringMap<Int64>>> with_prim = {
     "path": "/login",
