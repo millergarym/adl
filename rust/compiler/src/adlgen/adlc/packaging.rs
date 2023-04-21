@@ -12,7 +12,9 @@ pub type AdlWorkspace1 = AdlWorkspace<Payload1>;
 
 pub type AdlWorkspace2 = AdlWorkspace<Payload2>;
 
-#[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
+pub type LoaderWorkspace2 = AdlWorkspace<LoaderRef>;
+
+#[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
 pub struct Payload1 {
   pub p_ref: AdlPackageRef,
 
@@ -50,7 +52,7 @@ impl Payload2 {
 /**
  * Expected to live in a file named `adl.work.json`
  */
-#[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
+#[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
 pub struct AdlWorkspace<T> {
   pub adlc: String,
 
@@ -79,7 +81,7 @@ impl<T> AdlWorkspace<T> {
   }
 
   pub fn def_embedded_sys_loader() -> Option<Payload1> {
-    Some(Payload1{p_ref : AdlPackageRef{path : "".to_string(), ts_opts : Some(TypescriptGenOptions{npm_pkg_name : "@adl-lang/sys".to_string(), npm_version : "1.0.0".to_string(), extra_dependencies : [("base64-js".to_string(), "^1.5.1".to_string())].iter().cloned().collect(), extra_dev_dependencies : [("tsconfig".to_string(), "workspace:*".to_string()), ("typescript".to_string(), "^4.9.3".to_string())].iter().cloned().collect(), outputs : None, runtime_opts : TsRuntimeOpt::PackageRef(NpmPackageRef{name : "@adl-lang/runtime".to_string(), version : "^1.0.0".to_string()}), generate_transitive : false, include_resolver : false, ts_style : TsStyle::Tsc, modules : ModuleSrc::All, capitalize_branch_names_in_types : true, capitalize_type_names : true, annotate : vec![]})}, pkg : AdlPackage{path : "github.com/adl-lang/adl/adl/stdlib/sys".to_string(), global_alias : Some("sys".to_string()), adlc : "0.0.0".to_string(), requires : vec![], excludes : vec![], replaces : vec![], retracts : vec![]}})
+    Some(Payload1{p_ref : AdlPackageRef{path : "".to_string(), ts_opts : Some(TypescriptGenOptions{npm_pkg_name : "@adl-lang/sys".to_string(), npm_version : "1.0.0".to_string(), extra_dependencies : [("base64-js".to_string(), "^1.5.1".to_string())].iter().cloned().collect(), extra_dev_dependencies : [("tsconfig".to_string(), "workspace:*".to_string()), ("typescript".to_string(), "^4.9.3".to_string())].iter().cloned().collect(), outputs : None, runtime_opts : TsRuntimeOpt::PackageRef(NpmPackageRef{name : "@adl-lang/runtime".to_string(), version : "^1.0.0".to_string()}), generate_transitive : false, include_resolver : false, ts_style : TsStyle::Tsc, modules : ModuleSrc::All, capitalize_branch_names_in_types : true, capitalize_type_names : true})}, pkg : AdlPackage{path : "github.com/adl-lang/adl/adl/stdlib/sys".to_string(), global_alias : Some("sys".to_string()), adlc : "0.0.0".to_string(), requires : vec![], excludes : vec![], replaces : vec![], retracts : vec![]}})
   }
 }
 
@@ -134,9 +136,45 @@ impl TsWriteRuntime {
   }
 }
 
-pub type AdlPackageRefs = Vec<AdlPackageRef>;
+/**
+ * The struct in AdlWorkspace::use required by the WorkspaceLoader
+ */
+#[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
+pub struct LoaderRef {
+  pub path: String,
+
+  #[serde(default="LoaderRef::def_loader_inject_annotate")]
+  pub loader_inject_annotate: Vec<InjectAnnotation>,
+
+  #[serde(default="LoaderRef::def_resolver_inject_annotate")]
+  pub resolver_inject_annotate: Vec<InjectAnnotation>,
+}
+
+impl LoaderRef {
+  pub fn new(path: String) -> LoaderRef {
+    LoaderRef {
+      path: path,
+      loader_inject_annotate: LoaderRef::def_loader_inject_annotate(),
+      resolver_inject_annotate: LoaderRef::def_resolver_inject_annotate(),
+    }
+  }
+
+  pub fn def_loader_inject_annotate() -> Vec<InjectAnnotation> {
+    vec![]
+  }
+
+  pub fn def_resolver_inject_annotate() -> Vec<InjectAnnotation> {
+    vec![]
+  }
+}
 
 #[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
+pub enum InjectAnnotation {
+  #[serde(rename="module_")]
+  Module(Pair<ScopedName, serde_json::Value>),
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
 pub struct AdlPackageRef {
   pub path: String,
 
@@ -157,7 +195,7 @@ impl AdlPackageRef {
   }
 }
 
-#[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
+#[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
 pub struct TypescriptGenOptions {
   pub npm_pkg_name: String,
 
@@ -193,9 +231,6 @@ pub struct TypescriptGenOptions {
 
   #[serde(default="TypescriptGenOptions::def_capitalize_type_names")]
   pub capitalize_type_names: bool,
-
-  #[serde(default="TypescriptGenOptions::def_annotate")]
-  pub annotate: Vec<InjectAnnotation>,
 }
 
 impl TypescriptGenOptions {
@@ -213,7 +248,6 @@ impl TypescriptGenOptions {
       modules: TypescriptGenOptions::def_modules(),
       capitalize_branch_names_in_types: TypescriptGenOptions::def_capitalize_branch_names_in_types(),
       capitalize_type_names: TypescriptGenOptions::def_capitalize_type_names(),
-      annotate: TypescriptGenOptions::def_annotate(),
     }
   }
 
@@ -260,16 +294,6 @@ impl TypescriptGenOptions {
   pub fn def_capitalize_type_names() -> bool {
     true
   }
-
-  pub fn def_annotate() -> Vec<InjectAnnotation> {
-    vec![]
-  }
-}
-
-#[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
-pub enum InjectAnnotation {
-  #[serde(rename="module_")]
-  Module(Pair<ScopedName, serde_json::Value>),
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]

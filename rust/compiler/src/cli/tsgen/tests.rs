@@ -78,7 +78,6 @@ fn generate_ts_from_test_files() {
                     npm_version: "0.0.0".to_string(),
                     extra_dependencies: TypescriptGenOptions::def_extra_dependencies(),
                     extra_dev_dependencies: TypescriptGenOptions::def_extra_dev_dependencies(),
-                    annotate: vec![],
                     outputs: Some(crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput {
                         referenceable: ReferenceableScopeOption::Local,
                         output_dir: outdir.clone(),

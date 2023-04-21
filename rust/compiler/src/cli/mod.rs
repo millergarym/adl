@@ -40,7 +40,6 @@ pub fn run_cli() -> i32 {
                 npm_version: TypescriptGenOptions::def_npm_version(),
                 extra_dependencies: TypescriptGenOptions::def_extra_dependencies(),
                 extra_dev_dependencies: TypescriptGenOptions::def_extra_dev_dependencies(),
-                annotate: vec![],
                 outputs: Some(crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput {
                     referenceable: ReferenceableScopeOption::Local,
                     output_dir: opts.output.outputdir.to_str().unwrap().to_string(),

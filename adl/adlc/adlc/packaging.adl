@@ -12,6 +12,8 @@ type AdlWorkspace0 = AdlWorkspace<AdlPackageRef>;
 type AdlWorkspace1 = AdlWorkspace<Payload1>;
 type AdlWorkspace2 = AdlWorkspace<Payload2>;
 
+type LoaderWorkspace2 = AdlWorkspace<LoaderRef>;
+
 struct Payload1 {
     AdlPackageRef p_ref;
     AdlPackage pkg;
@@ -51,16 +53,6 @@ struct AdlWorkspace<T> {
     };
 };
 
-// struct EmbeddedSysLoaderOpt {
-//     AdlPackageRef p_ref;
-//     AdlPackage pkg;
-//     // String npm_pkg_name;
-//     // String npm_version = "1.0.0";
-//     // TsStyle ts_style = "tsc";
-//     // StringMap<String> dependencies = {};
-//     // StringMap<String> devDependencies = {};
-// };
-
 union RuntimeOpts {
     TsWriteRuntime ts_runtime;
 };
@@ -73,12 +65,19 @@ struct TsWriteRuntime {
     Bool strip_first = true;
 };
 
-// key must be a path to a directory directly under the folder containing the `adl.work.json` file.
-// type AdlPackageRefs = StringMap<AdlPackageRef>;
+/// The struct in AdlWorkspace::use required by the WorkspaceLoader
+struct LoaderRef {
+    String path;
+    Vector<InjectAnnotation> loader_inject_annotate = [];
+    Vector<InjectAnnotation> resolver_inject_annotate = [];
+};
 
-type AdlPackageRefs = Vector<AdlPackageRef>;
+union InjectAnnotation {
+    Pair<ScopedName,Json> module_;
+};
 
 struct AdlPackageRef {
+    // path must be to a directory directly under the folder containing the `adl.work.json` file.
     String path;
     Nullable<TypescriptGenOptions> ts_opts = null; 
 };
@@ -89,7 +88,7 @@ struct TypescriptGenOptions {
     StringMap<VersionSpec> extra_dependencies = {};
     StringMap<VersionSpec> extra_dev_dependencies = {};
     Nullable<OutputOpts> outputs = null;
-    TsRuntimeOpt runtime_opts = { "package_ref": {"name": "@adl-lang/runtime", "version": "^1.0.0"} };
+    TsRuntimeOpt runtime_opts = {"package_ref": {"name": "@adl-lang/runtime", "version": "^1.0.0"}};
     Bool generate_transitive = false;
     Bool include_resolver = false;
     TsStyle ts_style = "tsc";
@@ -97,17 +96,12 @@ struct TypescriptGenOptions {
     Bool capitalize_branch_names_in_types = true;
     Bool capitalize_type_names = true;
 
-    Vector<InjectAnnotation> annotate = [];
 // Vector<> searchDir;
 // --merge-adlext=EXT
 // --verbose
 // --no-overwrite
 // --exclude-ast
 // --excluded-ast-annotations=SCOPEDNAMES
-};
-
-union InjectAnnotation {
-    Pair<ScopedName,Json> module_;
 };
 
 union TsRuntimeOpt {

@@ -46,7 +46,6 @@ pub struct WorkspaceLoader {
     root: PathBuf,
     workspace: AdlWorkspace1,
     embedded: EmbeddedStdlibLoader,
-    // embedded_payload: Option<Payload1>,
     loaders: HashMap<String, Box<dyn AdlLoader>>,
 }
 
@@ -86,8 +85,6 @@ impl AdlLoader for WorkspaceLoader {
                 match module {
                     Ok(module) => {
                         if let Some((mut module1, _)) = module.clone() {
-                            // TODO annotate ADL so this is Boxed
-                            // let payload = Some(pkg.clone());
                             if let Some(ts_opts) = &pkg.p_ref.ts_opts {
                                 let mn1 = "adlc.config.typescript".to_string();
                                 module1.annotations.0.insert(

@@ -40,11 +40,11 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn tuple_str_to_map(arg: &[(&str, &str)]) -> HashMap<String, String> {
-    arg.iter()
-        .map(|a| (String::from(a.0), String::from(a.1)))
-        .collect()
-}
+// fn tuple_str_to_map(arg: &[(&str, &str)]) -> HashMap<String, String> {
+//     arg.iter()
+//         .map(|a| (String::from(a.0), String::from(a.1)))
+//         .collect()
+// }
 
 // fn embedded_payload() -> Option<Payload1> {
 //     Some(Payload1 {
