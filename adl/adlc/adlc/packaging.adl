@@ -4,6 +4,7 @@
 module adlc.packaging {
 
 import sys.types.Pair;
+import sys.types.Maybe;
 import sys.adlast2.ScopedName;
 import sys.adlast2.Module1;
 
@@ -12,7 +13,7 @@ type AdlWorkspace0 = AdlWorkspace<AdlPackageRef>;
 type AdlWorkspace1 = AdlWorkspace<Payload1>;
 type AdlWorkspace2 = AdlWorkspace<Payload2>;
 
-type LoaderWorkspace2 = AdlWorkspace<LoaderRef>;
+type LoaderWorkspace = AdlWorkspace<LoaderRef>;
 
 struct Payload1 {
     AdlPackageRef p_ref;
@@ -30,28 +31,31 @@ struct AdlWorkspace<T> {
     String adlc;
     Vector<T> use;
     Vector<RuntimeOpts> runtimes = [];
-    Nullable<Payload1> embedded_sys_loader = {
-        "p_ref": {
-            "path": "",
-            "ts_opts": {
-                "npm_pkg_name": "@adl-lang/sys",
-                "npm_version": "1.0.0",
-                "extra_dependencies": {
-                    "base64-js": "^1.5.1"
-                },
-                "extra_dev_dependencies": {
-                    "tsconfig": "workspace:*",
-                    "typescript": "^4.9.3"
-                }
-            }
-        },
-        "pkg": {
-            "path": "github.com/adl-lang/adl/adl/stdlib/sys",
-            "global_alias": "sys",
-            "adlc": "0.0.0"
-        }
-    };
+    Maybe<T> embedded_sys_loader;
 };
+
+    //  = {
+    //     "p_ref": {
+    //         "path": "",
+    //         "ts_opts": {
+    //             "npm_pkg_name": "@adl-lang/sys",
+    //             "npm_version": "1.0.0",
+    //             "extra_dependencies": {
+    //                 "base64-js": "^1.5.1"
+    //             },
+    //             "extra_dev_dependencies": {
+    //                 "tsconfig": "workspace:*",
+    //                 "typescript": "^4.9.3"
+    //             }
+    //         }
+    //     },
+    //     "pkg": {
+    //         "path": "github.com/adl-lang/adl/adl/stdlib/sys",
+    //         "global_alias": "sys",
+    //         "adlc": "0.0.0"
+    //     }
+    // };
+
 
 union RuntimeOpts {
     TsWriteRuntime ts_runtime;
@@ -68,9 +72,12 @@ struct TsWriteRuntime {
 /// The struct in AdlWorkspace::use required by the WorkspaceLoader
 struct LoaderRef {
     String path;
-    Vector<InjectAnnotation> loader_inject_annotate = [];
-    Vector<InjectAnnotation> resolver_inject_annotate = [];
+    Nullable<String> global_alias = null;
+    InjectAnnotations loader_inject_annotate = [];
+    InjectAnnotations resolver_inject_annotate = [];
 };
+
+type InjectAnnotations = Vector<InjectAnnotation>;
 
 union InjectAnnotation {
     Pair<ScopedName,Json> module_;

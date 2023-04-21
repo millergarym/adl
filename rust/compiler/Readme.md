@@ -28,4 +28,10 @@ code -d test30_04.adlc.sorted.ast.json test30_04.rust.sorted.ast.json
 ### Testing Workspace Gen
 ```
 cargo +nightly run gen ../../adl/tests/test31/proj
+
+cargo +nightly run gen -f adl.work1.json  ../../adl/tests/test31/proj
+
+cargo +nightly run gen -f adl.work2.json  ../../adl/tests/test31/proj
+
+cargo +nightly run gen -f adl.work3.json  ../../adl/tests/test31/proj
 ```

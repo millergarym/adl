@@ -233,51 +233,62 @@ pub fn gen_npm_package(pkg_path: String, wrk1: &AdlWorkspace<Payload1>) -> anyho
             .insert(d.0.clone(), d.1.clone());
     }
 
-    for r in payload.pkg.requires.iter() {
-        match &r.r#ref {
-            crate::adlgen::adlc::packaging::PkgRef::Path(p0) => {
-                match wrk1.r#use.iter().find(|p| p.pkg.path == *p0) {
-                    Some(p1) => match &p1.p_ref.ts_opts {
-                        Some(ts_opts) => {
-                            npm_package
-                                .dependencies
-                                .insert(ts_opts.npm_pkg_name.clone(), "workspace:*".to_string());
-                        }
-                        None => {
-                            return Err(anyhow!(
-                                "no ts_opts in workspace file for package '{}'",
+    if !opts.generate_transitive {
+        for r in payload.pkg.requires.iter() {
+            match &r.r#ref {
+                crate::adlgen::adlc::packaging::PkgRef::Path(p0) => {
+                    match wrk1.r#use.iter().find(|p| p.pkg.path == *p0) {
+                        Some(p1) => match &p1.p_ref.ts_opts {
+                            Some(ts_opts) => {
+                                npm_package.dependencies.insert(
+                                    ts_opts.npm_pkg_name.clone(),
+                                    "workspace:*".to_string(),
+                                );
+                            }
+                            None => {
+                                return Err(anyhow!(
+                                    "pkg_ref::path - no ts_opts in workspace file for package '{}'",
+                                    p1.p_ref.path
+                                ))
+                            }
+                        },
+                        None => return Err(anyhow!("no package is workspace with path '{}'", p0)),
+                    }
+                }
+                crate::adlgen::adlc::packaging::PkgRef::Alias(a) => {
+                    match wrk1
+                        .r#use
+                        .iter()
+                        .find(|p| p.pkg.global_alias == Some(a.to_string()))
+                    {
+                        Some(p1) => match &p1.p_ref.ts_opts {
+                            Some(ts_opts) => {
+                                npm_package.dependencies.insert(
+                                    ts_opts.npm_pkg_name.clone(),
+                                    "workspace:*".to_string(),
+                                );
+                            }
+                            None => {
+                                return Err(anyhow!(
+                                "pkg_ref::alias - no ts_opts in workspace file for package '{}'",
                                 p1.p_ref.path
                             ))
-                        }
-                    },
-                    None => return Err(anyhow!("no package is workspace with path '{}'", p0)),
-                }
-            }
-            crate::adlgen::adlc::packaging::PkgRef::Alias(a) => {
-                match wrk1
-                    .r#use
-                    .iter()
-                    .find(|p| p.pkg.global_alias == Some(a.to_string()))
-                {
-                    Some(p1) => match &p1.p_ref.ts_opts {
-                        Some(ts_opts) => {
-                            npm_package
-                                .dependencies
-                                .insert(ts_opts.npm_pkg_name.clone(), "workspace:*".to_string());
-                        }
+                            }
+                        },
                         None => {
-                            return Err(anyhow!(
-                                "no ts_opts in workspace file for package '{}'",
-                                p1.p_ref.path
-                            ))
+                            if *a == "sys".to_string() {
+                                npm_package
+                                    .dependencies
+                                    .insert("@adl-lang/sys".to_string(), "1.0.0".to_string());
+                            } else {
+                                return Err(anyhow!("no package is workspace with alias '{}'", a));
+                            }
                         }
-                    },
-                    None => return Err(anyhow!("no package is workspace with alias '{}'", a)),
+                    }
                 }
-            }
-        };
+            };
+        }
     }
-
     let content = serde_json::to_string_pretty(&npm_package)?;
     writer.write(Path::new("package.json"), content)?;
     eprintln!("generated {:?}", outputdir.clone().join("package.json"));

@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::adlgen::adlc::packaging::Payload1;
+use crate::adlgen::adlc::packaging::InjectAnnotations;
 use crate::adlgen::sys::adlast2::{self as adlast, ScopedName};
 use crate::adlrt::custom::sys::types::map::Map;
 
@@ -26,7 +26,7 @@ pub struct Resolver {
 #[derive(Debug)]
 pub struct ResolvedModule {
     module1: Module1,
-    _payload1: Option<Payload1>,
+    inject_annotions: Option<InjectAnnotations>,
     decls: HashMap<String, Decl1>,
 }
 
@@ -47,12 +47,22 @@ impl Resolver {
         self.modules.keys().cloned().collect()
     }
 
-    pub fn get_rmodule(&self, module_name: &ModuleName) -> Option<&ResolvedModule> {
+    fn get_rmodule(&self, module_name: &ModuleName) -> Option<&ResolvedModule> {
         self.modules.get(module_name)
     }
 
     pub fn get_module(&self, module_name: &ModuleName) -> Option<&Module1> {
-        self.modules.get(module_name).map(|rm| &rm.module1)
+        let rm = self.modules.get(module_name);
+        if let Some(rm) = rm {
+            if let Some(inj) = &rm.inject_annotions {
+                if inj.len() > 0 {
+                    todo!();
+                }
+            }
+            return Some(&rm.module1);
+        } else {
+            return None;
+        }
     }
 
     pub fn get_decl(&self, scoped_name: &adlast::ScopedName) -> Option<&Decl1> {
@@ -72,6 +82,10 @@ impl Resolver {
         }
 
         if in_progress.contains(module_name) {
+            for inp in in_progress.iter() {
+                let inp1 = self.loader.load(inp).unwrap().unwrap().0;
+                println!("IN PROGRESS {} IMPORTS {:?}", inp, inp1);
+            }
             return Err(anyhow!("Circular reference loop including module_name: '{}' in_progress: {:?}", module_name, in_progress));
         }
 
@@ -108,7 +122,7 @@ impl Resolver {
 
         let rmodule = ResolvedModule {
             module1,
-            _payload1: module0.1,
+            inject_annotions: module0.1,
             decls,
         };
         self.modules.insert(module_name.clone(), rmodule);

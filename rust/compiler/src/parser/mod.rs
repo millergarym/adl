@@ -287,6 +287,7 @@ pub fn merge_annotations(
 
 pub fn docstring_scoped_name() -> adlast::ScopedName {
     adlast::ScopedName::new("sys.annotations".to_owned(), "Doc".to_owned())
+    // adlast::ScopedName::new("".to_owned(), "Doc".to_owned())
 }
 
 pub fn serializedname_scoped_name() -> adlast::ScopedName {

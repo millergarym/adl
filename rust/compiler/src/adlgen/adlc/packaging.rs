@@ -2,6 +2,7 @@
 
 use crate::adlgen::sys::adlast2::Module1;
 use crate::adlgen::sys::adlast2::ScopedName;
+use crate::adlrt::custom::sys::types::maybe::Maybe;
 use crate::adlrt::custom::sys::types::pair::Pair;
 use serde::Deserialize;
 use serde::Serialize;
@@ -12,7 +13,7 @@ pub type AdlWorkspace1 = AdlWorkspace<Payload1>;
 
 pub type AdlWorkspace2 = AdlWorkspace<Payload2>;
 
-pub type LoaderWorkspace2 = AdlWorkspace<LoaderRef>;
+pub type LoaderWorkspace = AdlWorkspace<LoaderRef>;
 
 #[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
 pub struct Payload1 {
@@ -52,7 +53,7 @@ impl Payload2 {
 /**
  * Expected to live in a file named `adl.work.json`
  */
-#[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct AdlWorkspace<T> {
   pub adlc: String,
 
@@ -62,26 +63,21 @@ pub struct AdlWorkspace<T> {
   #[serde(default="AdlWorkspace::<T>::def_runtimes")]
   pub runtimes: Vec<RuntimeOpts>,
 
-  #[serde(default="AdlWorkspace::<T>::def_embedded_sys_loader")]
-  pub embedded_sys_loader: Option<Payload1>,
+  pub embedded_sys_loader: Maybe<T>,
 }
 
 impl<T> AdlWorkspace<T> {
-  pub fn new(adlc: String, r#use: Vec<T>) -> AdlWorkspace<T> {
+  pub fn new(adlc: String, r#use: Vec<T>, embedded_sys_loader: Maybe<T>) -> AdlWorkspace<T> {
     AdlWorkspace {
       adlc: adlc,
       r#use: r#use,
       runtimes: AdlWorkspace::<T>::def_runtimes(),
-      embedded_sys_loader: AdlWorkspace::<T>::def_embedded_sys_loader(),
+      embedded_sys_loader: embedded_sys_loader,
     }
   }
 
   pub fn def_runtimes() -> Vec<RuntimeOpts> {
     vec![]
-  }
-
-  pub fn def_embedded_sys_loader() -> Option<Payload1> {
-    Some(Payload1{p_ref : AdlPackageRef{path : "".to_string(), ts_opts : Some(TypescriptGenOptions{npm_pkg_name : "@adl-lang/sys".to_string(), npm_version : "1.0.0".to_string(), extra_dependencies : [("base64-js".to_string(), "^1.5.1".to_string())].iter().cloned().collect(), extra_dev_dependencies : [("tsconfig".to_string(), "workspace:*".to_string()), ("typescript".to_string(), "^4.9.3".to_string())].iter().cloned().collect(), outputs : None, runtime_opts : TsRuntimeOpt::PackageRef(NpmPackageRef{name : "@adl-lang/runtime".to_string(), version : "^1.0.0".to_string()}), generate_transitive : false, include_resolver : false, ts_style : TsStyle::Tsc, modules : ModuleSrc::All, capitalize_branch_names_in_types : true, capitalize_type_names : true})}, pkg : AdlPackage{path : "github.com/adl-lang/adl/adl/stdlib/sys".to_string(), global_alias : Some("sys".to_string()), adlc : "0.0.0".to_string(), requires : vec![], excludes : vec![], replaces : vec![], retracts : vec![]}})
   }
 }
 
@@ -143,30 +139,40 @@ impl TsWriteRuntime {
 pub struct LoaderRef {
   pub path: String,
 
+  #[serde(default="LoaderRef::def_global_alias")]
+  pub global_alias: Option<String>,
+
   #[serde(default="LoaderRef::def_loader_inject_annotate")]
-  pub loader_inject_annotate: Vec<InjectAnnotation>,
+  pub loader_inject_annotate: InjectAnnotations,
 
   #[serde(default="LoaderRef::def_resolver_inject_annotate")]
-  pub resolver_inject_annotate: Vec<InjectAnnotation>,
+  pub resolver_inject_annotate: InjectAnnotations,
 }
 
 impl LoaderRef {
   pub fn new(path: String) -> LoaderRef {
     LoaderRef {
       path: path,
+      global_alias: LoaderRef::def_global_alias(),
       loader_inject_annotate: LoaderRef::def_loader_inject_annotate(),
       resolver_inject_annotate: LoaderRef::def_resolver_inject_annotate(),
     }
   }
 
-  pub fn def_loader_inject_annotate() -> Vec<InjectAnnotation> {
+  pub fn def_global_alias() -> Option<String> {
+    None
+  }
+
+  pub fn def_loader_inject_annotate() -> InjectAnnotations {
     vec![]
   }
 
-  pub fn def_resolver_inject_annotate() -> Vec<InjectAnnotation> {
+  pub fn def_resolver_inject_annotate() -> InjectAnnotations {
     vec![]
   }
 }
+
+pub type InjectAnnotations = Vec<InjectAnnotation>;
 
 #[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
 pub enum InjectAnnotation {
