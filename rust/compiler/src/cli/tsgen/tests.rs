@@ -94,45 +94,45 @@ fn generate_ts_from_test_files() {
                     capitalize_type_names: true,
                 };
 
+                let mut adlc_cmd = String::new();
+                adlc_cmd.push_str("adlc typescript");
+                search_path.iter().for_each(|p| {
+                    adlc_cmd.push_str(" --searchdir=");
+                    adlc_cmd.push_str(p.to_str().unwrap());
+                });
+                adlc_cmd.push_str(" --outputdir=");
+                // if let Some(dir) = &t.output_dir {
+                //     adlc_cmd.push_str(dir.as_str());
+                // } else {
+                adlc_cmd.push_str("build/adlc_out/");
+                adlc_cmd.push_str(t.module_root.clone().as_str());
+                // }
+                // adlc_cmd.push_str(opts.output.outdir.to_str().unwrap());
+                adlc_cmd.push_str(" --generate-transitive");
+                adlc_cmd.push_str(" --include-rt");
+                adlc_cmd.push_str(" --include-resolver");
+                adlc_cmd.push_str(" --runtime-dir=runtime");
+
+                adlc_cmd.push_str(" --manifest=");
+                // if let Some(dir) = &t.output_dir {
+                //     adlc_cmd.push_str(dir.as_str());
+                //     adlc_cmd.push_str("/manifest");
+                // } else {
+                adlc_cmd.push_str("build/adlc_out/");
+                adlc_cmd.push_str(t.module_root.clone().as_str());
+                adlc_cmd.push_str("/manifest");
+                // }
+
+                modules.iter().for_each(|m| {
+                    adlc_cmd.push_str(" ");
+                    adlc_cmd.push_str("../../adl/tests/");
+                    adlc_cmd.push_str(t.module_root.clone().as_str());
+                    adlc_cmd.push_str("/");
+                    adlc_cmd.push_str(m.replace(".", "/").as_str());
+                    adlc_cmd.push_str(".adl");
+                });
                 if !t.fail && !t.skip {
-                    let mut adlc_cmd = String::new();
-                    adlc_cmd.push_str("adlc typescript");
-                    search_path.iter().for_each(|p| {
-                        adlc_cmd.push_str(" --searchdir=");
-                        adlc_cmd.push_str(p.to_str().unwrap());
-                    });
-                    adlc_cmd.push_str(" --outputdir=");
-                    // if let Some(dir) = &t.output_dir {
-                    //     adlc_cmd.push_str(dir.as_str());
-                    // } else {
-                    adlc_cmd.push_str("build/adlc_out/");
-                    adlc_cmd.push_str(t.module_root.clone().as_str());
-                    // }
-                    // adlc_cmd.push_str(opts.output.outdir.to_str().unwrap());
-                    adlc_cmd.push_str(" --generate-transitive");
-                    adlc_cmd.push_str(" --include-rt");
-                    adlc_cmd.push_str(" --include-resolver");
-                    adlc_cmd.push_str(" --runtime-dir=runtime");
-
-                    adlc_cmd.push_str(" --manifest=");
-                    // if let Some(dir) = &t.output_dir {
-                    //     adlc_cmd.push_str(dir.as_str());
-                    //     adlc_cmd.push_str("/manifest");
-                    // } else {
-                    adlc_cmd.push_str("build/adlc_out/");
-                    adlc_cmd.push_str(t.module_root.clone().as_str());
-                    adlc_cmd.push_str("/manifest");
-                    // }
-
-                    modules.iter().for_each(|m| {
-                        adlc_cmd.push_str(" ");
-                        adlc_cmd.push_str("../../adl/tests/");
-                        adlc_cmd.push_str(t.module_root.clone().as_str());
-                        adlc_cmd.push_str("/");
-                        adlc_cmd.push_str(m.replace(".", "/").as_str());
-                        adlc_cmd.push_str(".adl");
-                    });
-                    adlc_cmds.push(adlc_cmd);
+                    adlc_cmds.push(adlc_cmd.clone());
                     // println!("{}", adlc_cmd);
                 }
 
@@ -150,7 +150,7 @@ fn generate_ts_from_test_files() {
                             println!("  build/dev_adl/{}/{}.ts", &t.module_root, m)
                         }
                         if t.fail {
-                            assert!(false, "the above test was expected to fail, but passed")
+                            assert!(false, "the above test was expected to fail, but passed.\nadlc command would be:\n\t{}\n", adlc_cmd.clone())
                         }
                     }
                     Err(e) => {
@@ -176,7 +176,13 @@ fn generate_ts_from_test_files() {
                             for m in &t.modules {
                                 println!("  ../../adl/tests/{}/{}.adl", &t.module_root, m)
                             }
-                            assert!(false, "Error : '{:?}'\n{}", t, e.to_string());
+                            assert!(
+                                false,
+                                "Error : '{:?}'\n{}\nadlc command would be:\n\t{}\n",
+                                t,
+                                e.to_string(),
+                                adlc_cmds[adlc_cmds.len() - 1]
+                            );
                         }
                     }
                 };

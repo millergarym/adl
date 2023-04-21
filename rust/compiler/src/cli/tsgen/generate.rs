@@ -331,7 +331,12 @@ impl TsGenVisitor<'_> {
                 self.tstype_from_local_name(n, &te.parameters)
             }
             TypeRef::Primitive(n) => self.tstype_from_prim(n, &te.parameters),
-            TypeRef::TypeParam(n) => Ok((true, n.clone())),
+            TypeRef::TypeParam(n) => {
+                if te.parameters.len() != 0 {
+                    return Err(format!("Type parameters take argument(s) provided. Type parameters cannot be parameterized. Type {}", n.clone()))
+                }
+                Ok((true, n.clone()))
+            },
         }
     }
 

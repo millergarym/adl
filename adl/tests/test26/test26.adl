@@ -13,7 +13,7 @@ module test26
         S2 s2;
     };
 
-    @SerializedWithInternalTag {"tag":"kind"}
+    @sys.annotations.SerializedWithInternalTag {"tag":"kind"}
     union U2 {
         S1 s1;
         S2 s2;
