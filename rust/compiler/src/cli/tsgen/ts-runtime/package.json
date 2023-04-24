@@ -6,8 +6,6 @@
   "license": "CLOSED",
   "private": true,
   "scripts": {
-    "build": "tsc && cp package-dist.json ./dist/package.json",
-    "dev": "cp package-dist.json ./dist/package.json && pnpm run tsc --watch",
     "tsc": "tsc"
   },
   "dependencies": {

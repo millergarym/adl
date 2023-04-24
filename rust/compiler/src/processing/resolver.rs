@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use crate::adlgen::adlc::packaging::InjectAnnotation;
 use crate::adlgen::adlc::packaging::InjectAnnotations;
 use crate::adlgen::sys::adlast2::{self as adlast, ScopedName};
 use crate::adlrt::custom::sys::types::map::Map;
@@ -51,15 +52,26 @@ impl Resolver {
         self.modules.get(module_name)
     }
 
-    pub fn get_module(&self, module_name: &ModuleName) -> Option<&Module1> {
-        let rm = self.modules.get(module_name);
-        if let Some(rm) = rm {
-            if let Some(inj) = &rm.inject_annotions {
+    pub fn get_module(&self, module_name: &ModuleName) -> Option<Module1> {
+        let rm0 = self.modules.get(module_name);
+        if let Some(rm1) = rm0 {
+            let inject_annotions = &rm1.inject_annotions;
+            if let Some(inj) = &inject_annotions {
                 if inj.len() > 0 {
-                    todo!();
+                    let mut module1 = rm1.module1.clone();
+                    let mut ann = module1.annotations.0.clone();
+                    for an in inj {
+                        match an {
+                            InjectAnnotation::Module(man) => {
+                                ann.insert(man.0.0.clone(), man.0.1.clone());
+                            },
+                        }
+                    }
+                    module1.annotations = Map(ann);
+                    return Some(module1);
                 }
             }
-            return Some(&rm.module1);
+            return Some(rm1.module1.to_owned());
         } else {
             return None;
         }

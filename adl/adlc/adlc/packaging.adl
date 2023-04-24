@@ -209,6 +209,24 @@ struct NpmPackage {
     StringMap<String> dev_dependencies = {};
 };
 
+// the bits of tsconfig we need
+struct TsConfig {
+    String extends = "tsconfig/base.json";
+    Vector<String> include = ["."];
+    Vector<String> exclude = ["dist", "build", "node_modules"];
+    TsCompilerOptions compilerOptions = {
+        "outDir": "dist",
+        "lib": [
+            "es2020"
+        ]
+    };
+};
+
+struct TsCompilerOptions {
+    String outDir;
+    Vector<String> lib;
+};
+
 // union DependencySpec {
 //     Void workspace;
 //     VersionSpec semverSpec;

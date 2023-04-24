@@ -1,5 +1,8 @@
 use regex;
 
+use std::fmt::Write as _;
+use std::io::Write as _;
+
 use regex::bytes::Regex;
 
 use std::collections::HashMap;
@@ -13,12 +16,12 @@ use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
 use crate::adlgen::adlc::packaging::{
-    AdlWorkspace, NpmPackage, NpmPackageRef, Payload1, TsGenRuntime, TsRuntimeOpt, TsStyle,
-    TsWriteRuntime, TypescriptGenOptions,
+    AdlWorkspace, NpmPackage, Payload1, TsConfig, TsRuntimeOpt, TsStyle, TsWriteRuntime,
+    TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::Module1;
 use crate::adlgen::sys::adlast2::{self as adlast};
-use crate::cli::tsgen::utils::{get_npm_pkg, npm_pkg_import};
+use crate::cli::tsgen::utils::{get_npm_pkg, npm_pkg_import, IndexEntry};
 use crate::processing::loader::AdlLoader;
 use crate::processing::resolver::Resolver;
 use crate::processing::writer::TreeWriter;
@@ -144,18 +147,46 @@ pub fn tsgen(
     let parent = outputdir.file_name().unwrap().to_str().unwrap().to_string();
     println!("!!!'{}'", parent);
 
-    let modules: Vec<&Module1> = resolver
+    let modules: Vec<Module1> = resolver
         .get_module_names()
         .into_iter()
         .map(|mn| resolver.get_module(&mn).unwrap())
         .collect();
 
+    // struct Index {
+    //     files: Vec<String>,
+    //     dirs: Vec<(String,Index)>,
+    // }
+
+    // enum Indexable {
+    //     File(String),
+    //     Dir(String),
+    // }
+
+    // let i_f = HashMap::new();
+    // let i_d = HashMap::new();
+
+    // let mut index = Index{files: vec![], dirs: vec![]};
+    // let mut indicies: &mut HashMap<PathBuf, Index> = &mut HashMap::new();
+
+    let index_map = &mut HashMap::new();
+
     for m in &modules {
-        if opts.generate_transitive || module_names.contains(&m.name) {
+        let does_contain = module_names.contains(&m.name);
+        if opts.generate_transitive || does_contain {
             let path = path_from_module_name(strip_first, m.name.to_owned());
-            println!("~~~{} - {:?}", m.name.to_owned(), path);
+
+            utils::collect_indexes(path.clone(), index_map);
+
+            println!("~~~{} - {:?}", m.name.to_owned(), &path.clone());
+            let path = path.as_path();
+            if None == path.components().next() {
+                return Err(anyhow!("Output module name was empty. Potential config issue 'strip_first' might need to be false. Module: '{}'. strip_first: '{}'", m.name, strip_first));
+            }
             let code = gen_ts_module(m, &resolver, opts)?;
-            writer.write(path.as_path(), code)?;
+            writer
+                .write(path, code)
+                .map_err(|e| anyhow!("Error write to path {:?}. Error: {}", path, e.to_string()))?;
         }
     }
 
@@ -191,8 +222,43 @@ pub fn tsgen(
         gen_runtime(strip_first, &opts.ts_style, &mut writer)?
     }
 
+    println!("INDEX MAP");
+    let mut keys: Vec<&PathBuf> = index_map.keys().collect();
+    keys.sort();
+    for k in keys {
+        let mut out = Vec::new();
+        let vs = index_map.get(k).unwrap();
+        let mut v1: Vec<IndexEntry> = vec![];
+        for v in vs {
+            v1.push(v.to_owned());
+        }
+        v1.sort();
+        for v in &v1 {
+            match v {
+                IndexEntry::Dir(ie) => {
+                    write!(&mut out, "export * as {} from './{}/index';\n", ie, ie)?;
+                },
+                IndexEntry::Leaf(ie) => {
+                    let iep: Vec<&str> = ie.split(".").collect();
+                    write!(&mut out, "export * from './{}';\n", iep[0])?;
+                },
+            }
+        }
+        let path_ind = k.join("index.ts");
+        let code = std::str::from_utf8(&out)?;
+        writer.write(path_ind.as_path(), code.to_string())?;
+
+        println!("  {:?}: {:?}", k, v1);
+    }
     Ok(())
 }
+
+// export * as db from "./db/index";
+// export * as strings from "./strings/index";
+// export * as tabular from "./tabular/index";
+// export * as ui from "./ui/index";
+// export * from "./common";
+
 
 pub fn gen_npm_package(pkg_path: String, wrk1: &AdlWorkspace<Payload1>) -> anyhow::Result<()> {
     let payload = wrk1
@@ -296,7 +362,12 @@ pub fn gen_npm_package(pkg_path: String, wrk1: &AdlWorkspace<Payload1>) -> anyho
     }
     let content = serde_json::to_string_pretty(&npm_package)?;
     writer.write(Path::new("package.json"), content)?;
-    eprintln!("generated {:?}", outputdir.clone().join("package.json"));
+    log::info!("generated {:?}", outputdir.clone().join("package.json"));
+
+    let ts_config = TsConfig::new();
+    let content = serde_json::to_string_pretty(&ts_config)?;
+    writer.write(Path::new("tsconfig.json"), content)?;
+    log::info!("generated {:?}", outputdir.clone().join("tsconfig.json"));
 
     Ok(())
 }
@@ -355,7 +426,8 @@ fn gen_ts_module(
 
 fn path_from_module_name(strip_first: bool, mname: adlast::ModuleName) -> PathBuf {
     let mut path = PathBuf::new();
-    for (i, el) in mname.split(".").enumerate() {
+    let mut iter = mname.split(".").enumerate(); //.peekable();
+    while let Some((i, el)) = iter.next() {
         if i == 0 && strip_first {
             continue;
         }
@@ -371,7 +443,7 @@ fn gen_resolver(
     generate_transitive: bool,
     runtime_opts: &TsRuntimeOpt,
     resolver: &Resolver,
-    modules: &Vec<&Module1>,
+    modules: &Vec<Module1>,
 ) -> anyhow::Result<()> {
     // TODO remote or local imports
     let mut m_imports = vec![];

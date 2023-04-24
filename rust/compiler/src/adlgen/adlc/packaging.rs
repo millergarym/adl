@@ -623,6 +623,66 @@ impl NpmPackage {
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub struct TsConfig {
+  #[serde(default="TsConfig::def_extends")]
+  pub extends: String,
+
+  #[serde(default="TsConfig::def_include")]
+  pub include: Vec<String>,
+
+  #[serde(default="TsConfig::def_exclude")]
+  pub exclude: Vec<String>,
+
+  #[serde(default="TsConfig::def_compiler_options")]
+  #[serde(rename="compilerOptions")]
+  pub compiler_options: TsCompilerOptions,
+}
+
+impl TsConfig {
+  pub fn new() -> TsConfig {
+    TsConfig {
+      extends: TsConfig::def_extends(),
+      include: TsConfig::def_include(),
+      exclude: TsConfig::def_exclude(),
+      compiler_options: TsConfig::def_compiler_options(),
+    }
+  }
+
+  pub fn def_extends() -> String {
+    "tsconfig/base.json".to_string()
+  }
+
+  pub fn def_include() -> Vec<String> {
+    vec![".".to_string()]
+  }
+
+  pub fn def_exclude() -> Vec<String> {
+    vec!["dist".to_string(), "build".to_string(), "node_modules".to_string()]
+  }
+
+  pub fn def_compiler_options() -> TsCompilerOptions {
+    TsCompilerOptions{out_dir : "dist".to_string(), lib : vec!["es2020".to_string()]}
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub struct TsCompilerOptions {
+  #[serde(rename="outDir")]
+  pub out_dir: String,
+
+  pub lib: Vec<String>,
+}
+
+impl TsCompilerOptions {
+  pub fn new(out_dir: String, lib: Vec<String>) -> TsCompilerOptions {
+    TsCompilerOptions {
+      out_dir: out_dir,
+      lib: lib,
+    }
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct NpmPackageRef {
   pub name: String,
 

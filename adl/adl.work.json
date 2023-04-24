@@ -3,7 +3,8 @@
     "runtimes": [
         {
             "ts_runtime": {
-                "output_dir": "../generated/typescript/tests"
+                "output_dir": "../generated/typescript/tests",
+                "strip_first": false
             }
         }
     ],
@@ -49,7 +50,7 @@
                 },
                 "outputs": {
                     "gen": {
-                        "output_dir": "../generated/typescript/tests/test31/src",
+                        "output_dir": "../generated/typescript/tests/test31",
                         "manifest": "../generated/typescript/tests/test31/.adl-manifest"
                     }
                 },

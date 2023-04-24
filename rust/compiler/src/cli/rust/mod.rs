@@ -23,7 +23,7 @@ pub fn rust(opts: &RustOpts) -> anyhow::Result<()> {
             Err(e) => return Err(anyhow!("Failed to load module {}: {:?}", m, e)),
         }
     }
-    let modules: Vec<&Module1> = resolver
+    let modules: Vec<Module1> = resolver
         .get_module_names()
         .into_iter()
         .map(|mn| resolver.get_module(&mn).unwrap())

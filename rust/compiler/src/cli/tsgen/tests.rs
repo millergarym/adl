@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::{
     adlgen::adlc::{
-        packaging::{GenOutput, ModuleSrc, ReferenceableScopeOption},
+        packaging::{GenOutput, ModuleSrc, ReferenceableScopeOption, TsGenRuntime},
         testing_table::TestFilesMetaData,
     },
     processing::loader::loader_from_search_paths,

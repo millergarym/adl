@@ -66,7 +66,7 @@ fn payload1_to_loader_ref(payload1: &Payload1) -> LoaderRef {
 
     if let Some(ts_opts) = &payload1.p_ref.ts_opts {
         loader_ref
-            .loader_inject_annotate
+            .resolver_inject_annotate
             .push(InjectAnnotation::Module(Pair((
                 ScopedName {
                     module_name: "adlc.config.typescript".to_string(),
