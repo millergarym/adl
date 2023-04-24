@@ -29,26 +29,31 @@ mod generate;
 #[cfg(test)]
 mod tests;
 mod utils;
+use rust_embed::RustEmbed;
 
-const RUNTIME_PACKAGE: &[u8] = include_bytes!("runtime/package.json");
-const RUNTIME_JSON: &[u8] = include_bytes!("runtime/json.ts");
-const RUNTIME_ADL: &[u8] = include_bytes!("runtime/adl.ts");
-const RUNTIME_UTILS: &[u8] = include_bytes!("runtime/utils.ts");
-const RUNTIME_DYNAMIC: &[u8] = include_bytes!("runtime/dynamic.ts");
-const RUNTIME_SYS_DYNAMIC: &[u8] = include_bytes!("runtime/sys/dynamic.ts");
-const RUNTIME_SYS_ADLAST: &[u8] = include_bytes!("runtime/sys/adlast.ts");
-const RUNTIME_SYS_TYPES: &[u8] = include_bytes!("runtime/sys/types.ts");
+#[derive(RustEmbed)]
+#[folder = "src/cli/tsgen/ts-runtime/"]
+struct Asset;
 
-const RUNTIME: [&'static (&str, &[u8]); 8] = [
-    &("package.json", RUNTIME_PACKAGE),
-    &("json.ts", RUNTIME_JSON),
-    &("adl.ts", RUNTIME_ADL),
-    &("utils.ts", RUNTIME_UTILS),
-    &("dynamic.ts", RUNTIME_DYNAMIC),
-    &("sys/dynamic.ts", RUNTIME_SYS_DYNAMIC),
-    &("sys/adlast.ts", RUNTIME_SYS_ADLAST),
-    &("sys/types.ts", RUNTIME_SYS_TYPES),
-];
+// const RUNTIME_PACKAGE: &[u8] = include_bytes!("runtime/package.json");
+// const RUNTIME_JSON: &[u8] = include_bytes!("runtime/json.ts");
+// const RUNTIME_ADL: &[u8] = include_bytes!("runtime/adl.ts");
+// const RUNTIME_UTILS: &[u8] = include_bytes!("runtime/utils.ts");
+// const RUNTIME_DYNAMIC: &[u8] = include_bytes!("runtime/dynamic.ts");
+// const RUNTIME_SYS_DYNAMIC: &[u8] = include_bytes!("runtime/sys/dynamic.ts");
+// const RUNTIME_SYS_ADLAST: &[u8] = include_bytes!("runtime/sys/adlast.ts");
+// const RUNTIME_SYS_TYPES: &[u8] = include_bytes!("runtime/sys/types.ts");
+
+// const RUNTIME: [&'static (&str, &[u8]); 8] = [
+//     &("package.json", RUNTIME_PACKAGE),
+//     &("json.ts", RUNTIME_JSON),
+//     &("adl.ts", RUNTIME_ADL),
+//     &("utils.ts", RUNTIME_UTILS),
+//     &("dynamic.ts", RUNTIME_DYNAMIC),
+//     &("sys/dynamic.ts", RUNTIME_SYS_DYNAMIC),
+//     &("sys/adlast.ts", RUNTIME_SYS_ADLAST),
+//     &("sys/types.ts", RUNTIME_SYS_TYPES),
+// ];
 
 const TSC_B64: &[u8] =
     b"import {fromByteArray as b64Encode, toByteArray as b64Decode} from 'base64-js'";
@@ -444,23 +449,27 @@ fn gen_runtime(
     ts_style: &TsStyle,
     writer: &mut TreeWriter,
 ) -> anyhow::Result<()> {
+    println!("Writing Runtime to file system ...");
     let re = Regex::new(r"\$TSEXT").unwrap();
     let re2 = Regex::new(r"\$TSB64IMPORT").unwrap();
-    for rt in RUNTIME.iter() {
+    for rt_name in Asset::iter() {
+        // println!("  '{}'", rt_name);
         let mut file_path = PathBuf::new();
         if !strip_first {
             file_path.push("./runtime");
         }
         // file_path.push(&rt_gen_opts.runtime_dir);
-        file_path.push(rt.0);
+        file_path.push(rt_name.as_ref());
         let dir_path = file_path.parent().unwrap();
         std::fs::create_dir_all(dir_path)?;
 
         log::info!("writing {}", file_path.display());
 
+        let data = Asset::get(rt_name.as_ref()).unwrap();
+        let content = data.data.as_ref();
         match ts_style {
             TsStyle::Tsc => {
-                let content = re.replace_all(rt.1, "".as_bytes());
+                let content = re.replace_all(content, "".as_bytes());
                 let content = re2.replace(&content, TSC_B64);
                 let x = content.deref();
                 let y = String::from_utf8(x.to_vec())?;
@@ -469,7 +478,7 @@ fn gen_runtime(
                 //     .map_err(|e| anyhow!("error writing runtime file {}", e.to_string()))?;
             }
             TsStyle::Deno => {
-                let content = re.replace_all(rt.1, ".ts".as_bytes());
+                let content = re.replace_all(content, ".ts".as_bytes());
                 let content = re2.replace(&content, DENO_B64);
                 let x = content.deref();
                 let y = String::from_utf8(x.to_vec())?;

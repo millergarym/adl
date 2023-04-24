@@ -7,7 +7,7 @@ use std::io::ErrorKind;
 use std::path::PathBuf;
 
 use crate::adlgen::adlc::packaging::{
-    InjectAnnotation, InjectAnnotations, LoaderRef, LoaderWorkspace,
+    InjectAnnotation, InjectAnnotations, LoaderWorkspace,
 };
 use crate::adlgen::sys::adlast2::{self as adlast, Module0};
 use crate::parser::{convert_error, raw_module};
