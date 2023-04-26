@@ -240,7 +240,7 @@ pub fn tsgen(
                 },
                 IndexEntry::Leaf(ie) => {
                     let iep: Vec<&str> = ie.split(".").collect();
-                    write!(&mut out, "export * from './{}';\n", iep[0])?;
+                    write!(&mut out, "export * as {} from './{}';\n", iep[0], iep[0])?;
                 },
             }
         }
@@ -294,6 +294,7 @@ pub fn gen_npm_package(pkg_path: String, wrk1: &AdlWorkspace<Payload1>) -> anyho
         }
         TsRuntimeOpt::Generate(_) => {}
     };
+    npm_package.scripts.insert("tsc".to_string(), "tsc".to_string());
 
     for d in &opts.extra_dependencies {
         npm_package.dependencies.insert(d.0.clone(), d.1.clone());

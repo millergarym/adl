@@ -1,0 +1,16 @@
+{
+  "name": "@adl-lang/common",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "tsc": "tsc"
+  },
+  "dependencies": {
+    "@adl-lang/runtime": "workspace:*",
+    "@adl-lang/sys": "1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.3",
+    "tsconfig": "workspace:*"
+  }
+}
