@@ -82,7 +82,6 @@ fn generate_ts_from_test_files() {
                         referenceable: ReferenceableScopeOption::Local,
                         output_dir: outdir.clone(),
                         manifest: Some(manifest),
-                        strip_first: false,
                     })),
                     runtime_opts: TsRuntimeOpt::Generate(TsGenRuntime {}),
                     generate_transitive: true,

@@ -1,7 +1,7 @@
 import * as protoclient_protoapp_db from "./db";
-import * as common from "@adl-lang/common";
-import * as common_db from "@adl-lang/common/db";
+import * as common from "@adl-lang/common/";
 import * as common_config_log from "@adl-lang/common/config/log";
+import * as common_db from "@adl-lang/common/db";
 import * as common_http from "@adl-lang/common/http";
 import * as common_strings from "@adl-lang/common/strings";
 import * as common_tabular from "@adl-lang/common/tabular";

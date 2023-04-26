@@ -1,8 +1,8 @@
-import {_AST_MAP as protoclient_protoapp_api} from "./protoclient/protoapp/api";
-import {_AST_MAP as protoclient_protoapp_config} from "./protoclient/protoapp/config";
-import {_AST_MAP as protoclient_protoapp_db} from "./protoclient/protoapp/db";
-import {_AST_MAP as protoclient_protoapp_uiconfig} from "./protoclient/protoapp/uiconfig";
-import {_AST_MAP as common} from "@adl-lang/common/index";
+import {_AST_MAP as protoclient_protoapp_api} from "./protoapp/api";
+import {_AST_MAP as protoclient_protoapp_config} from "./protoapp/config";
+import {_AST_MAP as protoclient_protoapp_db} from "./protoapp/db";
+import {_AST_MAP as protoclient_protoapp_uiconfig} from "./protoapp/uiconfig";
+import {_AST_MAP as common} from "@adl-lang/common/";
 import {_AST_MAP as common_config_aws} from "@adl-lang/common/config/aws";
 import {_AST_MAP as common_config_db} from "@adl-lang/common/config/db";
 import {_AST_MAP as common_config_frontend} from "@adl-lang/common/config/frontend";

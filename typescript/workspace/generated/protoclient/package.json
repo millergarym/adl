@@ -1,7 +1,6 @@
 {
   "name": "@adl-lang/protoclient",
   "version": "1.0.0",
-  "type": "module",
   "scripts": {
     "tsc": "tsc"
   },
@@ -12,7 +11,7 @@
     "@adl-lang/runtime": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^4.9.3",
-    "tsconfig": "workspace:*"
+    "tsconfig": "workspace:*",
+    "typescript": "^4.9.3"
   }
 }

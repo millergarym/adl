@@ -99,9 +99,6 @@ pub struct TsWriteRuntime {
 
   #[serde(default="TsWriteRuntime::def_ts_style")]
   pub ts_style: TsStyle,
-
-  #[serde(default="TsWriteRuntime::def_strip_first")]
-  pub strip_first: bool,
 }
 
 impl TsWriteRuntime {
@@ -111,7 +108,6 @@ impl TsWriteRuntime {
       referenceable: TsWriteRuntime::def_referenceable(),
       npm_pkg_name: TsWriteRuntime::def_npm_pkg_name(),
       ts_style: TsWriteRuntime::def_ts_style(),
-      strip_first: TsWriteRuntime::def_strip_first(),
     }
   }
 
@@ -125,10 +121,6 @@ impl TsWriteRuntime {
 
   pub fn def_ts_style() -> TsStyle {
     TsStyle::Tsc
-  }
-
-  pub fn def_strip_first() -> bool {
-    true
   }
 }
 
@@ -340,14 +332,6 @@ pub struct GenOutput {
 
   #[serde(default="GenOutput::def_manifest")]
   pub manifest: Option<String>,
-
-  /**
-   * When creating the path for output ts files delete the first part of the module name
-   * This needs to be false for "generate_transitive" and 
-   * packages like "common" where the module and directory at the top level named the same.
-   */
-  #[serde(default="GenOutput::def_strip_first")]
-  pub strip_first: bool,
 }
 
 impl GenOutput {
@@ -356,7 +340,6 @@ impl GenOutput {
       referenceable: GenOutput::def_referenceable(),
       output_dir: output_dir,
       manifest: GenOutput::def_manifest(),
-      strip_first: GenOutput::def_strip_first(),
     }
   }
 
@@ -366,10 +349,6 @@ impl GenOutput {
 
   pub fn def_manifest() -> Option<String> {
     None
-  }
-
-  pub fn def_strip_first() -> bool {
-    true
   }
 }
 

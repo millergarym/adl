@@ -43,7 +43,6 @@ pub fn run_cli() -> i32 {
                 outputs: Some(crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput {
                     referenceable: ReferenceableScopeOption::Local,
                     output_dir: opts.output.outputdir.to_str().unwrap().to_string(),
-                    strip_first: opts.strip_first,
                     manifest: opts
                         .output
                         .manifest

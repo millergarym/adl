@@ -122,11 +122,10 @@ pub fn tsgen(
         return Ok(());
     }
     let outputs = opts.outputs.as_ref().unwrap();
-    let (manifest, outputdir, strip_first) = match outputs {
+    let (manifest, outputdir) = match outputs {
         crate::adlgen::adlc::packaging::OutputOpts::Gen(gen) => (
             gen.manifest.as_ref().map(|m| PathBuf::from(m)),
             PathBuf::from(gen.output_dir.clone()),
-            gen.strip_first,
         ),
     };
 
@@ -174,15 +173,15 @@ pub fn tsgen(
     for m in &modules {
         let does_contain = module_names.contains(&m.name);
         if opts.generate_transitive || does_contain {
-            let path = path_from_module_name(strip_first, m.name.to_owned());
+            let path = path_from_module_name(m.name.to_owned());
 
             utils::collect_indexes(path.clone(), index_map);
 
             println!("~~~{} - {:?}", m.name.to_owned(), &path.clone());
             let path = path.as_path();
-            if None == path.components().next() {
-                return Err(anyhow!("Output module name was empty. Potential config issue 'strip_first' might need to be false. Module: '{}'. strip_first: '{}'", m.name, strip_first));
-            }
+            // if None == path.components().next() {
+            //     return Err(anyhow!("Output module name was empty. Potential config issue 'strip_first' might need to be false. Module: '{}'. strip_first: '{}'", m.name, strip_first));
+            // }
             let code = gen_ts_module(m, &resolver, opts)?;
             writer
                 .write(path, code)
@@ -213,13 +212,13 @@ pub fn tsgen(
             tokens.format_file(&mut w.as_formatter(&fmt), &config)?;
             let vector = w.into_inner();
             let code = std::str::from_utf8(&vector)?;
-            let path = path_from_module_name(false, "resolver".to_string());
+            let path = PathBuf::from("resolver.ts");
             writer.write(path.as_path(), code.to_string())?;
         }
     }
 
     if let TsRuntimeOpt::Generate(_) = &opts.runtime_opts {
-        gen_runtime(strip_first, &opts.ts_style, &mut writer)?
+        gen_runtime(false, &opts.ts_style, &mut writer)?
     }
 
     println!("INDEX MAP");
@@ -227,6 +226,7 @@ pub fn tsgen(
     keys.sort();
     for k in keys {
         let mut out = Vec::new();
+        write!(&mut out, "/* @generated - key {:?} */\n", k)?;
         let vs = index_map.get(k).unwrap();
         let mut v1: Vec<IndexEntry> = vec![];
         for v in vs {
@@ -236,12 +236,22 @@ pub fn tsgen(
         for v in &v1 {
             match v {
                 IndexEntry::Dir(ie) => {
-                    write!(&mut out, "export * as {} from './{}/index';\n", ie, ie)?;
-                },
+                    if ie == "_" {
+                        write!(&mut out, "export * from './{}/index';\n", ie)?;
+                    } else {
+                        write!(&mut out, "export * as {} from './{}/index';\n", ie, ie)?;
+                    }
+                }
                 IndexEntry::Leaf(ie) => {
                     let iep: Vec<&str> = ie.split(".").collect();
-                    write!(&mut out, "export * as {} from './{}';\n", iep[0], iep[0])?;
-                },
+                    let mut pat = String::from("/");
+                    pat.push_str(iep[0]);
+                    if k.eq(&PathBuf::from("_")) && (opts.npm_pkg_name.eq(iep[0]) || opts.npm_pkg_name.ends_with(pat.as_str())) {
+                        write!(&mut out, "export * from './{}';\n", iep[0])?;
+                    } else {
+                        write!(&mut out, "export * as {} from './{}';\n", iep[0], iep[0])?;
+                    }
+                }
             }
         }
         let path_ind = k.join("index.ts");
@@ -258,7 +268,6 @@ pub fn tsgen(
 // export * as tabular from "./tabular/index";
 // export * as ui from "./ui/index";
 // export * from "./common";
-
 
 pub fn gen_npm_package(pkg_path: String, wrk1: &AdlWorkspace<Payload1>) -> anyhow::Result<()> {
     let payload = wrk1
@@ -294,7 +303,9 @@ pub fn gen_npm_package(pkg_path: String, wrk1: &AdlWorkspace<Payload1>) -> anyho
         }
         TsRuntimeOpt::Generate(_) => {}
     };
-    npm_package.scripts.insert("tsc".to_string(), "tsc".to_string());
+    npm_package
+        .scripts
+        .insert("tsc".to_string(), "tsc".to_string());
 
     for d in &opts.extra_dependencies {
         npm_package.dependencies.insert(d.0.clone(), d.1.clone());
@@ -390,17 +401,22 @@ fn gen_ts_module(
             js::import(pkg.name.clone() + "/adl", "ADL").into_wildcard()
         }
         TsRuntimeOpt::Generate(gen) => {
+            let src_v: Vec<&str> = m.name.split(['.']).collect();
+            let src_v = &src_v[..src_v.len() - 1];
+            let mut import = String::new();
+            import.push_str("./");
+            let mut src_i = src_v.iter().peekable();
+            while src_i.next() != None {
+                import.push_str("../");
+            }
+            import.push_str("runtime.adl");
             // TODO modify the import path with opts.runtime_dir
-            js::import(
-                utils::rel_import(&m.name, &"runtime.adl".to_string()),
-                "ADL",
-            )
-            .into_wildcard()
+            js::import(import, "ADL").into_wildcard()
         }
     };
     let mut mgen = generate::TsGenVisitor {
         module: m,
-        npm_pkg: &None,
+        npm_pkg: &Some(opts.npm_pkg_name.clone()),
         resolver: resolver,
         adlr,
         map: &mut HashMap::new(),
@@ -425,12 +441,17 @@ fn gen_ts_module(
     Ok(code.to_string())
 }
 
-fn path_from_module_name(strip_first: bool, mname: adlast::ModuleName) -> PathBuf {
+fn path_from_module_name(mname: adlast::ModuleName) -> PathBuf {
     let mut path = PathBuf::new();
-    let mut iter = mname.split(".").enumerate(); //.peekable();
+    let mut iter = mname.split(".").enumerate().peekable();
     while let Some((i, el)) = iter.next() {
-        if i == 0 && strip_first {
-            continue;
+        if i == 0 {
+            if iter.peek() == None {
+                // this means the adl file is at the top level.
+                path.push("_");
+            } else {
+                continue;
+            }
         }
         path.push(el);
     }
@@ -458,13 +479,19 @@ fn gen_resolver(
 
         let path = if !generate_transitive && npm_pkg2 != None {
             let npm_pkg2 = npm_pkg2.unwrap();
-            if npm_pkg2 != npm_pkg {
+            if npm_pkg2 != npm_pkg.clone() {
                 npm_pkg_import(npm_pkg2, m.name.clone())
             } else {
-                format!("./{}", m.name.replace(".", "/"))
+                let name = rel_import_in_resolver(m);
+                format!("./{}", name)
             }
         } else {
-            format!("./{}", m.name.replace(".", "/"))
+            if npm_pkg2 != Some(npm_pkg.clone()) {
+                format!("./{}", m.name.replace(".", "/"))
+            } else {
+                let name = rel_import_in_resolver(m);
+                format!("./{}", name)
+            }
         };
 
         m_imports.push(js::import(path, "_AST_MAP").with_alias(m.name.replace(".", "_")));
@@ -510,9 +537,22 @@ fn gen_resolver(
     Ok(())
 }
 
+fn rel_import_in_resolver(m: &adlast::Module<adlast::TypeExpr<adlast::TypeRef>>) -> String {
+    let mut it = m.name.split(".").into_iter().peekable();
+    it.next();
+    let mut name = String::new();
+    while let Some(n) = it.next() {
+        name.push_str(n);
+        if it.peek() != None {
+            name.push_str("/");
+        }
+    }
+    name
+}
+
 pub fn write_runtime(rt_opts: &TsWriteRuntime) -> anyhow::Result<()> {
     let mut writer = TreeWriter::new(PathBuf::from(&rt_opts.output_dir), None)?;
-    gen_runtime(rt_opts.strip_first, &rt_opts.ts_style, &mut writer)?;
+    gen_runtime(true, &rt_opts.ts_style, &mut writer)?;
     Ok(())
 }
 

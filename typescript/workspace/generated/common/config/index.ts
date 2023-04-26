@@ -1,3 +1,4 @@
+/* @generated - key "config" */
 export * as aws from './aws';
 export * as azure from './azure';
 export * as db from './db';

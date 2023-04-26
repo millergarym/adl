@@ -95,15 +95,47 @@ pub fn npm_pkg_import(npm_pkg2: String, module_name: String) -> String {
     path
 }
 
-pub fn rel_import(src: &String, dst: &String) -> String {
+pub fn rel_import(same_adl_pkg: bool, src: &String, dst: &String) -> String {
     let src_v: Vec<&str> = src.split(['.']).collect();
     let src_v = &src_v[..src_v.len() - 1];
-    let dst_v: Vec<&str> = dst.split(['.']).collect();
-    let last = dst_v.last().unwrap();
-    let dst_v = &dst_v[..dst_v.len() - 1];
+    let dst_v0: Vec<&str> = dst.split(['.']).collect();
+    let last = dst_v0.last().unwrap();
+    let dst_v = &dst_v0[..dst_v0.len() - 1];
     let mut src_i = src_v.iter().peekable();
     let mut dst_i = dst_v.iter().peekable();
     let mut import = String::new();
+    if !same_adl_pkg {
+        if src_v.len() == 0 {
+            import.push_str("../");
+        } else {
+            while let Some(_) = &src_i.next() {
+                import.push_str("../");
+            }
+        }
+        while let Some(del) = &dst_i.next() {
+            import.push_str(del);
+            import.push_str("/");
+        }
+        import.push_str(last);
+        import.push_str("/*not same pkg*/");
+        return import;
+    }
+    if src_v.len() == 0 && dst_v.len() == 0 {
+        import.push_str("./");
+        import.push_str(last);
+        return import;
+    }
+    if src_v.len() == 0 && dst_v.len() != 0 {
+        import.push_str("..");
+        dst_i.next();
+        while let Some(del) = &dst_i.next() {
+            import.push_str("/");
+            import.push_str(del);
+        }
+        import.push_str("/");
+        import.push_str(last);
+        return import;
+    }
     import.push_str(".");
     while let (Some(sel), Some(del)) = (&src_i.peek(), &dst_i.peek()) {
         if sel != del {
@@ -111,6 +143,9 @@ pub fn rel_import(src: &String, dst: &String) -> String {
         }
         src_i.next();
         dst_i.next();
+    }
+    if dst_v.len() == 0 {
+        src_i.next();
     }
     while let Some(_) = &src_i.next() {
         import.push_str("/..");
@@ -120,6 +155,9 @@ pub fn rel_import(src: &String, dst: &String) -> String {
         import.push_str(del);
     }
     import.push_str("/");
+    if dst_v.len() == 0 {
+        import.push_str("_/");
+    };
     import.push_str(last);
     import
 }
@@ -214,35 +252,89 @@ mod tests {
 
     #[test]
     fn test_relative_import() {
-        let tests: Vec<(&str, &str, &str, &str)> = vec![
-            ("test 00", "abc", "runtime.adl", "./runtime/adl"),
-            ("test 01", "scopedname.def", "scopedname.abc", "./abc"),
+        let tests: Vec<(&str, bool, &str, &str, &str)> = vec![
+            ("test 00", true, "abc", "def.ghi", "../ghi"),
+            ("test 00 - different packages", false, "abc", "def.ghi", "../def/ghi"),
+            ("test 00b", true, "abc", "def", "./def"),
+            ("test 01", true, "scopedname.def", "scopedname.abc", "./abc"),
+            (
+                "test 01 - different packages",
+                false,
+                "scopedname.def",
+                "scopedname.abc",
+                "../scopedname/abc",
+            ),
             (
                 "test 02",
+                true,
                 "scopedname.def",
                 "scopedname.def.abc",
                 "./def/abc",
             ),
             (
+                "test 02 - different packages",
+                false,
+                "scopedname.def",
+                "scopedname.def.abc",
+                "../scopedname/def/abc",
+            ),
+            (
                 "test 03",
+                true,
                 "scopedname.def",
                 "runtime.adl",
                 "./../runtime/adl",
             ),
-            ("test 04", "common.adminui.api", "common", "./../../common"),
-            ("test 05", "common.adminui.api", "common.db", "./../db"),
+            (
+                "test 04",
+                true,
+                "common.adminui.api",
+                "common",
+                "./../_/common",
+            ),
+            (
+                "test 04 - different packages",
+                false,
+                "common.adminui.api",
+                "common",
+                "../../common",
+            ),
+            ("test 04b", true, "common", "common.strings", "../strings"),
+            ("test 04 - different packages", false, "common", "common.strings", "../common/strings"),
+            (
+                "test 05",
+                true,
+                "common.adminui.api",
+                "common.db",
+                "./../db",
+            ),
+            (
+                "test 05 - different packages",
+                false,
+                "common.adminui.api",
+                "common.db",
+                "../../common/db",
+            ),
             (
                 "test 06",
+                true,
                 "common.adminui.api",
                 "common.adminui",
                 "./../adminui",
+            ),
+            (
+                "test 06 - different packages",
+                false,
+                "common.adminui.api",
+                "common.adminui",
+                "../../common/adminui",
             ),
         ];
 
         for t in tests {
             assert_eq!(
-                rel_import(&t.1.to_string(), &t.2.to_string()),
-                t.3,
+                rel_import(t.1, &t.2.to_string(), &t.3.to_string()),
+                t.4,
                 "{}",
                 t.0
             );

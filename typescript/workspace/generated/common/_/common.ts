@@ -1,4 +1,4 @@
-import * as common_strings from "./../strings";
+import * as common_strings from "../strings";
 import * as ADL from "@adl-lang/runtime/adl";
 
 /* @generated from adl module common */

@@ -9,7 +9,6 @@
     "node_modules"
   ],
   "compilerOptions": {
-    "module": "ES2020",
     "outDir": "dist",
     "lib": [
       "es2020"

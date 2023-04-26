@@ -66,7 +66,7 @@ struct TsWriteRuntime {
     ReferenceableScopeOption referenceable = "local";
     String npm_pkg_name = "@adl-lang/runtime";
     TsStyle ts_style = "tsc";
-    Bool strip_first = true;
+    // Bool strip_first = true;
 };
 
 /// The struct in AdlWorkspace::use required by the WorkspaceLoader
@@ -134,10 +134,10 @@ struct GenOutput {
     ReferenceableScopeOption referenceable = "local";
     String output_dir;
     Nullable<String> manifest = null;
-    /// When creating the path for output ts files delete the first part of the module name
-    /// This needs to be false for "generate_transitive" and 
-    /// packages like "common" where the module and directory at the top level named the same.
-    Bool strip_first = true;
+    // When creating the path for output ts files delete the first part of the module name
+    // This needs to be false for "generate_transitive" and 
+    // packages like "common" where the module and directory at the top level named the same.
+    // Bool strip_first = true;
 };
 
 union TsStyle {

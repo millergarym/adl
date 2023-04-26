@@ -1,1 +1,2 @@
-export * as protoclient from './protoclient/index';
+/* @generated - key "" */
+export * as protoapp from './protoapp/index';
