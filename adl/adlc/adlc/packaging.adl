@@ -9,11 +9,13 @@ import sys.adlast2.ScopedName;
 import sys.adlast2.Module1;
 
 // AdlWorkspace0 is the serilization format
-type AdlWorkspace0 = AdlWorkspace<AdlPackageRef>;
+type AdlWorkspace0 = AdlWorkspace<Payload0>;
 type AdlWorkspace1 = AdlWorkspace<Payload1>;
 type AdlWorkspace2 = AdlWorkspace<Payload2>;
 
 type LoaderWorkspace = AdlWorkspace<LoaderRef>;
+
+type Payload0 = AdlPackageRef;
 
 struct Payload1 {
     AdlPackageRef p_ref;
@@ -31,7 +33,7 @@ struct AdlWorkspace<T> {
     String adlc;
     Vector<T> use;
     Vector<RuntimeOpts> runtimes = [];
-    Maybe<T> embedded_sys_loader;
+    // Maybe<T> embedded_sys_loader;
 };
 
     //  = {
@@ -71,10 +73,23 @@ struct TsWriteRuntime {
 
 /// The struct in AdlWorkspace::use required by the WorkspaceLoader
 struct LoaderRef {
-    String path;
-    Nullable<String> global_alias = null;
+    LoaderRefType ref;
     InjectAnnotations loader_inject_annotate = [];
     InjectAnnotations resolver_inject_annotate = [];
+};
+
+union LoaderRefType {
+    DirLoaderRef dir;
+    EmbeddedLoaderRef embedded;
+};
+
+struct DirLoaderRef {
+    String path;
+    Nullable<String> global_alias = null;
+};
+
+struct EmbeddedLoaderRef {
+    EmbeddedPkg alias;
 };
 
 type InjectAnnotations = Vector<InjectAnnotation>;
@@ -84,9 +99,28 @@ union InjectAnnotation {
 };
 
 struct AdlPackageRef {
+    AdlPackageRefType ref;
+    Nullable<TypescriptGenOptions> ts_opts = null; 
+};
+
+union AdlPackageRefType {
+    DirectoryRef dir;
+    /// An ADL module embed in the ADL compiler
+    EmbeddedRef embedded;
+};
+
+struct EmbeddedRef {
+    EmbeddedPkg alias;
+};
+
+union EmbeddedPkg {
+    Void sys;
+    Void adlc;
+};
+
+struct DirectoryRef {
     // path must be to a directory directly under the folder containing the `adl.work.json` file.
     String path;
-    Nullable<TypescriptGenOptions> ts_opts = null; 
 };
 
 struct TypescriptGenOptions {
@@ -226,11 +260,6 @@ struct TsCompilerOptions {
     String outDir;
     Vector<String> lib;
 };
-
-// union DependencySpec {
-//     Void workspace;
-//     VersionSpec semverSpec;
-// };
 
 struct NpmPackageRef {
     String name;

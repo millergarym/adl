@@ -1,54 +1,87 @@
-use std::path::PathBuf;
-use std::borrow::Cow;
+use std::{borrow::Cow, path::PathBuf};
 
 use anyhow::anyhow;
 
-use rust_embed::RustEmbed;
+use rust_embed::{EmbeddedFile, RustEmbed};
 
-use crate::adlgen::sys::adlast2::ModuleName;
+use crate::{
+    adlgen::{adlc::packaging::EmbeddedPkg, sys::adlast2::ModuleName},
+    cli::StdlibOpt,
+};
 
 #[derive(RustEmbed)]
 #[folder = "../../adl/stdlib/"]
-struct Asset;
+struct StdlibAsset;
 
-pub fn std_modules() -> Vec<ModuleName> {
-    let mut mods = vec![];
-    for name in Asset::iter() {
-        let mut path = PathBuf::from(name.to_string());
-        if let Some(e) = path.extension() {
-            if e == "adl" {
-                path.set_extension("");
-                mods.push(path.to_str().unwrap().replace("/", "."));
-            }
-        }
-    };
-    mods
+#[derive(RustEmbed)]
+#[folder = "../../adl/adlc/"]
+struct AdlcAsset;
+
+pub fn get_file_names(em: EmbeddedPkg) -> Vec<PathBuf> {
+    match em {
+        EmbeddedPkg::Sys => StdlibAsset::iter().map(String::from).map(PathBuf::from).collect(),
+        EmbeddedPkg::Adlc => AdlcAsset::iter().map(String::from).map(PathBuf::from).collect(),
+    }
 }
 
-pub fn get_stdlib(mn: &ModuleName, ext: &str) -> Option<Cow<'static, [u8]>> {
+// fn str_from_cow(name: Cow<str>) -> PathBuf {
+//     PathBuf::from(name.to_string());
+//     path.to_str().unwrap().to_string()
+// }
+
+pub fn get_adl_pkg(em: EmbeddedPkg) -> Option<Cow<'static, [u8]>> {
+    let d = match em {
+        EmbeddedPkg::Sys => StdlibAsset::get("adl.pkg.json"),
+        EmbeddedPkg::Adlc => AdlcAsset::get("adl.pkg.json"),
+    };
+    d.map(|d| d.data)
+}
+
+pub fn get_stdlib(em: EmbeddedPkg, mn: &ModuleName, ext: &str) -> Option<Cow<'static, [u8]>> {
     let mut fname = mn.replace(".", "/");
     fname.push_str(".adl");
     if ext != "" {
         fname.push_str("-");
         fname.push_str(ext);
     }
-    if let Some(f) = Asset::get(fname.as_str()) {
+    let get = match em {
+        EmbeddedPkg::Sys => StdlibAsset::get,
+        EmbeddedPkg::Adlc => AdlcAsset::get,
+    };
+    if let Some(f) = get(fname.as_str()) {
         return Some(f.data);
-    }
+    };
     None
 }
 
-pub(crate) fn dump(opts: &crate::cli::DumpStdlibOpts) -> Result<(), anyhow::Error> {
-    std::fs::create_dir_all(&opts.outputdir).map_err(|_| anyhow!("can't create output dir '{:?}'", opts.outputdir))?;
-    for name in Asset::iter() {
-        let mut path = opts.outputdir.clone();
-        path.push(name.as_ref());
-        if let Some(data) = Asset::get(name.as_ref()) {
-            std::fs::create_dir_all(path.parent().unwrap()).map_err(|_| anyhow!("can't create output dir for '{:?}'", &path))?;
-            std::fs::write(&path, data.data.as_ref()).map_err(|s| anyhow!("can't write file '{:?}' error {}", &path, s))?;
-        } else {
-            return Err(anyhow!("could get the contents for {}", name));
+pub(crate) fn dump_stdlib(opts: &crate::cli::DumpStdlibOpts) -> Result<(), anyhow::Error> {
+    std::fs::create_dir_all(&opts.outputdir)
+        .map_err(|_| anyhow!("can't create output dir '{:?}'", opts.outputdir))?;
+    match opts.lib {
+        StdlibOpt::Sys => {
+            for name in StdlibAsset::iter() {
+                fun_name(opts.outputdir.clone(), name, StdlibAsset::get)?;
+            }
         }
-    }
+        StdlibOpt::Adlc => {
+            for name in AdlcAsset::iter() {
+                fun_name(opts.outputdir.clone(), name, StdlibAsset::get)?;
+            }
+        }
+    };
     Ok(())
+}
+
+type Getter = fn(&str) -> Option<EmbeddedFile>;
+
+fn fun_name(mut path: PathBuf, name: Cow<str>, get: Getter) -> Result<(), anyhow::Error> {
+    path.push(name.as_ref());
+    Ok(if let Some(data) = get(name.as_ref()) {
+        std::fs::create_dir_all(path.parent().unwrap())
+            .map_err(|_| anyhow!("can't create output dir for '{:?}'", &path))?;
+        std::fs::write(&path, data.data.as_ref())
+            .map_err(|s| anyhow!("can't write file '{:?}' error {}", &path, s))?;
+    } else {
+        return Err(anyhow!("could get the contents for {}", name));
+    })
 }

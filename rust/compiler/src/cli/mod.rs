@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, fmt::Display};
 
 use anyhow::{anyhow, Error};
 use clap::{Args, Parser};
@@ -7,7 +7,7 @@ use std::str::FromStr;
 use crate::{
     adlgen::adlc::packaging::{
         GenOutput, ModuleSrc, NpmPackageRef, ReferenceableScopeOption, TsGenRuntime, TsRuntimeOpt,
-        TypescriptGenOptions,
+        TypescriptGenOptions, AdlPackageRefType, DirectoryRef,
     },
     processing::loader::loader_from_search_paths,
 };
@@ -77,9 +77,9 @@ pub fn run_cli() -> i32 {
                 capitalize_branch_names_in_types: opts.capitalize_branch_names_in_types,
                 capitalize_type_names: opts.capitalize_type_names,
             };
-            tsgen::tsgen(loader, &ts_opts, None)
+            tsgen::tsgen(loader, &ts_opts, None, AdlPackageRefType::Dir(DirectoryRef{ path: ".".to_string() }))
         }
-        Command::WriteStdlib(opts) => crate::adlstdlib::dump(&opts),
+        Command::WriteStdlib(opts) => crate::adlstdlib::dump_stdlib(&opts),
     };
     match r {
         Ok(_) => 0,
@@ -137,6 +137,38 @@ pub struct DumpStdlibOpts {
     /// writes generated code to the specified directory
     #[arg(long, short = 'O', value_name = "DIR")]
     pub outputdir: PathBuf,
+
+    /// Select the style of typescript to be generated
+    // #[clap(arg_senum)]
+    #[arg(long, default_value_t={StdlibOpt::Sys})]
+    pub lib: StdlibOpt, //=sys|adlc
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum StdlibOpt {
+    Sys,
+    Adlc,
+}
+
+impl Display for StdlibOpt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StdlibOpt::Sys => write!(f, "sys"),
+            StdlibOpt::Adlc => write!(f, "adlc"),
+        }
+    }
+}
+
+impl FromStr for StdlibOpt {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "sys" => Ok(StdlibOpt::Sys),
+            "adlc" => Ok(StdlibOpt::Adlc),
+            _ => Err(anyhow!("must be one of 'sys' or 'adlc'")),
+        }
+    }
 }
 
 #[derive(Debug, Args)]

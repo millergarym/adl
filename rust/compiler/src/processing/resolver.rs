@@ -106,7 +106,10 @@ impl Resolver {
         let mut module0 = self
             .loader
             .load(module_name)?
-            .ok_or_else(|| anyhow!("Module {} not found", module_name))?;
+            .ok_or_else(|| {
+                self.loader.debug();
+                anyhow!("Module {} not found", module_name)
+            })?;
         self.add_default_imports(&mut module0.0);
 
         let module_refs = find_module_refs(&module0.0);

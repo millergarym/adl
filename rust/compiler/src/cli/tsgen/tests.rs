@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::{
     adlgen::adlc::{
-        packaging::{GenOutput, ModuleSrc, ReferenceableScopeOption, TsGenRuntime},
+        packaging::{GenOutput, ModuleSrc, ReferenceableScopeOption, TsGenRuntime, DirectoryRef},
         testing_table::TestFilesMetaData,
     },
     processing::loader::loader_from_search_paths,
@@ -136,7 +136,7 @@ fn generate_ts_from_test_files() {
 
                 // TODO consider failed.
                 // t.fail
-                match tsgen(loader_from_search_paths(&search_path), &ts_opts, None) {
+                match tsgen(loader_from_search_paths(&search_path), &ts_opts, None, AdlPackageRefType::Dir(DirectoryRef{ path: ".".to_string() })) {
                     Ok(_) => {
                         println!(
                             "{} {} - ts gen output;  {}",

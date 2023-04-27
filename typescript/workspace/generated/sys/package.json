@@ -1,15 +1,15 @@
 {
-  "name": "@adl-lang/common",
+  "name": "@adl-lang/sys",
   "version": "1.0.0",
   "scripts": {
     "tsc": "tsc"
   },
   "dependencies": {
-    "@adl-lang/sys": "workspace:*",
+    "base64-js": "^1.5.1",
     "@adl-lang/runtime": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^4.9.3",
-    "tsconfig": "workspace:*"
+    "tsconfig": "workspace:*",
+    "typescript": "^4.9.3"
   }
 }

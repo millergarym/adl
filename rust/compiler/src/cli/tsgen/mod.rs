@@ -16,11 +16,12 @@ use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
 use crate::adlgen::adlc::packaging::{
-    AdlWorkspace, NpmPackage, Payload1, TsConfig, TsRuntimeOpt, TsStyle, TsWriteRuntime,
-    TypescriptGenOptions,
+    AdlPackageRef, AdlPackageRefType, AdlWorkspace, ModuleSrc, NpmPackage, Payload1, TsConfig,
+    TsRuntimeOpt, TsStyle, TsWriteRuntime, TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::Module1;
 use crate::adlgen::sys::adlast2::{self as adlast};
+use crate::adlstdlib::get_file_names;
 use crate::cli::tsgen::utils::{get_npm_pkg, npm_pkg_import, IndexEntry};
 use crate::processing::loader::AdlLoader;
 use crate::processing::resolver::Resolver;
@@ -64,24 +65,51 @@ const DENO_B64: &[u8] = b"import {encode as b64Encode, decode as b64Decode} from
 
 fn get_modules(
     opts: &TypescriptGenOptions,
-    pkg_root: Option<PathBuf>,
+    wrk_root: Option<PathBuf>,
+    r#ref: AdlPackageRefType,
 ) -> Result<Vec<String>, anyhow::Error> {
-    match &opts.modules {
-        crate::adlgen::adlc::packaging::ModuleSrc::All => {
-            let pkg_root = if let Some(pkg_root) = pkg_root {
-                pkg_root
-            } else {
-                return Err(anyhow!("pkg_root needed when module src all specified"));
-            };
-            // let pkg_root = wrk1.0.join(pkg.0 .0.path.clone()).canonicalize()?;
-            // let pkg_root = wrk1_path.join(pkg_path).canonicalize()?;
-            if let Some(pkg_root_str) = pkg_root.as_os_str().to_str() {
-                Ok(walk_and_collect_adl_modules(pkg_root_str, &pkg_root))
-            } else {
-                return Err(anyhow!("Could get str from pkg_root"));
+    match r#ref {
+        AdlPackageRefType::Dir(d) => {
+            match &opts.modules {
+                ModuleSrc::All => {
+                    if wrk_root == None {
+                        return Err(anyhow!("wrk_root needed when module src all specified"));
+                    }
+                    let pkg_root = wrk_root.unwrap().join(d.path.clone()).canonicalize()?;
+                    // let pkg_root = if let Some(pkg_root) = pkg_root {
+                    //     pkg_root
+                    // } else {
+                    //     return Err(anyhow!("pkg_root needed when module src all specified"));
+                    // };
+                    // // let pkg_root = wrk1.0.join(pkg.0 .0.path.clone()).canonicalize()?;
+                    // // let pkg_root = wrk1_path.join(pkg_path).canonicalize()?;
+                    if let Some(pkg_root_str) = pkg_root.as_os_str().to_str() {
+                        Ok(walk_and_collect_adl_modules(pkg_root_str, &pkg_root))
+                    } else {
+                        return Err(anyhow!("Could get str from pkg_root"));
+                    }
+                }
+                ModuleSrc::Modules(ms) => Ok(ms.clone()),
             }
         }
-        crate::adlgen::adlc::packaging::ModuleSrc::Modules(ms) => Ok(ms.clone()),
+        AdlPackageRefType::Embedded(e) => match &opts.modules {
+            ModuleSrc::Modules(ms) => Ok(ms.clone()),
+            ModuleSrc::All => Ok(get_file_names(e.alias)
+                .iter()
+                .filter(|f| {
+                    if let Some(ext) = f.extension() {
+                        ext == "adl"
+                    } else {
+                        false
+                    }
+                })
+                .map(|p| {
+                    let mut p0 = p.clone();
+                    p0.set_extension("");
+                    p0.to_str().unwrap().to_string().replace("/", ".")
+        })
+                .collect()),
+        },
     }
 }
 
@@ -115,7 +143,8 @@ fn walk_and_collect_adl_modules(pkg_root: &str, cwd: &PathBuf) -> Vec<String> {
 pub fn tsgen(
     loader: Box<dyn AdlLoader>,
     opts: &TypescriptGenOptions,
-    pkg_root: Option<PathBuf>,
+    wrk_root: Option<PathBuf>,
+    r#ref: AdlPackageRefType,
 ) -> anyhow::Result<()> {
     if opts.outputs == None {
         // not gen for this pkg
@@ -130,7 +159,7 @@ pub fn tsgen(
     };
 
     let mut resolver = Resolver::new(loader);
-    let module_names = get_modules(opts, pkg_root)?;
+    let module_names = get_modules(opts, wrk_root, r#ref)?;
     println!("module_names:{:?}", module_names);
     for m in &module_names {
         let r = resolver.add_module(m);
@@ -246,7 +275,10 @@ pub fn tsgen(
                     let iep: Vec<&str> = ie.split(".").collect();
                     let mut pat = String::from("/");
                     pat.push_str(iep[0]);
-                    if k.eq(&PathBuf::from("_")) && (opts.npm_pkg_name.eq(iep[0]) || opts.npm_pkg_name.ends_with(pat.as_str())) {
+                    if k.eq(&PathBuf::from("_"))
+                        && (opts.npm_pkg_name.eq(iep[0])
+                            || opts.npm_pkg_name.ends_with(pat.as_str()))
+                    {
                         write!(&mut out, "export * from './{}';\n", iep[0])?;
                     } else {
                         write!(&mut out, "export * as {} from './{}';\n", iep[0], iep[0])?;
@@ -263,18 +295,12 @@ pub fn tsgen(
     Ok(())
 }
 
-// export * as db from "./db/index";
-// export * as strings from "./strings/index";
-// export * as tabular from "./tabular/index";
-// export * as ui from "./ui/index";
-// export * from "./common";
-
-pub fn gen_npm_package(pkg_path: String, wrk1: &AdlWorkspace<Payload1>) -> anyhow::Result<()> {
-    let payload = wrk1
-        .r#use
-        .iter()
-        .find(|w| w.p_ref.path == pkg_path)
-        .unwrap();
+pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> anyhow::Result<()> {
+    // let payload = wrk1
+    //     .r#use
+    //     .iter()
+    //     .find(|w| w.p_ref.path == pkg_path)
+    //     .unwrap();
     let opts = payload.p_ref.ts_opts.as_ref().unwrap();
 
     if opts.outputs == None {
@@ -328,12 +354,10 @@ pub fn gen_npm_package(pkg_path: String, wrk1: &AdlWorkspace<Payload1>) -> anyho
                                     "workspace:*".to_string(),
                                 );
                             }
-                            None => {
-                                return Err(anyhow!(
-                                    "pkg_ref::path - no ts_opts in workspace file for package '{}'",
-                                    p1.p_ref.path
-                                ))
-                            }
+                            None => return Err(anyhow!(
+                                "pkg_ref::path - no ts_opts in workspace file for package '{:?}'",
+                                p1.p_ref
+                            )),
                         },
                         None => return Err(anyhow!("no package is workspace with path '{}'", p0)),
                     }
@@ -353,8 +377,8 @@ pub fn gen_npm_package(pkg_path: String, wrk1: &AdlWorkspace<Payload1>) -> anyho
                             }
                             None => {
                                 return Err(anyhow!(
-                                "pkg_ref::alias - no ts_opts in workspace file for package '{}'",
-                                p1.p_ref.path
+                                "pkg_ref::alias - no ts_opts in workspace file for package '{:?}'",
+                                p1.p_ref
                             ))
                             }
                         },

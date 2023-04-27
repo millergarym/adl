@@ -1,6 +1,11 @@
-use std::{collections::HashMap, path::PathBuf, vec};
+use std::{collections::HashMap, fs, path::PathBuf, vec};
 
-use crate::adlgen::sys::adlast2::{Module1, ScopedName};
+use crate::{
+    adlgen::{
+        sys::adlast2::{Module1, ScopedName},
+    },
+};
+
 
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd)]
 pub enum IndexEntry {
@@ -117,7 +122,6 @@ pub fn rel_import(same_adl_pkg: bool, src: &String, dst: &String) -> String {
             import.push_str("/");
         }
         import.push_str(last);
-        import.push_str("/*not same pkg*/");
         return import;
     }
     if src_v.len() == 0 && dst_v.len() == 0 {
@@ -254,7 +258,13 @@ mod tests {
     fn test_relative_import() {
         let tests: Vec<(&str, bool, &str, &str, &str)> = vec![
             ("test 00", true, "abc", "def.ghi", "../ghi"),
-            ("test 00 - different packages", false, "abc", "def.ghi", "../def/ghi"),
+            (
+                "test 00 - different packages",
+                false,
+                "abc",
+                "def.ghi",
+                "../def/ghi",
+            ),
             ("test 00b", true, "abc", "def", "./def"),
             ("test 01", true, "scopedname.def", "scopedname.abc", "./abc"),
             (
@@ -300,7 +310,13 @@ mod tests {
                 "../../common",
             ),
             ("test 04b", true, "common", "common.strings", "../strings"),
-            ("test 04 - different packages", false, "common", "common.strings", "../common/strings"),
+            (
+                "test 04 - different packages",
+                false,
+                "common",
+                "common.strings",
+                "../common/strings",
+            ),
             (
                 "test 05",
                 true,

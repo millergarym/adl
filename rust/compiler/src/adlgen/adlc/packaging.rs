@@ -2,18 +2,19 @@
 
 use crate::adlgen::sys::adlast2::Module1;
 use crate::adlgen::sys::adlast2::ScopedName;
-use crate::adlrt::custom::sys::types::maybe::Maybe;
 use crate::adlrt::custom::sys::types::pair::Pair;
 use serde::Deserialize;
 use serde::Serialize;
 
-pub type AdlWorkspace0 = AdlWorkspace<AdlPackageRef>;
+pub type AdlWorkspace0 = AdlWorkspace<Payload0>;
 
 pub type AdlWorkspace1 = AdlWorkspace<Payload1>;
 
 pub type AdlWorkspace2 = AdlWorkspace<Payload2>;
 
 pub type LoaderWorkspace = AdlWorkspace<LoaderRef>;
+
+pub type Payload0 = AdlPackageRef;
 
 #[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
 pub struct Payload1 {
@@ -62,17 +63,14 @@ pub struct AdlWorkspace<T> {
 
   #[serde(default="AdlWorkspace::<T>::def_runtimes")]
   pub runtimes: Vec<RuntimeOpts>,
-
-  pub embedded_sys_loader: Maybe<T>,
 }
 
 impl<T> AdlWorkspace<T> {
-  pub fn new(adlc: String, r#use: Vec<T>, embedded_sys_loader: Maybe<T>) -> AdlWorkspace<T> {
+  pub fn new(adlc: String, r#use: Vec<T>) -> AdlWorkspace<T> {
     AdlWorkspace {
       adlc: adlc,
       r#use: r#use,
       runtimes: AdlWorkspace::<T>::def_runtimes(),
-      embedded_sys_loader: embedded_sys_loader,
     }
   }
 
@@ -129,10 +127,8 @@ impl TsWriteRuntime {
  */
 #[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
 pub struct LoaderRef {
-  pub path: String,
-
-  #[serde(default="LoaderRef::def_global_alias")]
-  pub global_alias: Option<String>,
+  #[serde(rename="ref")]
+  pub r#ref: LoaderRefType,
 
   #[serde(default="LoaderRef::def_loader_inject_annotate")]
   pub loader_inject_annotate: InjectAnnotations,
@@ -142,17 +138,12 @@ pub struct LoaderRef {
 }
 
 impl LoaderRef {
-  pub fn new(path: String) -> LoaderRef {
+  pub fn new(r#ref: LoaderRefType) -> LoaderRef {
     LoaderRef {
-      path: path,
-      global_alias: LoaderRef::def_global_alias(),
+      r#ref: r#ref,
       loader_inject_annotate: LoaderRef::def_loader_inject_annotate(),
       resolver_inject_annotate: LoaderRef::def_resolver_inject_annotate(),
     }
-  }
-
-  pub fn def_global_alias() -> Option<String> {
-    None
   }
 
   pub fn def_loader_inject_annotate() -> InjectAnnotations {
@@ -161,6 +152,49 @@ impl LoaderRef {
 
   pub fn def_resolver_inject_annotate() -> InjectAnnotations {
     vec![]
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub enum LoaderRefType {
+  #[serde(rename="dir")]
+  Dir(DirLoaderRef),
+
+  #[serde(rename="embedded")]
+  Embedded(EmbeddedLoaderRef),
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub struct DirLoaderRef {
+  pub path: String,
+
+  #[serde(default="DirLoaderRef::def_global_alias")]
+  pub global_alias: Option<String>,
+}
+
+impl DirLoaderRef {
+  pub fn new(path: String) -> DirLoaderRef {
+    DirLoaderRef {
+      path: path,
+      global_alias: DirLoaderRef::def_global_alias(),
+    }
+  }
+
+  pub fn def_global_alias() -> Option<String> {
+    None
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub struct EmbeddedLoaderRef {
+  pub alias: EmbeddedPkg,
+}
+
+impl EmbeddedLoaderRef {
+  pub fn new(alias: EmbeddedPkg) -> EmbeddedLoaderRef {
+    EmbeddedLoaderRef {
+      alias: alias,
+    }
   }
 }
 
@@ -174,22 +208,70 @@ pub enum InjectAnnotation {
 
 #[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
 pub struct AdlPackageRef {
-  pub path: String,
+  #[serde(rename="ref")]
+  pub r#ref: AdlPackageRefType,
 
   #[serde(default="AdlPackageRef::def_ts_opts")]
   pub ts_opts: Option<TypescriptGenOptions>,
 }
 
 impl AdlPackageRef {
-  pub fn new(path: String) -> AdlPackageRef {
+  pub fn new(r#ref: AdlPackageRefType) -> AdlPackageRef {
     AdlPackageRef {
-      path: path,
+      r#ref: r#ref,
       ts_opts: AdlPackageRef::def_ts_opts(),
     }
   }
 
   pub fn def_ts_opts() -> Option<TypescriptGenOptions> {
     None
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub enum AdlPackageRefType {
+  #[serde(rename="dir")]
+  Dir(DirectoryRef),
+
+  /**
+   * An ADL module embed in the ADL compiler
+   */
+  #[serde(rename="embedded")]
+  Embedded(EmbeddedRef),
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub struct EmbeddedRef {
+  pub alias: EmbeddedPkg,
+}
+
+impl EmbeddedRef {
+  pub fn new(alias: EmbeddedPkg) -> EmbeddedRef {
+    EmbeddedRef {
+      alias: alias,
+    }
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub enum EmbeddedPkg {
+  #[serde(rename="sys")]
+  Sys,
+
+  #[serde(rename="adlc")]
+  Adlc,
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub struct DirectoryRef {
+  pub path: String,
+}
+
+impl DirectoryRef {
+  pub fn new(path: String) -> DirectoryRef {
+    DirectoryRef {
+      path: path,
+    }
   }
 }
 

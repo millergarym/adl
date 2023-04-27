@@ -17,7 +17,7 @@ importers:
         specifier: workspace:*
         version: link:../runtime
       '@adl-lang/sys':
-        specifier: 1.0.0
+        specifier: workspace:*
         version: link:../../packages/sys
     devDependencies:
       tsconfig:
@@ -36,7 +36,7 @@ importers:
         specifier: workspace:*
         version: link:../runtime
       '@adl-lang/sys':
-        specifier: 1.0.0
+        specifier: workspace:*
         version: link:../../packages/sys
       base64-js:
         specifier: ^1.5.1
@@ -51,6 +51,22 @@ importers:
 
   generated/runtime:
     dependencies:
+      base64-js:
+        specifier: ^1.5.1
+        version: 1.5.1
+    devDependencies:
+      tsconfig:
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
+      typescript:
+        specifier: ^4.9.3
+        version: 4.9.3
+
+  generated/sys:
+    dependencies:
+      '@adl-lang/runtime':
+        specifier: workspace:*
+        version: link:../runtime
       base64-js:
         specifier: ^1.5.1
         version: 1.5.1
