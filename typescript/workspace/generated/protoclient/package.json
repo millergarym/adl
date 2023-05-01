@@ -5,13 +5,13 @@
     "tsc": "tsc"
   },
   "dependencies": {
-    "@adl-lang/runtime": "workspace:*",
     "base64-js": "^1.5.1",
     "@adl-lang/common": "workspace:*",
+    "@adl-lang/runtime": "workspace:*",
     "@adl-lang/sys": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^4.9.3",
-    "tsconfig": "workspace:*"
+    "tsconfig": "workspace:*",
+    "typescript": "^4.9.3"
   }
 }

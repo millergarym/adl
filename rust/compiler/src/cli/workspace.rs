@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::{env, fs};
 
@@ -7,7 +8,7 @@ use serde::Deserialize;
 
 use crate::adlgen::adlc::packaging::{
     AdlPackage, AdlPackageRefType, AdlWorkspace0, AdlWorkspace1, DirLoaderRef, InjectAnnotation,
-    LoaderRef, LoaderRefType, LoaderWorkspace, Payload1, EmbeddedLoaderRef, EmbeddedPkg, AdlPackageRef,
+    LoaderRef, LoaderRefType, LoaderWorkspace, Payload1, EmbeddedLoaderRef, EmbeddedPkg, AdlPackageRef, PkgRef,
 };
 use crate::adlgen::sys::adlast2::ScopedName;
 use crate::adlrt::custom::sys::types::pair::Pair;
@@ -30,8 +31,18 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
             // let pkg_root = wrk1.0.join(pkg.p_ref.path.clone()).canonicalize()?;
             let wrk_root = wrk1.0.canonicalize()?;
             std::env::set_current_dir(&wrk1.0)?;
-            tsgen::tsgen(loader, &opts, Some(wrk_root), pkg.p_ref.r#ref.clone())?;
-            // pkg.
+            let dep_paths: Vec<String> = pkg.pkg.requires.iter().filter_map(|p| if let PkgRef::Path(p1) = &p.r#ref {Some(p1.clone())} else { None } ).collect();
+            let dep_alias: Vec<String> = pkg.pkg.requires.iter().filter_map(|p| if let PkgRef::Alias(p1) = &p.r#ref {Some(p1.clone())} else { None } ).collect();
+            let deps = wrk1.1.r#use.iter().filter(|p| {
+                if dep_paths.contains(&p.pkg.path) {
+                    return true;
+                }
+                if let Some(a) = &p.pkg.global_alias {
+                    return dep_alias.contains(a);
+                }
+                return false;
+            }).collect();
+            tsgen::tsgen(loader, &opts, Some(wrk_root), pkg.p_ref.r#ref.clone(), deps )?;
             tsgen::gen_npm_package(pkg, &wrk1.1)?;
         }
     }
@@ -199,7 +210,6 @@ fn collect_work_and_pkg(
     }
     Ok(res)
 }
-
 
 trait AdlPackager {
     fn pkg_content(&self, wrk_dir: PathBuf) -> Result<AdlPackage, anyhow::Error>;

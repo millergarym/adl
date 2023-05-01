@@ -24,16 +24,7 @@ flyway/index.ts
 flyway/internals.ts
 http.ts
 index.ts
+resolver.ts
 strings.ts
 tabular.ts
 ui.ts
-n/flyway/example_patterns.ts
-common/flyway/index.ts
-common/flyway/internals.ts
-common/http.ts
-common/index.ts
-common/strings.ts
-common/tabular.ts
-common/ui.ts
-common.ts
-index.ts

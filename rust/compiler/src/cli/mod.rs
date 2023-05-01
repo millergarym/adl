@@ -1,4 +1,4 @@
-use std::{path::PathBuf, fmt::Display};
+use std::{path::PathBuf, fmt::Display, collections::HashSet};
 
 use anyhow::{anyhow, Error};
 use clap::{Args, Parser};
@@ -77,7 +77,8 @@ pub fn run_cli() -> i32 {
                 capitalize_branch_names_in_types: opts.capitalize_branch_names_in_types,
                 capitalize_type_names: opts.capitalize_type_names,
             };
-            tsgen::tsgen(loader, &ts_opts, None, AdlPackageRefType::Dir(DirectoryRef{ path: ".".to_string() }))
+            let empty = vec![];
+            tsgen::tsgen(loader, &ts_opts, None, AdlPackageRefType::Dir(DirectoryRef{ path: ".".to_string() }), empty)
         }
         Command::WriteStdlib(opts) => crate::adlstdlib::dump_stdlib(&opts),
     };

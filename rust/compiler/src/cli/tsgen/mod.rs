@@ -5,7 +5,7 @@ use std::io::Write as _;
 
 use regex::bytes::Regex;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -145,6 +145,7 @@ pub fn tsgen(
     opts: &TypescriptGenOptions,
     wrk_root: Option<PathBuf>,
     r#ref: AdlPackageRefType,
+    dep_adl_pkgs: Vec<&Payload1>,
 ) -> anyhow::Result<()> {
     if opts.outputs == None {
         // not gen for this pkg
@@ -181,22 +182,6 @@ pub fn tsgen(
         .map(|mn| resolver.get_module(&mn).unwrap())
         .collect();
 
-    // struct Index {
-    //     files: Vec<String>,
-    //     dirs: Vec<(String,Index)>,
-    // }
-
-    // enum Indexable {
-    //     File(String),
-    //     Dir(String),
-    // }
-
-    // let i_f = HashMap::new();
-    // let i_d = HashMap::new();
-
-    // let mut index = Index{files: vec![], dirs: vec![]};
-    // let mut indicies: &mut HashMap<PathBuf, Index> = &mut HashMap::new();
-
     let index_map = &mut HashMap::new();
 
     for m in &modules {
@@ -220,7 +205,8 @@ pub fn tsgen(
 
     {
         let tokens = &mut js::Tokens::new();
-        // let modules = resolver.get_module_names();
+        let dep_adl_resolvers = dep_adl_pkgs.iter().filter_map(|d| d.p_ref.ts_opts.as_ref().map(|t| t.npm_pkg_name.clone())).collect();
+
         if opts.include_resolver {
             gen_resolver(
                 tokens,
@@ -229,6 +215,7 @@ pub fn tsgen(
                 &opts.runtime_opts,
                 &resolver,
                 &modules,
+                dep_adl_resolvers,
             )?;
             let config = js::Config::default();
             // let config = js::Config{
@@ -490,36 +477,49 @@ fn gen_resolver(
     runtime_opts: &TsRuntimeOpt,
     resolver: &Resolver,
     modules: &Vec<Module1>,
+    adl_pkg_resolvers: HashSet<String>,
 ) -> anyhow::Result<()> {
     // TODO remote or local imports
-    let mut m_imports = vec![];
-
-    for m in modules {
+    let mut local_keys = vec![];
+    let m_imports: Vec<js::Import> = modules.iter().map(|m| {
         let npm_pkg2 = if let Some(m2) = resolver.get_module(&m.name) {
             get_npm_pkg(&m2)
         } else {
             None
         };
 
-        let path = if !generate_transitive && npm_pkg2 != None {
+        if let Some(npm_pkg2) = &npm_pkg2 {
+            if adl_pkg_resolvers.contains(npm_pkg2) {
+                let alias = npm_pkg2.replace("@", "").replace("-", "_").replace("/", "_");
+                return js::import(format!("{}/resolver", npm_pkg2), "ADL_local").with_alias(alias);
+            }
+        }
+        if !generate_transitive && npm_pkg2 != None {
             let npm_pkg2 = npm_pkg2.unwrap();
             if npm_pkg2 != npm_pkg.clone() {
-                npm_pkg_import(npm_pkg2, m.name.clone())
+                let alias = m.name.replace(".", "_");
+                local_keys.push(alias.clone());
+                return js::import(npm_pkg_import(npm_pkg2, m.name.clone()), "_AST_MAP").with_alias(alias);
             } else {
                 let name = rel_import_in_resolver(m);
-                format!("./{}", name)
+                let alias = m.name.replace(".", "_");
+                local_keys.push(alias.clone());
+                return js::import(format!("./{}", name), "_AST_MAP").with_alias(alias);
             }
         } else {
             if npm_pkg2 != Some(npm_pkg.clone()) {
-                format!("./{}", m.name.replace(".", "/"))
+                let alias = m.name.replace(".", "_");
+                local_keys.push(alias.clone());
+                return js::import(format!("./{}", m.name.replace(".", "/")), "_AST_MAP").with_alias(alias);
             } else {
                 let name = rel_import_in_resolver(m);
-                format!("./{}", name)
+                let alias = m.name.replace(".", "_");
+                local_keys.push(alias.clone());
+                return js::import(format!("./{}", name), "_AST_MAP").with_alias(alias);
             }
         };
+    }).collect();
 
-        m_imports.push(js::import(path, "_AST_MAP").with_alias(m.name.replace(".", "_")));
-    }
 
     let (adlr1, adlr2) = match runtime_opts {
         TsRuntimeOpt::WorkspaceRef(pref) => (
@@ -540,10 +540,15 @@ fn gen_resolver(
         }
     };
     let gened = "/* @generated from adl */";
-    // modules.sort_by(|a, b| a.name.cmp(&b.name));
-    let mut keys: Vec<String> = modules.iter().map(|m| m.name.clone()).collect();
-    // let m_map: HashMap<String,&Module1> = modules.iter().map(|m| (m.name.clone(),*m)).collect();
-    keys.sort();
+
+    let mut dep_keys: Vec<&String> = adl_pkg_resolvers.iter().collect();
+    dep_keys.sort();
+
+    local_keys.sort();
+    // // modules.sort_by(|a, b| a.name.cmp(&b.name));
+    // let mut keys: Vec<String> = modules.iter().map(|m| m.name.clone()).collect();
+    // // let m_map: HashMap<String,&Module1> = modules.iter().map(|m| (m.name.clone(),*m)).collect();
+    // keys.sort();
     quote_in! { *t =>
     $gened
     $(register (adlr2))
@@ -551,9 +556,14 @@ fn gen_resolver(
     $(for m in m_imports => $(register (m)))
 
 
-    export const ADL: { [key: string]: ScopedDecl } = {
-      $(for m in keys => ...$(m.replace(".", "_")),$['\r'])
+    export const ADL_local: { [key: string]: ScopedDecl } = {
+      $(for m in local_keys => ...$(m),$['\r'])
     };
+
+    export const ADL: { [key: string]: ScopedDecl } = {
+      ...ADL_local,
+      $(for m in dep_keys => ...$(m.replace("@", "").replace("-", "_").replace("/", "_")),$['\r'])
+    }
 
     export const RESOLVER = declResolver(ADL);
     }

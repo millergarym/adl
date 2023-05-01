@@ -4,4 +4,5 @@ adlast2.ts
 annotations.ts
 dynamic.ts
 index.ts
+resolver.ts
 types.ts

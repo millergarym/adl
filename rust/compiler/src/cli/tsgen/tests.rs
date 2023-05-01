@@ -136,7 +136,8 @@ fn generate_ts_from_test_files() {
 
                 // TODO consider failed.
                 // t.fail
-                match tsgen(loader_from_search_paths(&search_path), &ts_opts, None, AdlPackageRefType::Dir(DirectoryRef{ path: ".".to_string() })) {
+                let dep_adl_pkgs = vec![];
+                match tsgen(loader_from_search_paths(&search_path), &ts_opts, None, AdlPackageRefType::Dir(DirectoryRef{ path: ".".to_string() }), dep_adl_pkgs) {
                     Ok(_) => {
                         println!(
                             "{} {} - ts gen output;  {}",
