@@ -32,8 +32,21 @@ struct Payload2 {
 struct AdlWorkspace<T> {
     String adlc;
     Vector<T> use;
+    StringMap<NamedOpts> named_options = {};
     Vector<RuntimeOpts> runtimes = [];
     // Maybe<T> embedded_sys_loader;
+};
+
+struct NamedOpts {
+    TsNamedOpts ts_opts = {};
+};
+
+struct TsNamedOpts {
+    Nullable<TsRuntimeOpt> runtime_opts = null;
+    Nullable<StringMap<String>> scripts = null;
+    Nullable<StringMap<String>> dependencies = null;
+    Nullable<StringMap<String>> dev_dependencies = null;
+    Nullable<TsConfig> tsconfig = null;
 };
 
 union RuntimeOpts {
@@ -77,6 +90,7 @@ union InjectAnnotation {
 
 struct AdlPackageRef {
     AdlPackageRefType ref;
+    Nullable<String> named_opts = null;
     Nullable<TypescriptGenOptions> ts_opts = null; 
 };
 
@@ -106,6 +120,8 @@ struct TypescriptGenOptions {
     StringMap<VersionSpec> extra_dependencies = {};
     StringMap<VersionSpec> extra_dev_dependencies = {};
     Nullable<OutputOpts> outputs = null;
+    Nullable<TsConfig> tsconfig = null;
+    StringMap<String> scripts = {};
     TsRuntimeOpt runtime_opts = {"package_ref": {"name": "@adl-lang/runtime", "version": "^1.0.0"}};
     Bool generate_transitive = false;
     Bool include_resolver = false;
@@ -222,15 +238,10 @@ struct NpmPackage {
 
 // the bits of tsconfig we need
 struct TsConfig {
-    String extends = "tsconfig/base.json";
-    Vector<String> include = ["."];
-    Vector<String> exclude = ["dist", "build", "node_modules"];
-    TsCompilerOptions compilerOptions = {
-        "outDir": "dist",
-        "lib": [
-            "es2020"
-        ]
-    };
+    Nullable<String> extends;
+    Vector<String> include;
+    Vector<String> exclude;
+    TsCompilerOptions compilerOptions;
 };
 
 struct TsCompilerOptions {

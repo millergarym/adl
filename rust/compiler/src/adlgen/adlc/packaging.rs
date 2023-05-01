@@ -54,12 +54,15 @@ impl Payload2 {
 /**
  * Expected to live in a file named `adl.work.json`
  */
-#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+#[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
 pub struct AdlWorkspace<T> {
   pub adlc: String,
 
   #[serde(rename="use")]
   pub r#use: Vec<T>,
+
+  #[serde(default="AdlWorkspace::<T>::def_named_options")]
+  pub named_options: std::collections::HashMap<String,NamedOpts>,
 
   #[serde(default="AdlWorkspace::<T>::def_runtimes")]
   pub runtimes: Vec<RuntimeOpts>,
@@ -70,12 +73,85 @@ impl<T> AdlWorkspace<T> {
     AdlWorkspace {
       adlc: adlc,
       r#use: r#use,
+      named_options: AdlWorkspace::<T>::def_named_options(),
       runtimes: AdlWorkspace::<T>::def_runtimes(),
     }
   }
 
+  pub fn def_named_options() -> std::collections::HashMap<String,NamedOpts> {
+    [].iter().cloned().collect()
+  }
+
   pub fn def_runtimes() -> Vec<RuntimeOpts> {
     vec![]
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
+pub struct NamedOpts {
+  #[serde(default="NamedOpts::def_ts_opts")]
+  pub ts_opts: TsNamedOpts,
+}
+
+impl NamedOpts {
+  pub fn new() -> NamedOpts {
+    NamedOpts {
+      ts_opts: NamedOpts::def_ts_opts(),
+    }
+  }
+
+  pub fn def_ts_opts() -> TsNamedOpts {
+    TsNamedOpts{runtime_opts : None, scripts : None, dependencies : None, dev_dependencies : None, tsconfig : None}
+  }
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
+pub struct TsNamedOpts {
+  #[serde(default="TsNamedOpts::def_runtime_opts")]
+  pub runtime_opts: Option<TsRuntimeOpt>,
+
+  #[serde(default="TsNamedOpts::def_scripts")]
+  pub scripts: Option<std::collections::HashMap<String,String>>,
+
+  #[serde(default="TsNamedOpts::def_dependencies")]
+  pub dependencies: Option<std::collections::HashMap<String,String>>,
+
+  #[serde(default="TsNamedOpts::def_dev_dependencies")]
+  pub dev_dependencies: Option<std::collections::HashMap<String,String>>,
+
+  #[serde(default="TsNamedOpts::def_tsconfig")]
+  pub tsconfig: Option<TsConfig>,
+}
+
+impl TsNamedOpts {
+  pub fn new() -> TsNamedOpts {
+    TsNamedOpts {
+      runtime_opts: TsNamedOpts::def_runtime_opts(),
+      scripts: TsNamedOpts::def_scripts(),
+      dependencies: TsNamedOpts::def_dependencies(),
+      dev_dependencies: TsNamedOpts::def_dev_dependencies(),
+      tsconfig: TsNamedOpts::def_tsconfig(),
+    }
+  }
+
+  pub fn def_runtime_opts() -> Option<TsRuntimeOpt> {
+    None
+  }
+
+  pub fn def_scripts() -> Option<std::collections::HashMap<String,String>> {
+    None
+  }
+
+  pub fn def_dependencies() -> Option<std::collections::HashMap<String,String>> {
+    None
+  }
+
+  pub fn def_dev_dependencies() -> Option<std::collections::HashMap<String,String>> {
+    None
+  }
+
+  pub fn def_tsconfig() -> Option<TsConfig> {
+    None
   }
 }
 
@@ -211,6 +287,9 @@ pub struct AdlPackageRef {
   #[serde(rename="ref")]
   pub r#ref: AdlPackageRefType,
 
+  #[serde(default="AdlPackageRef::def_named_opts")]
+  pub named_opts: Option<String>,
+
   #[serde(default="AdlPackageRef::def_ts_opts")]
   pub ts_opts: Option<TypescriptGenOptions>,
 }
@@ -219,8 +298,13 @@ impl AdlPackageRef {
   pub fn new(r#ref: AdlPackageRefType) -> AdlPackageRef {
     AdlPackageRef {
       r#ref: r#ref,
+      named_opts: AdlPackageRef::def_named_opts(),
       ts_opts: AdlPackageRef::def_ts_opts(),
     }
+  }
+
+  pub fn def_named_opts() -> Option<String> {
+    None
   }
 
   pub fn def_ts_opts() -> Option<TypescriptGenOptions> {
@@ -291,6 +375,12 @@ pub struct TypescriptGenOptions {
   #[serde(default="TypescriptGenOptions::def_outputs")]
   pub outputs: Option<OutputOpts>,
 
+  #[serde(default="TypescriptGenOptions::def_tsconfig")]
+  pub tsconfig: Option<TsConfig>,
+
+  #[serde(default="TypescriptGenOptions::def_scripts")]
+  pub scripts: std::collections::HashMap<String,String>,
+
   #[serde(default="TypescriptGenOptions::def_runtime_opts")]
   pub runtime_opts: TsRuntimeOpt,
 
@@ -321,6 +411,8 @@ impl TypescriptGenOptions {
       extra_dependencies: TypescriptGenOptions::def_extra_dependencies(),
       extra_dev_dependencies: TypescriptGenOptions::def_extra_dev_dependencies(),
       outputs: TypescriptGenOptions::def_outputs(),
+      tsconfig: TypescriptGenOptions::def_tsconfig(),
+      scripts: TypescriptGenOptions::def_scripts(),
       runtime_opts: TypescriptGenOptions::def_runtime_opts(),
       generate_transitive: TypescriptGenOptions::def_generate_transitive(),
       include_resolver: TypescriptGenOptions::def_include_resolver(),
@@ -345,6 +437,14 @@ impl TypescriptGenOptions {
 
   pub fn def_outputs() -> Option<OutputOpts> {
     None
+  }
+
+  pub fn def_tsconfig() -> Option<TsConfig> {
+    None
+  }
+
+  pub fn def_scripts() -> std::collections::HashMap<String,String> {
+    [].iter().cloned().collect()
   }
 
   pub fn def_runtime_opts() -> TsRuntimeOpt {
@@ -685,44 +785,24 @@ impl NpmPackage {
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct TsConfig {
-  #[serde(default="TsConfig::def_extends")]
-  pub extends: String,
+  pub extends: Option<String>,
 
-  #[serde(default="TsConfig::def_include")]
   pub include: Vec<String>,
 
-  #[serde(default="TsConfig::def_exclude")]
   pub exclude: Vec<String>,
 
-  #[serde(default="TsConfig::def_compiler_options")]
   #[serde(rename="compilerOptions")]
   pub compiler_options: TsCompilerOptions,
 }
 
 impl TsConfig {
-  pub fn new() -> TsConfig {
+  pub fn new(extends: Option<String>, include: Vec<String>, exclude: Vec<String>, compiler_options: TsCompilerOptions) -> TsConfig {
     TsConfig {
-      extends: TsConfig::def_extends(),
-      include: TsConfig::def_include(),
-      exclude: TsConfig::def_exclude(),
-      compiler_options: TsConfig::def_compiler_options(),
+      extends: extends,
+      include: include,
+      exclude: exclude,
+      compiler_options: compiler_options,
     }
-  }
-
-  pub fn def_extends() -> String {
-    "tsconfig/base.json".to_string()
-  }
-
-  pub fn def_include() -> Vec<String> {
-    vec![".".to_string()]
-  }
-
-  pub fn def_exclude() -> Vec<String> {
-    vec!["dist".to_string(), "build".to_string(), "node_modules".to_string()]
-  }
-
-  pub fn def_compiler_options() -> TsCompilerOptions {
-    TsCompilerOptions{out_dir : "dist".to_string(), lib : vec!["es2020".to_string()]}
   }
 }
 

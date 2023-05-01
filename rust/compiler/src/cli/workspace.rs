@@ -1,4 +1,5 @@
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::{env, fs};
 
@@ -8,7 +9,7 @@ use serde::Deserialize;
 
 use crate::adlgen::adlc::packaging::{
     AdlPackage, AdlPackageRefType, AdlWorkspace0, AdlWorkspace1, DirLoaderRef, InjectAnnotation,
-    LoaderRef, LoaderRefType, LoaderWorkspace, Payload1, EmbeddedLoaderRef, EmbeddedPkg, AdlPackageRef, PkgRef,
+    LoaderRef, LoaderRefType, LoaderWorkspace, Payload1, EmbeddedLoaderRef, EmbeddedPkg, AdlPackageRef, PkgRef, TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::ScopedName;
 use crate::adlrt::custom::sys::types::pair::Pair;
@@ -63,6 +64,7 @@ fn wrk1_to_wld(wrk1: AdlWorkspace1) ->  Result<LoaderWorkspace, anyhow::Error> {
     Ok(LoaderWorkspace {
         adlc: wrk1.adlc,
         r#use: u2,
+        named_options: HashMap::new(),
         runtimes: wrk1.runtimes,
         // embedded_sys_loader: Maybe(wrk1.embedded_sys_loader.0.as_ref().map(payload1_to_loader_ref)),
     })
@@ -119,6 +121,16 @@ fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Erro
     Ok(loader_ref)
 }
 
+fn aprt_to_name(a: &AdlPackageRefType) -> String {
+    match a {
+        AdlPackageRefType::Dir(d) => d.path.clone(),
+        AdlPackageRefType::Embedded(e) => match e.alias {
+            EmbeddedPkg::Sys => "sys".to_string(),
+            EmbeddedPkg::Adlc => "adlc".to_string(),
+        },
+    }
+}
+
 fn collection_to_workspace(
     pkg_defs: Vec<(PkgDef, PathBuf, &str)>,
 ) -> Result<(PathBuf, AdlWorkspace1), anyhow::Error> {
@@ -135,31 +147,56 @@ fn collection_to_workspace(
             PkgDef::Work => {
                 let wrk0 = AdlWorkspace0::deserialize(&mut de)
                     .map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
+                let named_opts = wrk0.named_options;
                 let mut wrk1 = AdlWorkspace1 {
                     adlc: wrk0.adlc.clone(),
                     runtimes: wrk0.runtimes,
+                    named_options: HashMap::new(),
                     r#use: vec![],
-                    // embedded_sys_loader: Maybe(wrk0.embedded_sys_loader.0.map(|esl| Payload1 {
-                    //     p_ref: esl,
-                    //     pkg: AdlPackage {
-                    //         path: "github.com/adl-lang/adl/adl/stdlib/sys".to_string(),
-                    //         global_alias: Some("sys".to_string()),
-                    //         adlc: "0.0.0".to_string(),
-                    //         requires: vec![],
-                    //         excludes: vec![],
-                    //         replaces: vec![],
-                    //         retracts: vec![],
-                    //     },
-                    // })),
                 };
                 for p in wrk0.r#use.iter() {
                     let pkg = p.pkg_content(porw.1.clone())?;
+                    let mut p2 = p.clone();
+                    if let Some(name) = &p.named_opts {
+                        if let Some(opts) = named_opts.get(name) {
+                            if let Some(tsopt) = &mut p2.ts_opts {
+                                if let Some(rt) = &opts.ts_opts.runtime_opts {
+                                    if !tsopt.runtime_opts.eq(&TypescriptGenOptions::def_runtime_opts()) {
+                                        tsopt.runtime_opts = rt.to_owned();
+                                    }
+                                };
+                                if let Some(tsc) = &opts.ts_opts.tsconfig {
+                                    if tsopt.tsconfig == None {
+                                        tsopt.tsconfig = Some(tsc.to_owned());
+                                    }
+                                }
+                                if let Some(hm) = &opts.ts_opts.dependencies {
+                                    for (k,v) in hm {
+                                        tsopt.extra_dependencies.entry(k.clone()).or_insert(v.clone());
+                                    }
+                                }
+                                if let Some(hm) = &opts.ts_opts.dev_dependencies {
+                                    for (k,v) in hm {
+                                        tsopt.extra_dev_dependencies.entry(k.clone()).or_insert(v.clone());
+                                    }
+                                }
+                                if let Some(hm) = &opts.ts_opts.scripts {
+                                    for (k,v) in hm {
+                                        tsopt.scripts.entry(k.clone()).or_insert(v.clone());
+                                    }
+                                }
+                                p2.ts_opts = Some(tsopt.to_owned());
+                            }
+                        } else {
+                            log::warn!("Named option set specified but not found. Name: {} Package: {}", name, aprt_to_name(&p.r#ref));
+                        }
+                    }
                     // let p_path = porw.1.join(&p.path).join("adl.pkg.json");
                     // let content = fs::read_to_string(&p_path).map_err(|e| anyhow!("Can't read pkg specified in workspace.\n\tworkspace {:?}\n\t package {:?}\n\t error: {}", porw_path, p_path, e.to_string()))?;
                     // let mut de = serde_json::Deserializer::from_str(&content);
                     // let pkg = AdlPackage::deserialize(&mut de)
                     //     .map_err(|e| anyhow!("{:?}: {}", p_path, e.to_string()))?;
-                    wrk1.r#use.push(Payload1::new(p.clone(), pkg));
+                    wrk1.r#use.push(Payload1::new(p2, pkg));
                 }
                 return Ok((porw.1, wrk1));
             }

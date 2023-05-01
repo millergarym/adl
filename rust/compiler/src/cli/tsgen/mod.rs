@@ -15,7 +15,7 @@ use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
 use crate::adlgen::adlc::packaging::{
-    AdlPackageRefType, AdlWorkspace, ModuleSrc, NpmPackage, Payload1, TsConfig, TsRuntimeOpt,
+    AdlPackageRefType, AdlWorkspace, ModuleSrc, NpmPackage, Payload1, TsRuntimeOpt,
     TsStyle, TsWriteRuntime, TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::Module1;
@@ -281,9 +281,9 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
         }
         TsRuntimeOpt::Generate(_) => {}
     };
-    npm_package
-        .scripts
-        .insert("tsc".to_string(), "tsc".to_string());
+    for (k,v) in &opts.scripts {
+        npm_package.scripts.entry(k.clone()).or_insert(v.clone());
+    }
 
     for d in &opts.extra_dependencies {
         npm_package.dependencies.insert(d.0.clone(), d.1.clone());
@@ -354,10 +354,11 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
     writer.write(Path::new("package.json"), content)?;
     log::info!("generated {:?}", outputdir.clone().join("package.json"));
 
-    let ts_config = TsConfig::new();
-    let content = serde_json::to_string_pretty(&ts_config)?;
-    writer.write(Path::new("tsconfig.json"), content)?;
-    log::info!("generated {:?}", outputdir.clone().join("tsconfig.json"));
+    if let Some(ts_config) = &opts.tsconfig {
+        let content = serde_json::to_string_pretty(ts_config)?;
+        writer.write(Path::new("tsconfig.json"), content)?;
+        log::info!("generated {:?}", outputdir.clone().join("tsconfig.json"));    
+    }
 
     Ok(())
 }
