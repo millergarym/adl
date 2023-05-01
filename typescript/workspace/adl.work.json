@@ -6,7 +6,7 @@
                 "runtime_opts": {
                     "workspace_ref": "@adl-lang/runtime"
                 },
-                "extra_dev_dependencies": {
+                "dev_dependencies": {
                     "tsconfig": "workspace:*",
                     "typescript": "^4.9.3"
                 },
@@ -59,8 +59,7 @@
                 "outputs": {
                     "gen": {
                         "output_dir": "./generated/sys",
-                        "manifest": "./generated/sys/.adl-manifest",
-                        "strip_first": true
+                        "manifest": "./generated/sys/.adl-manifest"
                     }
                 },
                 "include_resolver": true
@@ -78,8 +77,7 @@
                 "outputs": {
                     "gen": {
                         "output_dir": "./generated/common",
-                        "manifest": "./generated/common/.adl-manifest",
-                        "strip_first": true
+                        "manifest": "./generated/common/.adl-manifest"
                     }
                 },
                 "include_resolver": true
@@ -101,8 +99,7 @@
                 "outputs": {
                     "gen": {
                         "output_dir": "./generated/protoclient",
-                        "manifest": "./generated/protoclient/.adl-manifest",
-                        "strip_first": true
+                        "manifest": "./generated/protoclient/.adl-manifest"
                     }
                 },
                 "include_resolver": true

@@ -6,8 +6,11 @@
     "tsc": "tsc"
   },
   "dependencies": {
-    "@adl-lang/sys": "workspace:*",
-    "@adl-lang/runtime": "^1.0.0"
+    "@adl-lang/runtime": "^1.0.0",
+    "@adl-lang/sys": "workspace:*"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "typescript": "^4.9.3",
+    "tsconfig": "workspace:*"
+  }
 }

@@ -1,5 +1,5 @@
 
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeSet};
 use std::path::PathBuf;
 use std::{env, fs};
 
@@ -66,7 +66,6 @@ fn wrk1_to_wld(wrk1: AdlWorkspace1) ->  Result<LoaderWorkspace, anyhow::Error> {
         r#use: u2,
         named_options: HashMap::new(),
         runtimes: wrk1.runtimes,
-        // embedded_sys_loader: Maybe(wrk1.embedded_sys_loader.0.as_ref().map(payload1_to_loader_ref)),
     })
 }
 
@@ -88,8 +87,6 @@ fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Erro
                 },
             }),
         },
-        // path: payload1.p_ref.path.clone(),
-        // global_alias: payload1.pkg.global_alias.clone(),
         loader_inject_annotate: vec![],
         resolver_inject_annotate: vec![],
     };
@@ -104,18 +101,6 @@ fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Erro
                 },
                 serde_json::json!(&ts_opts.npm_pkg_name),
             ))));
-        // let mn1 = "adlc.config.typescript".to_string();
-        // module1.annotations.0.insert(
-        //     adlast::ScopedName {
-        //         module_name: if *module_name == mn1 {
-        //             "".to_string()
-        //         } else {
-        //             mn1
-        //         },
-        //         name: "NpmPackage".to_string(),
-        //     },
-        //     serde_json::json!(&ts_opts.npm_pkg_name),
-        // );
     }
 
     Ok(loader_ref)
@@ -138,15 +123,23 @@ fn collection_to_workspace(
         let porw_path = porw.1.join(porw.2);
         let content = fs::read_to_string(&porw_path)
             .map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
-        let mut de = serde_json::Deserializer::from_str(&content);
+        let de = &mut serde_json::Deserializer::from_str(&content);
         match porw.0 {
             PkgDef::Pkg => {
                 // let pkg = AdlPackage::deserialize(&mut de).map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
                 // println!("pkg {:?}", pkg);
             }
             PkgDef::Work => {
-                let wrk0 = AdlWorkspace0::deserialize(&mut de)
-                    .map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
+                // let wrk0 = AdlWorkspace0::deserialize(de).map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
+
+                let mut unused = BTreeSet::new();
+                let wrk0: AdlWorkspace0 = serde_ignored::deserialize(de, |path| {
+                    unused.insert(path.to_string());
+                }).map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
+                if unused.len() != 0 {
+                    return Err(anyhow!("unknown fields `{:?}` {:?}", unused, porw_path));
+                }
+
                 let named_opts = wrk0.named_options;
                 let mut wrk1 = AdlWorkspace1 {
                     adlc: wrk0.adlc.clone(),
@@ -191,11 +184,6 @@ fn collection_to_workspace(
                             log::warn!("Named option set specified but not found. Name: {} Package: {}", name, aprt_to_name(&p.r#ref));
                         }
                     }
-                    // let p_path = porw.1.join(&p.path).join("adl.pkg.json");
-                    // let content = fs::read_to_string(&p_path).map_err(|e| anyhow!("Can't read pkg specified in workspace.\n\tworkspace {:?}\n\t package {:?}\n\t error: {}", porw_path, p_path, e.to_string()))?;
-                    // let mut de = serde_json::Deserializer::from_str(&content);
-                    // let pkg = AdlPackage::deserialize(&mut de)
-                    //     .map_err(|e| anyhow!("{:?}: {}", p_path, e.to_string()))?;
                     wrk1.r#use.push(Payload1::new(p2, pkg));
                 }
                 return Ok((porw.1, wrk1));
@@ -204,11 +192,6 @@ fn collection_to_workspace(
     }
     Err(anyhow!("No workspace found"))
 }
-
-// const ADL_PKG_FILES: &[(&str, PkgDef)] = &[
-//     ("adl.pkg.json", PkgDef::Pkg),
-//     ("adl.work.json", PkgDef::Work),
-// ];
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum PkgDef {
