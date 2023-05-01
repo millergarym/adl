@@ -19,6 +19,6 @@ export const ADL: { [key: string]: ScopedDecl } = {
   ...ADL_local,
   ...adl_lang_common,
   ...adl_lang_sys,
-}
+};
 
 export const RESOLVER = declResolver(ADL);

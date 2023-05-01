@@ -111,6 +111,8 @@ fn walk_and_collect_adl_modules(pkg_root: &str, cwd: &PathBuf) -> Vec<String> {
 }
 
 pub fn tsgen(
+    strip_first: bool,
+    packageable: bool,
     loader: Box<dyn AdlLoader>,
     opts: &TypescriptGenOptions,
     wrk_root: Option<PathBuf>,
@@ -154,7 +156,7 @@ pub fn tsgen(
     for m in &modules {
         let does_contain = module_names.contains(&m.name);
         if opts.generate_transitive || does_contain {
-            let path = path_from_module_name(m.name.to_owned());
+            let path = path_from_module_name(strip_first, m.name.to_owned());
 
             utils::collect_indexes(path.clone(), index_map);
 
@@ -203,47 +205,49 @@ pub fn tsgen(
     }
 
     if let TsRuntimeOpt::Generate(_) = &opts.runtime_opts {
-        gen_runtime(false, &opts.ts_style, &mut writer)?
+        gen_runtime(false, false, &opts.ts_style, &mut writer)?
     }
 
-    let mut keys: Vec<&PathBuf> = index_map.keys().collect();
-    keys.sort();
-    for k in keys {
-        let mut out = Vec::new();
-        write!(&mut out, "/* @generated - key {:?} */\n", k)?;
-        let vs = index_map.get(k).unwrap();
-        let mut v1: Vec<IndexEntry> = vec![];
-        for v in vs {
-            v1.push(v.to_owned());
-        }
-        v1.sort();
-        for v in &v1 {
-            match v {
-                IndexEntry::Dir(ie) => {
-                    if ie == "_" {
-                        write!(&mut out, "export * from './{}/index';\n", ie)?;
-                    } else {
-                        write!(&mut out, "export * as {} from './{}/index';\n", ie, ie)?;
+    if packageable {
+        let mut keys: Vec<&PathBuf> = index_map.keys().collect();
+        keys.sort();
+        for k in keys {
+            let mut out = Vec::new();
+            write!(&mut out, "/* @generated - key {:?} */\n", k)?;
+            let vs = index_map.get(k).unwrap();
+            let mut v1: Vec<IndexEntry> = vec![];
+            for v in vs {
+                v1.push(v.to_owned());
+            }
+            v1.sort();
+            for v in &v1 {
+                match v {
+                    IndexEntry::Dir(ie) => {
+                        if ie == "_" {
+                            write!(&mut out, "export * from './{}/index';\n", ie)?;
+                        } else {
+                            write!(&mut out, "export * as {} from './{}/index';\n", ie, ie)?;
+                        }
                     }
-                }
-                IndexEntry::Leaf(ie) => {
-                    let iep: Vec<&str> = ie.split(".").collect();
-                    let mut pat = String::from("/");
-                    pat.push_str(iep[0]);
-                    if k.eq(&PathBuf::from("_"))
-                        && (opts.npm_pkg_name.eq(iep[0])
-                            || opts.npm_pkg_name.ends_with(pat.as_str()))
-                    {
-                        write!(&mut out, "export * from './{}';\n", iep[0])?;
-                    } else {
-                        write!(&mut out, "export * as {} from './{}';\n", iep[0], iep[0])?;
+                    IndexEntry::Leaf(ie) => {
+                        let iep: Vec<&str> = ie.split(".").collect();
+                        let mut pat = String::from("/");
+                        pat.push_str(iep[0]);
+                        if k.eq(&PathBuf::from("_"))
+                            && (opts.npm_pkg_name.eq(iep[0])
+                                || opts.npm_pkg_name.ends_with(pat.as_str()))
+                        {
+                            write!(&mut out, "export * from './{}';\n", iep[0])?;
+                        } else {
+                            write!(&mut out, "export * as {} from './{}';\n", iep[0], iep[0])?;
+                        }
                     }
                 }
             }
+            let path_ind = k.join("index.ts");
+            let code = std::str::from_utf8(&out)?;
+            writer.write(path_ind.as_path(), code.to_string())?;
         }
-        let path_ind = k.join("index.ts");
-        let code = std::str::from_utf8(&out)?;
-        writer.write(path_ind.as_path(), code.to_string())?;
     }
     Ok(())
 }
@@ -379,7 +383,7 @@ fn gen_ts_module(
             while src_i.next() != None {
                 import.push_str("../");
             }
-            import.push_str("runtime.adl");
+            import.push_str("runtime/adl");
             // TODO modify the import path with opts.runtime_dir
             js::import(import, "ADL").into_wildcard()
         }
@@ -409,11 +413,11 @@ fn gen_ts_module(
     Ok(code.to_string())
 }
 
-fn path_from_module_name(mname: adlast::ModuleName) -> PathBuf {
+fn path_from_module_name(strip_first: bool, mname: adlast::ModuleName) -> PathBuf {
     let mut path = PathBuf::new();
     let mut iter = mname.split(".").enumerate().peekable();
     while let Some((i, el)) = iter.next() {
-        if i == 0 {
+        if strip_first && i == 0 {
             if iter.peek() == None {
                 // this means the adl file is at the top level.
                 path.push("_");
@@ -505,20 +509,20 @@ fn gen_resolver(
     dep_keys.sort();
     local_keys.sort();
     quote_in! { *t =>
-    $gened
+    $gened$['\r']
     $(register (adlr2))
     $(register (adlr1))
     $(for m in m_imports => $(register (m)))
 
 
-    export const ADL_local: { [key: string]: ScopedDecl } = {
+    export const ADL_local: { [key: string]: ScopedDecl } = {$['\r']
       $(for m in local_keys => ...$(m),$['\r'])
-    };
+    };$['\r']
 
-    export const ADL: { [key: string]: ScopedDecl } = {
+    export const ADL: { [key: string]: ScopedDecl } = {$['\r']
       ...ADL_local,
       $(for m in dep_keys => ...$(m.replace("@", "").replace("-", "_").replace("/", "_")),$['\r'])
-    }
+    };$['\r']
 
     export const RESOLVER = declResolver(ADL);
     }
@@ -539,14 +543,15 @@ fn rel_import_in_resolver(m: &adlast::Module<adlast::TypeExpr<adlast::TypeRef>>)
     name
 }
 
-pub fn write_runtime(rt_opts: &TsWriteRuntime) -> anyhow::Result<()> {
+pub fn write_runtime(packageable: bool, rt_opts: &TsWriteRuntime) -> anyhow::Result<()> {
     let mut writer = TreeWriter::new(PathBuf::from(&rt_opts.output_dir), None)?;
-    gen_runtime(true, &rt_opts.ts_style, &mut writer)?;
+    gen_runtime(true, packageable, &rt_opts.ts_style, &mut writer)?;
     Ok(())
 }
 
 fn gen_runtime(
     strip_first: bool,
+    packageable: bool,
     ts_style: &TsStyle,
     writer: &mut TreeWriter,
 ) -> anyhow::Result<()> {
@@ -561,6 +566,17 @@ fn gen_runtime(
         }
         // file_path.push(&rt_gen_opts.runtime_dir);
         file_path.push(rt_name.as_ref());
+        if !packageable {
+            let is_ts = if let Some(ex) = file_path.extension() {
+                ex.to_os_string().eq("ts")
+            } else {
+                false
+            };
+            if !is_ts {
+                log::info!("skipping file as !packageable is set. file {:?}", file_path);
+                continue;
+            }
+        }
         let dir_path = file_path.parent().unwrap();
         std::fs::create_dir_all(dir_path)?;
 

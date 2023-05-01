@@ -9,13 +9,15 @@ use crate::{
         packaging::{GenOutput, ModuleSrc, ReferenceableScopeOption, TsGenRuntime, DirectoryRef},
         testing_table::TestFilesMetaData,
     },
-    processing::loader::loader_from_search_paths,
+    processing::loader::loader_from_search_paths, cli::formatter,
 };
 
 use super::*;
 
 #[test]
 fn generate_ts_from_test_files() {
+    let _ = env_logger::builder().is_test(true).format(formatter).filter_level(log::LevelFilter::Info).try_init();
+
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     d.push("../../adl/tests/testing_table.json");
 
@@ -137,7 +139,7 @@ fn generate_ts_from_test_files() {
                 // TODO consider failed.
                 // t.fail
                 let dep_adl_pkgs = vec![];
-                match tsgen(loader_from_search_paths(&search_path), &ts_opts, None, AdlPackageRefType::Dir(DirectoryRef{ path: ".".to_string() }), dep_adl_pkgs) {
+                match tsgen(false, false, loader_from_search_paths(&search_path), &ts_opts, None, AdlPackageRefType::Dir(DirectoryRef{ path: ".".to_string() }), dep_adl_pkgs) {
                     Ok(_) => {
                         println!(
                             "{} {} - ts gen output;  {}",

@@ -41,14 +41,14 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
                 }
                 return false;
             }).collect();
-            tsgen::tsgen(loader, &opts, Some(wrk_root), pkg.p_ref.r#ref.clone(), deps )?;
+            tsgen::tsgen(true, true, loader, &opts, Some(wrk_root), pkg.p_ref.r#ref.clone(), deps)?;
             tsgen::gen_npm_package(pkg, &wrk1.1)?;
         }
     }
     for rt in &wrk1.1.runtimes {
         match rt {
             crate::adlgen::adlc::packaging::RuntimeOpts::TsRuntime(rt_opts) => {
-                tsgen::write_runtime(rt_opts)?
+                tsgen::write_runtime(true, rt_opts)?
             }
         }
     }

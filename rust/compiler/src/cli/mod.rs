@@ -1,4 +1,4 @@
-use std::{path::PathBuf, fmt::Display};
+use std::{path::PathBuf, fmt::Display, io};
 
 use anyhow::{anyhow, Error};
 use clap::{Args, Parser};
@@ -23,20 +23,33 @@ pub mod tsgen;
 pub mod verify;
 pub mod workspace;
 
+pub fn formatter(buf: &mut Formatter, record: &Record<'_>) -> io::Result<()> {
+    let level = buf.default_styled_level(record.level());
+    let timestamp = buf.timestamp();
+    let mut location = String::new();
+    if let (Some(f), Some(l)) = (record.file(), record.line()) {
+        location.push_str(format!(" {}:{}", f, l).as_str());
+    }
+    if let Some(m) = record.module_path() {
+        location.push_str(format!(" {}", m).as_str());
+    }
+    writeln!(buf, "[{timestamp} {level}{location}] {}", record.args())
+}
+
 fn init_logger(module: Option<String>, level: Option<LevelFilter>) {
 
-    let formatter = |buf: &mut Formatter, record: &Record<'_>| {
-        let level = buf.default_styled_level(record.level());
-        let timestamp = buf.timestamp();
-        let mut location = String::new();
-        if let (Some(f), Some(l)) = (record.file(), record.line()) {
-            location.push_str(format!(" {}:{}", f, l).as_str());
-        }
-        if let Some(m) = record.module_path() {
-            location.push_str(format!(" {}", m).as_str());
-        }
-        writeln!(buf, "[{timestamp} {level}{location}] {}", record.args())
-    };
+    // let formatter = |buf: &mut Formatter, record: &Record<'_>| {
+    //     let level = buf.default_styled_level(record.level());
+    //     let timestamp = buf.timestamp();
+    //     let mut location = String::new();
+    //     if let (Some(f), Some(l)) = (record.file(), record.line()) {
+    //         location.push_str(format!(" {}:{}", f, l).as_str());
+    //     }
+    //     if let Some(m) = record.module_path() {
+    //         location.push_str(format!(" {}", m).as_str());
+    //     }
+    //     writeln!(buf, "[{timestamp} {level}{location}] {}", record.args())
+    // };
 
     match (&module, level) {
         (None, None) => Builder::from_env(Env::default()).format(formatter).init(),
@@ -107,7 +120,7 @@ pub fn run_cli() -> i32 {
                 capitalize_type_names: opts.capitalize_type_names,
             };
             let empty = vec![];
-            tsgen::tsgen(loader, &ts_opts, None, AdlPackageRefType::Dir(DirectoryRef{ path: ".".to_string() }), empty)
+            tsgen::tsgen(false, false, loader, &ts_opts, None, AdlPackageRefType::Dir(DirectoryRef{ path: ".".to_string() }), empty)
         }
         Command::WriteStdlib(opts) => crate::adlstdlib::dump_stdlib(&opts),
     };
