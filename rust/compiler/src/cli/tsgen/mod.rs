@@ -1,6 +1,5 @@
 use regex;
 
-use std::fmt::Write as _;
 use std::io::Write as _;
 
 use regex::bytes::Regex;
@@ -16,8 +15,8 @@ use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
 use crate::adlgen::adlc::packaging::{
-    AdlPackageRef, AdlPackageRefType, AdlWorkspace, ModuleSrc, NpmPackage, Payload1, TsConfig,
-    TsRuntimeOpt, TsStyle, TsWriteRuntime, TypescriptGenOptions,
+    AdlPackageRefType, AdlWorkspace, ModuleSrc, NpmPackage, Payload1, TsConfig, TsRuntimeOpt,
+    TsStyle, TsWriteRuntime, TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::Module1;
 use crate::adlgen::sys::adlast2::{self as adlast};
@@ -39,26 +38,6 @@ use rust_embed::RustEmbed;
 #[folder = "src/cli/tsgen/ts-runtime/"]
 struct Asset;
 
-// const RUNTIME_PACKAGE: &[u8] = include_bytes!("runtime/package.json");
-// const RUNTIME_JSON: &[u8] = include_bytes!("runtime/json.ts");
-// const RUNTIME_ADL: &[u8] = include_bytes!("runtime/adl.ts");
-// const RUNTIME_UTILS: &[u8] = include_bytes!("runtime/utils.ts");
-// const RUNTIME_DYNAMIC: &[u8] = include_bytes!("runtime/dynamic.ts");
-// const RUNTIME_SYS_DYNAMIC: &[u8] = include_bytes!("runtime/sys/dynamic.ts");
-// const RUNTIME_SYS_ADLAST: &[u8] = include_bytes!("runtime/sys/adlast.ts");
-// const RUNTIME_SYS_TYPES: &[u8] = include_bytes!("runtime/sys/types.ts");
-
-// const RUNTIME: [&'static (&str, &[u8]); 8] = [
-//     &("package.json", RUNTIME_PACKAGE),
-//     &("json.ts", RUNTIME_JSON),
-//     &("adl.ts", RUNTIME_ADL),
-//     &("utils.ts", RUNTIME_UTILS),
-//     &("dynamic.ts", RUNTIME_DYNAMIC),
-//     &("sys/dynamic.ts", RUNTIME_SYS_DYNAMIC),
-//     &("sys/adlast.ts", RUNTIME_SYS_ADLAST),
-//     &("sys/types.ts", RUNTIME_SYS_TYPES),
-// ];
-
 const TSC_B64: &[u8] =
     b"import {fromByteArray as b64Encode, toByteArray as b64Decode} from 'base64-js'";
 const DENO_B64: &[u8] = b"import {encode as b64Encode, decode as b64Decode} from 'https://deno.land/std@0.97.0/encoding/base64.ts'";
@@ -69,29 +48,20 @@ fn get_modules(
     r#ref: AdlPackageRefType,
 ) -> Result<Vec<String>, anyhow::Error> {
     match r#ref {
-        AdlPackageRefType::Dir(d) => {
-            match &opts.modules {
-                ModuleSrc::All => {
-                    if wrk_root == None {
-                        return Err(anyhow!("wrk_root needed when module src all specified"));
-                    }
-                    let pkg_root = wrk_root.unwrap().join(d.path.clone()).canonicalize()?;
-                    // let pkg_root = if let Some(pkg_root) = pkg_root {
-                    //     pkg_root
-                    // } else {
-                    //     return Err(anyhow!("pkg_root needed when module src all specified"));
-                    // };
-                    // // let pkg_root = wrk1.0.join(pkg.0 .0.path.clone()).canonicalize()?;
-                    // // let pkg_root = wrk1_path.join(pkg_path).canonicalize()?;
-                    if let Some(pkg_root_str) = pkg_root.as_os_str().to_str() {
-                        Ok(walk_and_collect_adl_modules(pkg_root_str, &pkg_root))
-                    } else {
-                        return Err(anyhow!("Could get str from pkg_root"));
-                    }
+        AdlPackageRefType::Dir(d) => match &opts.modules {
+            ModuleSrc::All => {
+                if wrk_root == None {
+                    return Err(anyhow!("wrk_root needed when module src all specified"));
                 }
-                ModuleSrc::Modules(ms) => Ok(ms.clone()),
+                let pkg_root = wrk_root.unwrap().join(d.path.clone()).canonicalize()?;
+                if let Some(pkg_root_str) = pkg_root.as_os_str().to_str() {
+                    Ok(walk_and_collect_adl_modules(pkg_root_str, &pkg_root))
+                } else {
+                    return Err(anyhow!("Could get str from pkg_root"));
+                }
             }
-        }
+            ModuleSrc::Modules(ms) => Ok(ms.clone()),
+        },
         AdlPackageRefType::Embedded(e) => match &opts.modules {
             ModuleSrc::Modules(ms) => Ok(ms.clone()),
             ModuleSrc::All => Ok(get_file_names(e.alias)
@@ -107,7 +77,7 @@ fn get_modules(
                     let mut p0 = p.clone();
                     p0.set_extension("");
                     p0.to_str().unwrap().to_string().replace("/", ".")
-        })
+                })
                 .collect()),
         },
     }
@@ -125,7 +95,7 @@ fn walk_and_collect_adl_modules(pkg_root: &str, cwd: &PathBuf) -> Vec<String> {
                             if let Some(name) = path.to_str() {
                                 let name1 = &name[(pkg_root.len() + 1)..(name.len() - 4)];
                                 let name2 = name1.replace("/", ".");
-                                println!("  adding module {}", name2);
+                                log::info!("  adding module {}", name2);
                                 mods.push(name2);
                             }
                         }
@@ -161,7 +131,6 @@ pub fn tsgen(
 
     let mut resolver = Resolver::new(loader);
     let module_names = get_modules(opts, wrk_root, r#ref)?;
-    println!("module_names:{:?}", module_names);
     for m in &module_names {
         let r = resolver.add_module(m);
         match r {
@@ -172,9 +141,7 @@ pub fn tsgen(
 
     let mut writer = TreeWriter::new(outputdir.clone(), manifest)?;
 
-    println!("----");
-    let parent = outputdir.file_name().unwrap().to_str().unwrap().to_string();
-    println!("!!!'{}'", parent);
+    let _parent = outputdir.file_name().unwrap().to_str().unwrap().to_string();
 
     let modules: Vec<Module1> = resolver
         .get_module_names()
@@ -191,7 +158,6 @@ pub fn tsgen(
 
             utils::collect_indexes(path.clone(), index_map);
 
-            println!("~~~{} - {:?}", m.name.to_owned(), &path.clone());
             let path = path.as_path();
             // if None == path.components().next() {
             //     return Err(anyhow!("Output module name was empty. Potential config issue 'strip_first' might need to be false. Module: '{}'. strip_first: '{}'", m.name, strip_first));
@@ -205,7 +171,10 @@ pub fn tsgen(
 
     {
         let tokens = &mut js::Tokens::new();
-        let dep_adl_resolvers = dep_adl_pkgs.iter().filter_map(|d| d.p_ref.ts_opts.as_ref().map(|t| t.npm_pkg_name.clone())).collect();
+        let dep_adl_resolvers = dep_adl_pkgs
+            .iter()
+            .filter_map(|d| d.p_ref.ts_opts.as_ref().map(|t| t.npm_pkg_name.clone()))
+            .collect();
 
         if opts.include_resolver {
             gen_resolver(
@@ -237,7 +206,6 @@ pub fn tsgen(
         gen_runtime(false, &opts.ts_style, &mut writer)?
     }
 
-    println!("INDEX MAP");
     let mut keys: Vec<&PathBuf> = index_map.keys().collect();
     keys.sort();
     for k in keys {
@@ -276,18 +244,11 @@ pub fn tsgen(
         let path_ind = k.join("index.ts");
         let code = std::str::from_utf8(&out)?;
         writer.write(path_ind.as_path(), code.to_string())?;
-
-        println!("  {:?}: {:?}", k, v1);
     }
     Ok(())
 }
 
 pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> anyhow::Result<()> {
-    // let payload = wrk1
-    //     .r#use
-    //     .iter()
-    //     .find(|w| w.p_ref.path == pkg_path)
-    //     .unwrap();
     let opts = payload.p_ref.ts_opts.as_ref().unwrap();
 
     if opts.outputs == None {
@@ -341,10 +302,12 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
                                     "workspace:*".to_string(),
                                 );
                             }
-                            None => return Err(anyhow!(
+                            None => {
+                                return Err(anyhow!(
                                 "pkg_ref::path - no ts_opts in workspace file for package '{:?}'",
                                 p1.p_ref
-                            )),
+                            ))
+                            }
                         },
                         None => return Err(anyhow!("no package is workspace with path '{}'", p0)),
                     }
@@ -402,16 +365,12 @@ fn gen_ts_module(
 ) -> anyhow::Result<String> {
     // TODO sys.annotations::SerializedName needs to be embedded
     let tokens = &mut js::Tokens::new();
-    // match opts.runtime_opts {
-    //     TsRuntimeOpt::PackageRef(pkg) => todo!(),
-    //     TsRuntimeOpt::Generate(_) => todo!(),
-    // }
     let adlr = match &opts.runtime_opts {
         TsRuntimeOpt::WorkspaceRef(pkg) => js::import(pkg.clone() + "/adl", "ADL").into_wildcard(),
         TsRuntimeOpt::PackageRef(pkg) => {
             js::import(pkg.name.clone() + "/adl", "ADL").into_wildcard()
         }
-        TsRuntimeOpt::Generate(gen) => {
+        TsRuntimeOpt::Generate(_gen) => {
             let src_v: Vec<&str> = m.name.split(['.']).collect();
             let src_v = &src_v[..src_v.len() - 1];
             let mut import = String::new();
@@ -447,8 +406,6 @@ fn gen_ts_module(
     tokens.format_file(&mut w.as_formatter(&fmt), &config)?;
     let vector = w.into_inner();
     let code = std::str::from_utf8(&vector)?;
-    // let code = tokens.to_file_string()?;
-    // tokens.format_file(out, config);
     Ok(code.to_string())
 }
 
@@ -479,47 +436,54 @@ fn gen_resolver(
     modules: &Vec<Module1>,
     adl_pkg_resolvers: HashSet<String>,
 ) -> anyhow::Result<()> {
-    // TODO remote or local imports
     let mut local_keys = vec![];
-    let m_imports: Vec<js::Import> = modules.iter().map(|m| {
-        let npm_pkg2 = if let Some(m2) = resolver.get_module(&m.name) {
-            get_npm_pkg(&m2)
-        } else {
-            None
-        };
-
-        if let Some(npm_pkg2) = &npm_pkg2 {
-            if adl_pkg_resolvers.contains(npm_pkg2) {
-                let alias = npm_pkg2.replace("@", "").replace("-", "_").replace("/", "_");
-                return js::import(format!("{}/resolver", npm_pkg2), "ADL_local").with_alias(alias);
-            }
-        }
-        if !generate_transitive && npm_pkg2 != None {
-            let npm_pkg2 = npm_pkg2.unwrap();
-            if npm_pkg2 != npm_pkg.clone() {
-                let alias = m.name.replace(".", "_");
-                local_keys.push(alias.clone());
-                return js::import(npm_pkg_import(npm_pkg2, m.name.clone()), "_AST_MAP").with_alias(alias);
+    let m_imports: Vec<js::Import> = modules
+        .iter()
+        .map(|m| {
+            let npm_pkg2 = if let Some(m2) = resolver.get_module(&m.name) {
+                get_npm_pkg(&m2)
             } else {
-                let name = rel_import_in_resolver(m);
-                let alias = m.name.replace(".", "_");
-                local_keys.push(alias.clone());
-                return js::import(format!("./{}", name), "_AST_MAP").with_alias(alias);
-            }
-        } else {
-            if npm_pkg2 != Some(npm_pkg.clone()) {
-                let alias = m.name.replace(".", "_");
-                local_keys.push(alias.clone());
-                return js::import(format!("./{}", m.name.replace(".", "/")), "_AST_MAP").with_alias(alias);
-            } else {
-                let name = rel_import_in_resolver(m);
-                let alias = m.name.replace(".", "_");
-                local_keys.push(alias.clone());
-                return js::import(format!("./{}", name), "_AST_MAP").with_alias(alias);
-            }
-        };
-    }).collect();
+                None
+            };
 
+            if let Some(npm_pkg2) = &npm_pkg2 {
+                if adl_pkg_resolvers.contains(npm_pkg2) {
+                    let alias = npm_pkg2
+                        .replace("@", "")
+                        .replace("-", "_")
+                        .replace("/", "_");
+                    return js::import(format!("{}/resolver", npm_pkg2), "ADL_local")
+                        .with_alias(alias);
+                }
+            }
+            if !generate_transitive && npm_pkg2 != None {
+                let npm_pkg2 = npm_pkg2.unwrap();
+                if npm_pkg2 != npm_pkg.clone() {
+                    let alias = m.name.replace(".", "_");
+                    local_keys.push(alias.clone());
+                    return js::import(npm_pkg_import(npm_pkg2, m.name.clone()), "_AST_MAP")
+                        .with_alias(alias);
+                } else {
+                    let name = rel_import_in_resolver(m);
+                    let alias = m.name.replace(".", "_");
+                    local_keys.push(alias.clone());
+                    return js::import(format!("./{}", name), "_AST_MAP").with_alias(alias);
+                }
+            } else {
+                if npm_pkg2 != Some(npm_pkg.clone()) {
+                    let alias = m.name.replace(".", "_");
+                    local_keys.push(alias.clone());
+                    return js::import(format!("./{}", m.name.replace(".", "/")), "_AST_MAP")
+                        .with_alias(alias);
+                } else {
+                    let name = rel_import_in_resolver(m);
+                    let alias = m.name.replace(".", "_");
+                    local_keys.push(alias.clone());
+                    return js::import(format!("./{}", name), "_AST_MAP").with_alias(alias);
+                }
+            };
+        })
+        .collect();
 
     let (adlr1, adlr2) = match runtime_opts {
         TsRuntimeOpt::WorkspaceRef(pref) => (
@@ -530,25 +494,16 @@ fn gen_resolver(
             js::import(format!("{}/adl", pref.name.as_str()), "declResolver"),
             js::import(format!("{}/adl", pref.name.as_str()), "ScopedDecl"),
         ),
-        TsRuntimeOpt::Generate(gen) => {
-            // js::import(format!("{}/adl", gen.runtime_dir), "declResolver"),
-            // js::import(format!("{}/adl", gen.runtime_dir), "ScopedDecl")
-            (
-                js::import("./runtime/adl", "declResolver"),
-                js::import("./runtime/adl", "ScopedDecl"),
-            )
-        }
+        TsRuntimeOpt::Generate(_gen) => (
+            js::import("./runtime/adl", "declResolver"),
+            js::import("./runtime/adl", "ScopedDecl"),
+        ),
     };
     let gened = "/* @generated from adl */";
 
     let mut dep_keys: Vec<&String> = adl_pkg_resolvers.iter().collect();
     dep_keys.sort();
-
     local_keys.sort();
-    // // modules.sort_by(|a, b| a.name.cmp(&b.name));
-    // let mut keys: Vec<String> = modules.iter().map(|m| m.name.clone()).collect();
-    // // let m_map: HashMap<String,&Module1> = modules.iter().map(|m| (m.name.clone(),*m)).collect();
-    // keys.sort();
     quote_in! { *t =>
     $gened
     $(register (adlr2))
@@ -592,11 +547,10 @@ pub fn write_runtime(rt_opts: &TsWriteRuntime) -> anyhow::Result<()> {
 
 fn gen_runtime(
     strip_first: bool,
-    // rt_gen_opts: &TsGenRuntime,
     ts_style: &TsStyle,
     writer: &mut TreeWriter,
 ) -> anyhow::Result<()> {
-    println!("Writing Runtime to file system ...");
+    log::info!("Writing Runtime to file system ...");
     let re = Regex::new(r"\$TSEXT").unwrap();
     let re2 = Regex::new(r"\$TSB64IMPORT").unwrap();
     for rt_name in Asset::iter() {
@@ -621,8 +575,6 @@ fn gen_runtime(
                 let x = content.deref();
                 let y = String::from_utf8(x.to_vec())?;
                 writer.write(file_path.as_path(), y)?;
-                // std::fs::write(file_path, content)
-                //     .map_err(|e| anyhow!("error writing runtime file {}", e.to_string()))?;
             }
             TsStyle::Deno => {
                 let content = re.replace_all(content, ".ts".as_bytes());

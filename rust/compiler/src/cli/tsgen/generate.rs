@@ -380,7 +380,6 @@ impl TsGenVisitor<'_> {
             let path = if !self.opts.generate_transitive && npm_pkg2 != None && npm_pkg2 != npm_pkg {
                 npm_pkg_import(npm_pkg2.unwrap(), scoped_name.module_name.clone())
             } else {
-                println!("!!!{:?} {:?}", npm_pkg2, self.npm_pkg.clone());
                 let same_pkg = npm_pkg2 == self.npm_pkg.clone();
 
                 rel_import(same_pkg, &self.module.name, &scoped_name.module_name)

@@ -5,10 +5,10 @@
     "tsc": "tsc"
   },
   "dependencies": {
-    "base64-js": "^1.5.1",
-    "@adl-lang/common": "workspace:*",
     "@adl-lang/runtime": "workspace:*",
-    "@adl-lang/sys": "workspace:*"
+    "@adl-lang/sys": "workspace:*",
+    "@adl-lang/common": "workspace:*",
+    "base64-js": "^1.5.1"
   },
   "devDependencies": {
     "tsconfig": "workspace:*",

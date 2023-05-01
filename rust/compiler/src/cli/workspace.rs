@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+
 use std::path::PathBuf;
 use std::{env, fs};
 
@@ -20,12 +20,11 @@ use super::tsgen;
 pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
     let pkg_defs = collect_work_and_pkg(opts)?;
     let wrk1 = collection_to_workspace(pkg_defs)?;
-    // println!("{:?}", &wrk1);
     for pkg in &wrk1.1.r#use {
         let loader = loader_from_workspace(wrk1.0.clone(), wrk1_to_wld(wrk1.1.clone())?);
         if let Some(opts) = &pkg.p_ref.ts_opts {
-            println!(
-                "TsGen for pkg {:?} in workspace {:?} output dir {:?}",
+            log::debug!(
+                "TsGen for pkg\n{:#?}\nIn workspace\n{:#?}\nOutput dir\n{:#?}",
                 pkg.p_ref, wrk1.0, &opts.outputs
             );
             // let pkg_root = wrk1.0.join(pkg.p_ref.path.clone()).canonicalize()?;
@@ -76,7 +75,7 @@ fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Erro
                 path: d.path,
                 global_alias: payload1.pkg.global_alias.clone(),
             }),
-            AdlPackageRefType::Embedded(e) => LoaderRefType::Embedded(EmbeddedLoaderRef {
+            AdlPackageRefType::Embedded(_e) => LoaderRefType::Embedded(EmbeddedLoaderRef {
                 alias:  match payload1.pkg.global_alias.clone() {
                     Some(s) => match s.as_str() {
                         "sys" => EmbeddedPkg::Sys,
@@ -162,7 +161,6 @@ fn collection_to_workspace(
                     //     .map_err(|e| anyhow!("{:?}: {}", p_path, e.to_string()))?;
                     wrk1.r#use.push(Payload1::new(p.clone(), pkg));
                 }
-                // println!("wrk {:?}", wrk1);
                 return Ok((porw.1, wrk1));
             }
         }

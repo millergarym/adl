@@ -96,7 +96,7 @@ impl Resolver {
         if in_progress.contains(module_name) {
             for inp in in_progress.iter() {
                 let inp1 = self.loader.load(inp).unwrap().unwrap().0;
-                println!("IN PROGRESS {} IMPORTS {:?}", inp, inp1);
+                eprintln!("IN PROGRESS {} IMPORTS {:?}", inp, inp1);
             }
             return Err(anyhow!("Circular reference loop including module_name: '{}' in_progress: {:?}", module_name, in_progress));
         }

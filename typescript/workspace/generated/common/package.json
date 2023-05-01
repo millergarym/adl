@@ -5,8 +5,8 @@
     "tsc": "tsc"
   },
   "dependencies": {
-    "@adl-lang/sys": "workspace:*",
-    "@adl-lang/runtime": "workspace:*"
+    "@adl-lang/runtime": "workspace:*",
+    "@adl-lang/sys": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^4.9.3",

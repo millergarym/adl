@@ -74,7 +74,7 @@ pub(crate) fn dump_stdlib(opts: &crate::cli::DumpStdlibOpts) -> Result<(), anyho
 
 type Getter = fn(&str) -> Option<EmbeddedFile>;
 
-fn fun_name(mut path: PathBuf, name: Cow<str>, get: Getter) -> Result<(), anyhow::Error> {
+fn fun_name(mut path: PathBuf, name: Cow<'_, str>, get: Getter) -> Result<(), anyhow::Error> {
     path.push(name.as_ref());
     Ok(if let Some(data) = get(name.as_ref()) {
         std::fs::create_dir_all(path.parent().unwrap())

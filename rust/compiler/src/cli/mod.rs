@@ -1,8 +1,12 @@
-use std::{path::PathBuf, fmt::Display, collections::HashSet};
+use std::{path::PathBuf, fmt::Display};
 
 use anyhow::{anyhow, Error};
 use clap::{Args, Parser};
+use log::{LevelFilter, Record};
 use std::str::FromStr;
+
+use env_logger::{Builder, Env, fmt::Formatter};
+use std::io::Write;
 
 use crate::{
     adlgen::adlc::packaging::{
@@ -19,8 +23,33 @@ pub mod tsgen;
 pub mod verify;
 pub mod workspace;
 
+fn init_logger(module: Option<String>, level: Option<LevelFilter>) {
+
+    let formatter = |buf: &mut Formatter, record: &Record<'_>| {
+        let level = buf.default_styled_level(record.level());
+        let timestamp = buf.timestamp();
+        let mut location = String::new();
+        if let (Some(f), Some(l)) = (record.file(), record.line()) {
+            location.push_str(format!(" {}:{}", f, l).as_str());
+        }
+        if let Some(m) = record.module_path() {
+            location.push_str(format!(" {}", m).as_str());
+        }
+        writeln!(buf, "[{timestamp} {level}{location}] {}", record.args())
+    };
+
+    match (&module, level) {
+        (None, None) => Builder::from_env(Env::default()).format(formatter).init(),
+        (None, Some(l)) => Builder::from_env(Env::default()).format(formatter).filter_level(l).init(),
+        (Some(m), None) => Builder::from_env(Env::default()).format(formatter).filter(Some(m.as_str()), log::LevelFilter::Warn).init(),
+        (Some(m), Some(l)) => Builder::from_env(Env::default()).format(formatter).filter(Some(m.as_str()), l).init(),
+    }
+}
+
 pub fn run_cli() -> i32 {
     let cli = Cli::parse();
+
+    init_logger(cli.log_filter_module, cli.loglevel);
 
     let r = match cli.command {
         Command::Gen(opts) => workspace::workspace(&opts),
@@ -91,12 +120,22 @@ pub fn run_cli() -> i32 {
     }
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(name = "adlc")]
 #[command(author = "Tim Docker")]
 #[command(version = "0.1")]
 #[command(about = "ADL code generation cli tool", long_about = None)]
 struct Cli {
+    #[arg(short,long,
+        help = "Set the loglevel. Overrides RUST_LOG if only level is specified.",
+        long_help = "Set the loglevel. Overrides RUST_LOG if only level is specified, if level and module are specified here or in RUST_LOG, then the result is a combination of the env var and cli args. Possible values [OFF, ERROR, WARN, INFO, DEBUG, TRACE]")]
+    loglevel: Option<log::LevelFilter>,
+
+    #[arg(short = 'm',long,
+        help = "Set the module to filter. Can be used in conjunction with the env var RUST_LOG.",
+    )]
+    log_filter_module: Option<String>,
+
     #[command(subcommand)]
     command: Command,
 }
