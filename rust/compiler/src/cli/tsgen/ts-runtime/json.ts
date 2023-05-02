@@ -1,6 +1,6 @@
 import {DeclResolver,ATypeExpr} from './adl$TSEXT';
 import * as AST from './sys/adlast$TSEXT';
-$TSB64IMPORT;
+import {fromByteArray as b64Encode, toByteArray as b64Decode} from './base64$TSEXT';
 import {isVoid, isEnum, scopedNamesEqual} from './utils$TSEXT';
 
 /** A type for json serialised values */

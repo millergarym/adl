@@ -1,10 +1,9 @@
 {
   "name": "@adl-lang/runtime",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "license": "MIT",
   "main": "./index.js",
   "types": "./index.d.ts",
   "dependencies": {
-    "base64-js": "^1.5.1"
   }
 }

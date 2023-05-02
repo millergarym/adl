@@ -1,13 +1,23 @@
 {
-  "extends": "tsconfig/base.json",
   "include": ["."],
-  "exclude": ["dist", "build", "node_modules"],
+  "exclude": ["dist", "node_modules"],
   "compilerOptions": {
     "outDir": "dist",
-    // "target": "es2020",
-    // "module": "es2020",
-    "lib": [
-      "es2020",
-    ]
+    "lib": [ "es2020" ],
+    "composite": false,
+    "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "inlineSources": false,
+    "isolatedModules": true,
+    "moduleResolution": "node",
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "preserveWatchOutput": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "module": "ESNext",
+    "target": "es6"
   }
 }

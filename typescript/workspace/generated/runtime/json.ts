@@ -1,6 +1,6 @@
 import {DeclResolver,ATypeExpr} from './adl';
 import * as AST from './sys/adlast';
-import {fromByteArray as b64Encode, toByteArray as b64Decode} from 'base64-js';
+import {fromByteArray as b64Encode, toByteArray as b64Decode} from './base64';
 import {isVoid, isEnum, scopedNamesEqual} from './utils';
 
 /** A type for json serialised values */

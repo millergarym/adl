@@ -53,9 +53,6 @@
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/sys",
                 "npm_version": "1.0.0",
-                "extra_dependencies": {
-                    "base64-js": "^1.5.1"
-                },
                 "outputs": {
                     "gen": {
                         "output_dir": "./generated/sys",
@@ -93,9 +90,6 @@
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/protoclient",
                 "generate_transitive": false,
-                "extra_dependencies": {
-                    "base64-js": "^1.5.1"
-                },
                 "outputs": {
                     "gen": {
                         "output_dir": "./generated/protoclient",

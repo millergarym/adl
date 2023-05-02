@@ -6,7 +6,6 @@
     "tsc": "tsc"
   },
   "dependencies": {
-    "base64-js": "^1.5.1",
     "@adl-lang/runtime": "^1.0.0"
   },
   "devDependencies": {

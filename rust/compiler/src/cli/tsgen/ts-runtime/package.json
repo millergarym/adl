@@ -9,10 +9,8 @@
     "tsc": "tsc"
   },
   "dependencies": {
-    "base64-js": "^1.5.1"
   },
   "devDependencies": {
-    "tsconfig": "workspace:*",
     "typescript": "^4.9.3"
   }
 }
