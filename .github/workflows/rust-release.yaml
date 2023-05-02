@@ -14,20 +14,20 @@ jobs:
         os: [ubuntu-20.04, macos-latest]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         # Fetch all history so git describe works
       - run: |
           git fetch --prune --unshallow
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
+      # When rustup is updated, it tries to replace its binary, which on Windows is somehow locked.
+      # This can result in the CI failure, see: https://github.com/rust-lang/rustup/issues/3029
+      - run: |
+          rustup set auto-self-update disable
+          rustup toolchain install nightly --profile minimal
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo +nightly build --release
 
       - uses: actions/upload-artifact@v3
         with:
@@ -75,7 +75,7 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: radlc-macOS/radlc
-        asset_name: radl-${{ steps.version.outputs.version }}-osx
+        asset_name: radlc-${{ steps.version.outputs.version }}-osx
         asset_content_type: application/octet-stream
 
     - name: Upload linux build
@@ -85,5 +85,5 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: radlc-linux/radlc
-        asset_name: adl-${{ steps.version.outputs.version }}-linux
+        asset_name: radlc-${{ steps.version.outputs.version }}-linux
         asset_content_type: application/octet-stream
