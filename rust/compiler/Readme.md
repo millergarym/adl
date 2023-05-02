@@ -35,3 +35,10 @@ cargo +nightly run gen -f adl.work2.json  ../../adl/tests/test31/proj
 
 cargo +nightly run gen -f adl.work3.json  ../../adl/tests/test31/proj
 ```
+
+### Cross compile for linux from mac
+
+```
+rustup target add x86_64-unknown-linux-musl
+RUSTFLAGS="-Clink-self-contained=yes -Clinker=rust-lld" cargo build --release --target x86_64-unknown-linux-musl
+```

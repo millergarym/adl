@@ -1,0 +1,88 @@
+name: rust release
+
+on:
+  push:
+    tags:
+      - rust/compiler/v[0-9]*
+
+jobs:
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+        # Fetch all history so git describe works
+      - run: |
+          git fetch --prune --unshallow
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: radlc-${{ runner.os }}
+          path: target/release/radlc
+
+  release:
+    name: Create Github Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Determine version
+      id: version
+      run: "echo ::set-output name=version::${GITHUB_REF:11}"
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1.0.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+     
+    - name: Fetch macOS build
+      uses: actions/download-artifact@v1
+      with:
+        name: radlc-macOS
+        path: radlc-macOS
+
+    - name: Fetch linux build
+      uses: actions/download-artifact@v1
+      with:
+        name: radlc-linux
+        path: radlc-linux
+
+    - name: Upload macOS build
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: radlc-macOS
+        asset_name: radl-bindist-${{ steps.version.outputs.version }}-osx.zip
+        asset_content_type: application/zip
+
+    - name: Upload linux build
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: radlc-linux
+        asset_name: adl-bindist-${{ steps.version.outputs.version }}-linux.zip
+        asset_content_type: application/zip
