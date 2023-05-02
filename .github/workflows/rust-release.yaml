@@ -68,7 +68,7 @@ jobs:
       id: create_release
       uses: softprops/action-gh-release@v1
       with:
-        name: Release ${{ github.ref }}
+        name: Release rust/compiler ${{ steps.version.outputs.version }}
         files: |
           radlc-${{ steps.version.outputs.version }}-linux
           radlc-${{ steps.version.outputs.version }}-osx
