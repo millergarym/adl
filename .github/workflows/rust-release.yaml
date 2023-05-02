@@ -25,7 +25,9 @@ jobs:
           rustup set auto-self-update disable
           rustup toolchain install nightly --profile minimal
 
-      - uses: Swatinem/rust-cache@v2
+      # caching doesn't work across tags
+      # https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#restrictions-for-accessing-a-cache
+      # - uses: Swatinem/rust-cache@v2
 
       - run: cargo +nightly build --release
 
@@ -40,6 +42,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
+    - name: Determine version
+      id: version
+      run:
+        echo "version=${GITHUB_REF:24}" >> $GITHUB_OUTPUT
+
     - name: Fetch macOS build
       uses: actions/download-artifact@v3
       with:
@@ -53,8 +60,9 @@ jobs:
         path: radlc-Linux
 
     - run: |
-        mv radlc-macOS/radlc ./radlc-${GITHUB_REF:24}-osx
-        mv radlc-Linux/radlc ./radlc-${GITHUB_REF:24}-linux
+        mv radlc-macOS/radlc ./radlc-${{ steps.version.outputs.version }}-osx
+        mv radlc-Linux/radlc ./radlc-${{ steps.version.outputs.version }}-linux
+        ls -al
 
     - name: Create Release
       id: create_release
@@ -62,5 +70,5 @@ jobs:
       with:
         name: Release ${{ github.ref }}
         files: |
-          radlc-${GITHUB_REF:24}-linux
-          radlc-${GITHUB_REF:24}-osx
+          radlc-${{ steps.version.outputs.version }}-linux
+          radlc-${{ steps.version.outputs.version }}-osx
