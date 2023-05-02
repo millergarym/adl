@@ -49,12 +49,12 @@ jobs:
     - name: Fetch linux build
       uses: actions/download-artifact@v3
       with:
-        name: radlc-linux
-        path: radlc-linux
+        name: radlc-Linux
+        path: radlc-Linux
 
     - run: |
         mv radlc-macOS/radlc ./radlc-${GITHUB_REF:24}-osx
-        mv radlc-linux/radlc ./radlc-${GITHUB_REF:24}-linux
+        mv radlc-Linux/radlc ./radlc-${GITHUB_REF:24}-linux
 
     - name: Create Release
       id: create_release
