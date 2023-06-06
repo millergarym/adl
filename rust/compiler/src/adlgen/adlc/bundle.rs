@@ -4,13 +4,13 @@ use serde::Deserialize;
 use serde::Serialize;
 
 /**
- * Expected to live in a file named `adl.pkg.json`
+ * Expected to live in a file named `adl.bundle.json`
  */
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub struct AdlPackage {
+pub struct AdlBundle {
   pub path: String,
 
-  #[serde(default="AdlPackage::def_global_alias")]
+  #[serde(default="AdlBundle::def_global_alias")]
   pub global_alias: Option<String>,
 
   /**
@@ -18,29 +18,29 @@ pub struct AdlPackage {
    */
   pub adlc: String,
 
-  #[serde(default="AdlPackage::def_requires")]
+  #[serde(default="AdlBundle::def_requires")]
   pub requires: Vec<Require>,
 
-  #[serde(default="AdlPackage::def_excludes")]
+  #[serde(default="AdlBundle::def_excludes")]
   pub excludes: Vec<Exclude>,
 
-  #[serde(default="AdlPackage::def_replaces")]
+  #[serde(default="AdlBundle::def_replaces")]
   pub replaces: Vec<Replace>,
 
-  #[serde(default="AdlPackage::def_retracts")]
+  #[serde(default="AdlBundle::def_retracts")]
   pub retracts: Vec<Retract>,
 }
 
-impl AdlPackage {
-  pub fn new(path: String, adlc: String) -> AdlPackage {
-    AdlPackage {
+impl AdlBundle {
+  pub fn new(path: String, adlc: String) -> AdlBundle {
+    AdlBundle {
       path: path,
-      global_alias: AdlPackage::def_global_alias(),
+      global_alias: AdlBundle::def_global_alias(),
       adlc: adlc,
-      requires: AdlPackage::def_requires(),
-      excludes: AdlPackage::def_excludes(),
-      replaces: AdlPackage::def_replaces(),
-      retracts: AdlPackage::def_retracts(),
+      requires: AdlBundle::def_requires(),
+      excludes: AdlBundle::def_excludes(),
+      replaces: AdlBundle::def_replaces(),
+      retracts: AdlBundle::def_retracts(),
     }
   }
 
@@ -68,7 +68,7 @@ impl AdlPackage {
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct Require {
   #[serde(rename="ref")]
-  pub r#ref: PkgRef,
+  pub r#ref: BundleRef,
 
   #[serde(default="Require::def_version")]
   pub version: Option<String>,
@@ -78,7 +78,7 @@ pub struct Require {
 }
 
 impl Require {
-  pub fn new(r#ref: PkgRef) -> Require {
+  pub fn new(r#ref: BundleRef) -> Require {
     Require {
       r#ref: r#ref,
       version: Require::def_version(),
@@ -96,7 +96,7 @@ impl Require {
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub enum PkgRef {
+pub enum BundleRef {
   #[serde(rename="path")]
   Path(String),
 

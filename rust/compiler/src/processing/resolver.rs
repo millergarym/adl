@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::adlgen::adlc::bundle::AdlPackage;
+use crate::adlgen::adlc::bundle::AdlBundle;
 use crate::adlgen::adlc::workspace::InjectAnnotation;
 use crate::adlgen::adlc::workspace::InjectAnnotations;
 use crate::adlgen::sys::adlast2::{self as adlast, ScopedName};
@@ -28,7 +28,7 @@ pub struct Resolver {
 #[derive(Debug)]
 pub struct ResolvedModule {
     module1: Module1,
-    pkg: Option<AdlPackage>,
+    pkg: Option<AdlBundle>,
     inject_annotions: Option<InjectAnnotations>,
     decls: HashMap<String, Decl1>,
 }
@@ -54,7 +54,7 @@ impl Resolver {
         self.modules.get(module_name)
     }
 
-    pub fn get_module(&self, module_name: &ModuleName) -> Option<(Module1, Option<&AdlPackage>)> {
+    pub fn get_module(&self, module_name: &ModuleName) -> Option<(Module1, Option<&AdlBundle>)> {
         let rm0 = self.modules.get(module_name);
         if let Some(rm1) = rm0 {
             let inject_annotions = &rm1.inject_annotions;

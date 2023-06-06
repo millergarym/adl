@@ -7,14 +7,14 @@ use anyhow::anyhow;
 
 use serde::Deserialize;
 
-use crate::adlgen::adlc::bundle:: { AdlPackage, PkgRef }; 
+use crate::adlgen::adlc::bundle:: { AdlBundle, BundleRef }; 
 use crate::adlgen::adlc::workspace::{
-    AdlPackageRefType, AdlWorkspace0, AdlWorkspace1, DirLoaderRef, InjectAnnotation,
-    LoaderRef, LoaderRefType, LoaderWorkspace, Payload1, EmbeddedLoaderRef, EmbeddedPkg, AdlPackageRef, TypescriptGenOptions,
+    AdlBundleRefType, AdlWorkspace0, AdlWorkspace1, DirLoaderRef, InjectAnnotation,
+    LoaderRef, LoaderRefType, LoaderWorkspace, Payload1, EmbeddedLoaderRef, EmbeddedPkg, AdlBundleRef, TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::ScopedName;
 use crate::adlrt::custom::sys::types::pair::Pair;
-use crate::adlstdlib::get_adl_pkg;
+use crate::adlstdlib::get_adl_bundle;
 use crate::processing::loader::loader_from_workspace;
 
 use super::tsgen;
@@ -32,8 +32,8 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
             // let pkg_root = wrk1.0.join(pkg.p_ref.path.clone()).canonicalize()?;
             let wrk_root = wrk1.0.canonicalize()?;
             std::env::set_current_dir(&wrk1.0)?;
-            let dep_paths: Vec<String> = pkg.pkg.requires.iter().filter_map(|p| if let PkgRef::Path(p1) = &p.r#ref {Some(p1.clone())} else { None } ).collect();
-            let dep_alias: Vec<String> = pkg.pkg.requires.iter().filter_map(|p| if let PkgRef::Alias(p1) = &p.r#ref {Some(p1.clone())} else { None } ).collect();
+            let dep_paths: Vec<String> = pkg.pkg.requires.iter().filter_map(|p| if let BundleRef::Path(p1) = &p.r#ref {Some(p1.clone())} else { None } ).collect();
+            let dep_alias: Vec<String> = pkg.pkg.requires.iter().filter_map(|p| if let BundleRef::Alias(p1) = &p.r#ref {Some(p1.clone())} else { None } ).collect();
             let deps = wrk1.1.r#use.iter().filter(|p| {
                 if dep_paths.contains(&p.pkg.path) {
                     return true;
@@ -73,11 +73,11 @@ fn wrk1_to_wld(wrk1: AdlWorkspace1) ->  Result<LoaderWorkspace, anyhow::Error> {
 fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Error> {
     let mut loader_ref = LoaderRef {
         r#ref: match payload1.p_ref.r#ref.clone() {
-            AdlPackageRefType::Dir(d) => LoaderRefType::Dir(DirLoaderRef {
+            AdlBundleRefType::Dir(d) => LoaderRefType::Dir(DirLoaderRef {
                 path: d.path,
                 global_alias: payload1.pkg.global_alias.clone(),
             }),
-            AdlPackageRefType::Embedded(_e) => LoaderRefType::Embedded(EmbeddedLoaderRef {
+            AdlBundleRefType::Embedded(_e) => LoaderRefType::Embedded(EmbeddedLoaderRef {
                 alias:  match payload1.pkg.global_alias.clone() {
                     Some(s) => match s.as_str() {
                         "sys" => EmbeddedPkg::Sys,
@@ -108,10 +108,10 @@ fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Erro
     Ok(loader_ref)
 }
 
-fn aprt_to_name(a: &AdlPackageRefType) -> String {
+fn aprt_to_name(a: &AdlBundleRefType) -> String {
     match a {
-        AdlPackageRefType::Dir(d) => d.path.clone(),
-        AdlPackageRefType::Embedded(e) => match e.alias {
+        AdlBundleRefType::Dir(d) => d.path.clone(),
+        AdlBundleRefType::Embedded(e) => match e.alias {
             EmbeddedPkg::Sys => "sys".to_string(),
             EmbeddedPkg::Adlc => "adlc".to_string(),
         },
@@ -128,7 +128,7 @@ fn collection_to_workspace(
         let de = &mut serde_json::Deserializer::from_str(&content);
         match porw.0 {
             PkgDef::Pkg => {
-                // let pkg = AdlPackage::deserialize(&mut de).map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
+                // let pkg = AdlBundle::deserialize(&mut de).map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
                 // println!("pkg {:?}", pkg);
             }
             PkgDef::Work => {
@@ -231,24 +231,24 @@ fn collect_work_and_pkg(
     Ok(res)
 }
 
-trait AdlPackager {
-    fn pkg_content(&self, wrk_dir: PathBuf) -> Result<AdlPackage, anyhow::Error>;
+trait AdlBundler {
+    fn pkg_content(&self, wrk_dir: PathBuf) -> Result<AdlBundle, anyhow::Error>;
     // fn get_payload1(&self) -> &Payload1;
 }
 
-impl AdlPackager for AdlPackageRef {
-    fn pkg_content(&self, wrk_dir: PathBuf) -> Result<AdlPackage, anyhow::Error> {
+impl AdlBundler for AdlBundleRef {
+    fn pkg_content(&self, wrk_dir: PathBuf) -> Result<AdlBundle, anyhow::Error> {
         let (p_path, content) = match &self.r#ref {
-            AdlPackageRefType::Dir(p) => {
-                let p_path = wrk_dir.join(&p.path).join("adl.pkg.json");
+            AdlBundleRefType::Dir(p) => {
+                let p_path = wrk_dir.join(&p.path).join("adl.bundle.json");
                 let content = fs::read_to_string(&p_path).map_err(|e| anyhow!("Can't read pkg specified in workspace.\n\tworkspace {:?}\n\t package {:?}\n\t error: {}", wrk_dir, p_path, e.to_string()))?;
                 (format!("{:?}", p_path), content)
             }
-            AdlPackageRefType::Embedded(e) => {
-                if let Some(c) = get_adl_pkg(&e.alias) {
+            AdlBundleRefType::Embedded(e) => {
+                if let Some(c) = get_adl_bundle(&e.alias) {
                     let x = std::str::from_utf8(c.as_ref()).map_err(|err| {
                         anyhow!(
-                            "Error converting adl.pkg.json from embedded pkg {:?}. err: {}",
+                            "Error converting adl.bundle.json from embedded pkg {:?}. err: {}",
                             e.alias,
                             err.to_string()
                         )
@@ -256,14 +256,14 @@ impl AdlPackager for AdlPackageRef {
                     (format!("{:?}", e.alias), String::from(x))
                 } else {
                     return Err(anyhow!(
-                        "Cannot file 'adl.pkg.json' in embedded pkg {:?}",
+                        "Cannot file 'adl.bundle.json' in embedded pkg {:?}",
                         e.alias
                     ));
                 }
             }
         };
         let mut de = serde_json::Deserializer::from_str(&content);
-        let pkg = AdlPackage::deserialize(&mut de)
+        let pkg = AdlBundle::deserialize(&mut de)
             .map_err(|e| anyhow!("{:?}: {}", p_path, e.to_string()))?;
         Ok(pkg)
     }

@@ -11,7 +11,7 @@
         {
             "ref": {
                 "dir": {
-                    "path": "./adlc"
+                    "path": "./tools"
                 }
             },
             "ts_opts": {

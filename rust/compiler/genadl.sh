@@ -4,7 +4,7 @@ RUST_COMPILER_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && p
 cd $RUST_COMPILER_DIR
 
 ADL_STDLIB_DIR=../../adl/stdlib
-ADL_ADLC_DIR=../../adl
+ADL_ADLC_DIR=../../adl/tools
 
 adlc rust \
   --no-overwrite \

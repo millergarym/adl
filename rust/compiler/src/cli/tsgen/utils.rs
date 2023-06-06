@@ -100,7 +100,7 @@ pub fn npm_pkg_import(npm_pkg2: String, module_name: String) -> String {
     path
 }
 
-pub fn rel_import(strip_first:bool, same_adl_pkg: bool, src: &String, dst: &String) -> String {
+pub fn rel_import(strip_first:bool, same_adl_bundle: bool, src: &String, dst: &String) -> String {
     let src_v: Vec<&str> = src.split(['.']).collect();
     let src_v = &src_v[..src_v.len() - 1];
     let dst_v0: Vec<&str> = dst.split(['.']).collect();
@@ -109,7 +109,7 @@ pub fn rel_import(strip_first:bool, same_adl_pkg: bool, src: &String, dst: &Stri
     let mut src_i = src_v.iter().peekable();
     let mut dst_i = dst_v.iter().peekable();
     let mut import = String::new();
-    if !same_adl_pkg {
+    if !same_adl_bundle {
         if src_v.len() == 0 {
             if strip_first {
                 import.push_str("../");

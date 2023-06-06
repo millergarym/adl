@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::{
     adlgen::adlc::{
-        packaging::{DirectoryRef, GenOutput, ModuleSrc, ReferenceableScopeOption, TsGenRuntime},
+        workspace::{DirectoryRef, GenOutput, ModuleSrc, ReferenceableScopeOption, TsGenRuntime},
         testing_table::TestFilesMetaData,
     },
     cli::formatter,
@@ -66,7 +66,7 @@ fn generate_ts_from_test_files() {
 
                 let mut search_path = vec![];
                 search_path.push(PathBuf::from("../../adl/stdlib"));
-                search_path.push(PathBuf::from("../../adl/adlc"));
+                search_path.push(PathBuf::from("../../adl/tools"));
                 {
                     let mut sp = PathBuf::from("../../adl/tests/");
                     sp.push(t.module_root.clone());
@@ -145,7 +145,7 @@ fn generate_ts_from_test_files() {
 
                 // TODO consider failed.
                 // t.fail
-                let dep_adl_pkgs = vec![];
+                let dep_adl_bundles = vec![];
                 match tsgen(
                     false,
                     false,
@@ -153,10 +153,10 @@ fn generate_ts_from_test_files() {
                     None,
                     &ts_opts,
                     None,
-                    AdlPackageRefType::Dir(DirectoryRef {
+                    AdlBundleRefType::Dir(DirectoryRef {
                         path: ".".to_string(),
                     }),
-                    dep_adl_pkgs,
+                    dep_adl_bundles,
                 ) {
                     Ok(_) => {
                         println!(

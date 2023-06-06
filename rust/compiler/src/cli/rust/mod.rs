@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::anyhow;
 
-use crate::adlgen::adlc::bundle::AdlPackage;
+use crate::adlgen::adlc::bundle::AdlBundle;
 use crate::adlgen::sys::adlast2::{self as adlast};
 use crate::processing::loader::loader_from_search_paths;
 use crate::processing::resolver::{Module1, Resolver};
@@ -24,7 +24,7 @@ pub fn rust(opts: &RustOpts) -> anyhow::Result<()> {
             Err(e) => return Err(anyhow!("Failed to load module {}: {:?}", m, e)),
         }
     }
-    let modules: Vec<(Module1, Option<&AdlPackage>)> = resolver
+    let modules: Vec<(Module1, Option<&AdlBundle>)> = resolver
         .get_module_names()
         .into_iter()
         .map(|mn| resolver.get_module(&mn).unwrap())

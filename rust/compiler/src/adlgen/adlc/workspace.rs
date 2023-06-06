@@ -1,6 +1,6 @@
 // @generated from adl module adlc.workspace
 
-use crate::adlgen::adlc::bundle::AdlPackage;
+use crate::adlgen::adlc::bundle::AdlBundle;
 use crate::adlgen::sys::adlast2::Module1;
 use crate::adlgen::sys::adlast2::ScopedName;
 use crate::adlrt::custom::sys::types::pair::Pair;
@@ -15,17 +15,17 @@ pub type AdlWorkspace2 = AdlWorkspace<Payload2>;
 
 pub type LoaderWorkspace = AdlWorkspace<LoaderRef>;
 
-pub type Payload0 = AdlPackageRef;
+pub type Payload0 = AdlBundleRef;
 
 #[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
 pub struct Payload1 {
-  pub p_ref: AdlPackageRef,
+  pub p_ref: AdlBundleRef,
 
-  pub pkg: AdlPackage,
+  pub pkg: AdlBundle,
 }
 
 impl Payload1 {
-  pub fn new(p_ref: AdlPackageRef, pkg: AdlPackage) -> Payload1 {
+  pub fn new(p_ref: AdlBundleRef, pkg: AdlBundle) -> Payload1 {
     Payload1 {
       p_ref: p_ref,
       pkg: pkg,
@@ -35,15 +35,15 @@ impl Payload1 {
 
 #[derive(Clone,Debug,Deserialize,PartialEq,Serialize)]
 pub struct Payload2 {
-  pub p_ref: AdlPackageRef,
+  pub p_ref: AdlBundleRef,
 
-  pub pkg: AdlPackage,
+  pub pkg: AdlBundle,
 
   pub modules: Vec<Module1>,
 }
 
 impl Payload2 {
-  pub fn new(p_ref: AdlPackageRef, pkg: AdlPackage, modules: Vec<Module1>) -> Payload2 {
+  pub fn new(p_ref: AdlBundleRef, pkg: AdlBundle, modules: Vec<Module1>) -> Payload2 {
     Payload2 {
       p_ref: p_ref,
       pkg: pkg,
@@ -207,7 +207,7 @@ pub struct LoaderRef {
   #[serde(rename="ref")]
   pub r#ref: LoaderRefType,
 
-  pub pkg: AdlPackage,
+  pub pkg: AdlBundle,
 
   #[serde(default="LoaderRef::def_loader_inject_annotate")]
   pub loader_inject_annotate: InjectAnnotations,
@@ -217,7 +217,7 @@ pub struct LoaderRef {
 }
 
 impl LoaderRef {
-  pub fn new(r#ref: LoaderRefType, pkg: AdlPackage) -> LoaderRef {
+  pub fn new(r#ref: LoaderRefType, pkg: AdlBundle) -> LoaderRef {
     LoaderRef {
       r#ref: r#ref,
       pkg: pkg,
@@ -287,23 +287,23 @@ pub enum InjectAnnotation {
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,PartialEq,Serialize)]
-pub struct AdlPackageRef {
+pub struct AdlBundleRef {
   #[serde(rename="ref")]
-  pub r#ref: AdlPackageRefType,
+  pub r#ref: AdlBundleRefType,
 
-  #[serde(default="AdlPackageRef::def_named_opts")]
+  #[serde(default="AdlBundleRef::def_named_opts")]
   pub named_opts: Option<String>,
 
-  #[serde(default="AdlPackageRef::def_ts_opts")]
+  #[serde(default="AdlBundleRef::def_ts_opts")]
   pub ts_opts: Option<TypescriptGenOptions>,
 }
 
-impl AdlPackageRef {
-  pub fn new(r#ref: AdlPackageRefType) -> AdlPackageRef {
-    AdlPackageRef {
+impl AdlBundleRef {
+  pub fn new(r#ref: AdlBundleRefType) -> AdlBundleRef {
+    AdlBundleRef {
       r#ref: r#ref,
-      named_opts: AdlPackageRef::def_named_opts(),
-      ts_opts: AdlPackageRef::def_ts_opts(),
+      named_opts: AdlBundleRef::def_named_opts(),
+      ts_opts: AdlBundleRef::def_ts_opts(),
     }
   }
 
@@ -317,7 +317,7 @@ impl AdlPackageRef {
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub enum AdlPackageRefType {
+pub enum AdlBundleRefType {
   #[serde(rename="dir")]
   Dir(DirectoryRef),
 

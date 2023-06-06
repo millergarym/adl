@@ -3,8 +3,8 @@
 
 module adlc.bundle {
 
-/// Expected to live in a file named `adl.pkg.json`
-struct AdlPackage {
+/// Expected to live in a file named `adl.bundle.json`
+struct AdlBundle {
     String path;
     Nullable<String> global_alias = null;
     /// Version
@@ -16,12 +16,12 @@ struct AdlPackage {
 };
 
 struct Require {
-    PkgRef ref;
+    BundleRef ref;
     Nullable<String> version = null;
     Bool indirect = false;
 };
 
-union PkgRef {
+union BundleRef {
     String path;
     String alias;
 };

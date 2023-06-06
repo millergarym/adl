@@ -1,12 +1,13 @@
-// This is based on Golang's modules and workspace.
+// This is based on Golang's modules.
 // e.g. see https://go.dev/ref/mod#workspaces
 
-module adlc.packaging {
+module adlc.workspace {
 
 import sys.types.Pair;
 import sys.types.Maybe;
 import sys.adlast2.ScopedName;
 import sys.adlast2.Module1;
+import adlc.bundle.AdlBundle;
 
 // AdlWorkspace0 is the serilization format
 type AdlWorkspace0 = AdlWorkspace<Payload0>;
@@ -15,16 +16,16 @@ type AdlWorkspace2 = AdlWorkspace<Payload2>;
 
 type LoaderWorkspace = AdlWorkspace<LoaderRef>;
 
-type Payload0 = AdlPackageRef;
+type Payload0 = AdlBundleRef;
 
 struct Payload1 {
-    AdlPackageRef p_ref;
-    AdlPackage pkg;
+    AdlBundleRef p_ref;
+    AdlBundle pkg;
 };
 
 struct Payload2 {
-    AdlPackageRef p_ref;
-    AdlPackage pkg;
+    AdlBundleRef p_ref;
+    AdlBundle pkg;
     Vector<Module1> modules;
 };
 
@@ -65,7 +66,7 @@ struct TsWriteRuntime {
 /// The struct in AdlWorkspace::use required by the WorkspaceLoader
 struct LoaderRef {
     LoaderRefType ref;
-    AdlPackage pkg;
+    AdlBundle pkg;
     InjectAnnotations loader_inject_annotate = [];
     InjectAnnotations resolver_inject_annotate = [];
 };
@@ -90,13 +91,13 @@ union InjectAnnotation {
     Pair<ScopedName,Json> module_;
 };
 
-struct AdlPackageRef {
-    AdlPackageRefType ref;
+struct AdlBundleRef {
+    AdlBundleRefType ref;
     Nullable<String> named_opts = null;
     Nullable<TypescriptGenOptions> ts_opts = null; 
 };
 
-union AdlPackageRefType {
+union AdlBundleRefType {
     DirectoryRef dir;
     /// An ADL module embed in the ADL compiler
     EmbeddedRef embedded;
@@ -153,10 +154,10 @@ struct TsGenRuntime {
 
 union OutputOpts {
     GenOutput gen;
-    // PkgRef ref;
+    // BundleRef ref;
 };
 
-// struct PkgRef {
+// struct BundleRef {
 // };
 
 struct GenOutput {
@@ -184,49 +185,6 @@ union ReferenceableScopeOption {
     Void local;
     /// Generated code can be published via a package manager (e.g. npm)
     Void remote;
-};
-
-/// Expected to live in a file named `adl.pkg.json`
-struct AdlPackage {
-    String path;
-    Nullable<String> global_alias = null;
-    /// Version
-    String adlc;
-    Vector<Require> requires = [];
-    Vector<Exclude> excludes = [];
-    Vector<Replace> replaces = [];
-    Vector<Retract> retracts = [];
-};
-
-struct PackageDirective {
-    String path;
-    Nullable<String> repo = null;
-};
-
-struct Require {
-    PkgRef ref;
-    Nullable<String> version = null;
-    Bool indirect = false;
-};
-
-union PkgRef {
-    String path;
-    String alias;
-};
-
-struct Exclude {
-    String path;
-    String version;
-};
-
-struct Replace {
-    String path;
-    Nullable<String> version;
-};
-
-struct Retract {
-    String version;
-    Nullable<String> comment = null;
 };
 
 struct NpmPackage {

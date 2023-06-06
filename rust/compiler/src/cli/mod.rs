@@ -11,7 +11,7 @@ use std::io::Write;
 use crate::{
     adlgen::adlc::workspace::{
         GenOutput, ModuleSrc, NpmPackageRef, ReferenceableScopeOption, TsGenRuntime, TsRuntimeOpt,
-        TypescriptGenOptions, AdlPackageRefType, DirectoryRef,
+        TypescriptGenOptions, AdlBundleRefType, DirectoryRef,
     },
     processing::loader::loader_from_search_paths,
 };
@@ -122,7 +122,7 @@ pub fn run_cli() -> i32 {
                 capitalize_type_names: opts.capitalize_type_names,
             };
             let empty = vec![];
-            tsgen::tsgen(false, false, loader, None, &ts_opts, None, AdlPackageRefType::Dir(DirectoryRef{ path: ".".to_string() }), empty)
+            tsgen::tsgen(false, false, loader, None, &ts_opts, None, AdlBundleRefType::Dir(DirectoryRef{ path: ".".to_string() }), empty)
         }
         Command::WriteStdlib(opts) => crate::adlstdlib::dump_stdlib(&opts),
     };
@@ -157,7 +157,7 @@ struct Cli {
 
 #[derive(Debug, Parser)]
 pub enum Command {
-    /// generate source based on Workspace & Packages files (adl.work.json & adl.pkg.json)
+    /// generate source based on Workspace & Packages files (adl.work.json & adl.bundle.json)
     Gen(GenOpts),
     /// verify ADL
     Verify(VerifyOpts),
@@ -183,7 +183,7 @@ pub struct GenOpts {
     pub workspace_filename: String,
 
     /// The package filenames to look for in the pkg dir specified in the use fields
-    #[arg(long, short='p', default_value_t={"adl.pkg.json".to_string()})]
+    #[arg(long, short='p', default_value_t={"adl.bundle.json".to_string()})]
     pub package_filenames: String,
 }
 

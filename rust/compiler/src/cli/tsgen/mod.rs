@@ -14,9 +14,9 @@ use anyhow::anyhow;
 use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
-use crate::adlgen::adlc::bundle::AdlPackage;
+use crate::adlgen::adlc::bundle::AdlBundle;
 use crate::adlgen::adlc::workspace::{
-    AdlPackageRefType, AdlWorkspace, ModuleSrc, NpmPackage, Payload1, TsRuntimeOpt, TsStyle,
+    AdlBundleRefType, AdlWorkspace, ModuleSrc, NpmPackage, Payload1, TsRuntimeOpt, TsStyle,
     TsWriteRuntime, TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::Module1;
@@ -46,10 +46,10 @@ const DENO_B64: &[u8] = b"import {encode as b64Encode, decode as b64Decode} from
 fn get_modules(
     opts: &TypescriptGenOptions,
     wrk_root: Option<PathBuf>,
-    r#ref: AdlPackageRefType,
+    r#ref: AdlBundleRefType,
 ) -> Result<Vec<String>, anyhow::Error> {
     match r#ref {
-        AdlPackageRefType::Dir(d) => match &opts.modules {
+        AdlBundleRefType::Dir(d) => match &opts.modules {
             ModuleSrc::All => {
                 if wrk_root == None {
                     return Err(anyhow!("wrk_root needed when module src all specified"));
@@ -63,7 +63,7 @@ fn get_modules(
             }
             ModuleSrc::Modules(ms) => Ok(ms.clone()),
         },
-        AdlPackageRefType::Embedded(e) => match &opts.modules {
+        AdlBundleRefType::Embedded(e) => match &opts.modules {
             ModuleSrc::Modules(ms) => Ok(ms.clone()),
             ModuleSrc::All => Ok(get_file_names(e.alias)
                 .iter()
@@ -115,11 +115,11 @@ pub fn tsgen(
     strip_first: bool,
     packageable: bool,
     loader: Box<dyn AdlLoader>,
-    pkg: Option<AdlPackage>,
+    pkg: Option<AdlBundle>,
     opts: &TypescriptGenOptions,
     wrk_root: Option<PathBuf>,
-    r#ref: AdlPackageRefType,
-    dep_adl_pkgs: Vec<&Payload1>,
+    r#ref: AdlBundleRefType,
+    dep_adl_bundles: Vec<&Payload1>,
 ) -> anyhow::Result<()> {
     if opts.outputs == None {
         // not gen for this pkg
@@ -147,7 +147,7 @@ pub fn tsgen(
 
     let _parent = outputdir.file_name().unwrap().to_str().unwrap().to_string();
 
-    let modules: Vec<(Module1,Option<&AdlPackage>)> = resolver
+    let modules: Vec<(Module1,Option<&AdlBundle>)> = resolver
         .get_module_names()
         .into_iter()
         .map(|mn| resolver.get_module(&mn).unwrap())
@@ -177,7 +177,7 @@ pub fn tsgen(
 
     {
         let tokens = &mut js::Tokens::new();
-        let dep_adl_resolvers = dep_adl_pkgs
+        let dep_adl_resolvers = dep_adl_bundles
             .iter()
             .filter_map(|d| d.p_ref.ts_opts.as_ref().map(|t| t.npm_pkg_name.clone()))
             .collect();
@@ -301,7 +301,7 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
     if !opts.generate_transitive {
         for r in payload.pkg.requires.iter() {
             match &r.r#ref {
-                crate::adlgen::adlc::bundle::PkgRef::Path(p0) => {
+                crate::adlgen::adlc::bundle::BundleRef::Path(p0) => {
                     match wrk1.r#use.iter().find(|p| p.pkg.path == *p0) {
                         Some(p1) => match &p1.p_ref.ts_opts {
                             Some(ts_opts) => {
@@ -320,7 +320,7 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
                         None => return Err(anyhow!("no package is workspace with path '{}'", p0)),
                     }
                 }
-                crate::adlgen::adlc::bundle::PkgRef::Alias(a) => {
+                crate::adlgen::adlc::bundle::BundleRef::Alias(a) => {
                     match wrk1
                         .r#use
                         .iter()
@@ -442,8 +442,8 @@ fn gen_resolver(
     generate_transitive: bool,
     runtime_opts: &TsRuntimeOpt,
     resolver: &Resolver,
-    modules: &Vec<(Module1, Option<&AdlPackage>)>,
-    adl_pkg_resolvers: HashSet<String>,
+    modules: &Vec<(Module1, Option<&AdlBundle>)>,
+    adl_bundle_resolvers: HashSet<String>,
 ) -> anyhow::Result<()> {
     let mut local_keys = vec![];
     let m_imports: Vec<js::Import> = modules
@@ -457,7 +457,7 @@ fn gen_resolver(
 
             if !generate_transitive {
                 if let Some(npm_pkg2) = &npm_pkg2 {
-                    if adl_pkg_resolvers.contains(npm_pkg2) {
+                    if adl_bundle_resolvers.contains(npm_pkg2) {
                         let alias = npm_pkg2
                             .replace("@", "")
                             .replace("-", "_")
@@ -513,7 +513,7 @@ fn gen_resolver(
     let gened = "/* @generated from adl */";
 
     let mut dep_keys: Vec<&String> = if !generate_transitive {
-        adl_pkg_resolvers.iter().collect()
+        adl_bundle_resolvers.iter().collect()
     } else {
         vec![]
     };
