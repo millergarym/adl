@@ -8,7 +8,7 @@ use serde::Serialize;
  */
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct AdlBundle {
-  pub path: String,
+  pub path: BundleRefPath,
 
   #[serde(default="AdlBundle::def_global_alias")]
   pub global_alias: Option<String>,
@@ -32,7 +32,7 @@ pub struct AdlBundle {
 }
 
 impl AdlBundle {
-  pub fn new(path: String, adlc: String) -> AdlBundle {
+  pub fn new(path: BundleRefPath, adlc: String) -> AdlBundle {
     AdlBundle {
       path: path,
       global_alias: AdlBundle::def_global_alias(),
@@ -98,10 +98,26 @@ impl Require {
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub enum BundleRef {
   #[serde(rename="path")]
-  Path(String),
+  Path(BundleRefPath),
 
   #[serde(rename="alias")]
   Alias(String),
+}
+
+#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
+pub struct BundleRefPath {
+  pub path: String,
+
+  pub alias: String,
+}
+
+impl BundleRefPath {
+  pub fn new(path: String, alias: String) -> BundleRefPath {
+    BundleRefPath {
+      path: path,
+      alias: alias,
+    }
+  }
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]

@@ -4,7 +4,7 @@ import common.strings.StringML;
 import common.strings.StringNE;
 import common.db.DbTable;
 import common.db.DbKey;
-import common.Instant;
+import common.types.Instant;
 
 
 struct Trade {

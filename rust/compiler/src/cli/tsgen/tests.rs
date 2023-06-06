@@ -1,13 +1,13 @@
-use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
+use std::{collections::BTreeSet, fs::File};
 
 use serde::Deserialize;
 
 use crate::{
     adlgen::adlc::{
-        workspace::{DirectoryRef, GenOutput, ModuleSrc, ReferenceableScopeOption, TsGenRuntime},
         testing_table::TestFilesMetaData,
+        workspace::{DirectoryRef, GenOutput, ModuleSrc, ReferenceableScopeOption, TsGenRuntime},
     },
     cli::formatter,
     processing::loader::loader_from_search_paths,
@@ -146,11 +146,43 @@ fn generate_ts_from_test_files() {
                 // TODO consider failed.
                 // t.fail
                 let dep_adl_bundles = vec![];
+                let bundle = t
+                    .bundle_file.clone()
+                    .map(|p| {
+                        let mut unused = BTreeSet::new();
+
+                        let mut porw_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+                        porw_path.push("../../adl/tests/");
+
+                        porw_path.push(t.module_root.clone());
+                        porw_path.push(p.clone());
+                        let content = fs::read_to_string(&porw_path)
+                            .map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
+                        let de = &mut serde_json::Deserializer::from_str(&content);
+
+                        let b0: AdlBundle = serde_ignored::deserialize(de, |path| {
+                            unused.insert(path.to_string());
+                        })
+                        .map_err(|e| anyhow!("{:?}: {}", p.clone(), e.to_string()))?;
+
+                        if unused.len() != 0 {
+                            return Err(anyhow!("unknown fields `{:?}` {:?}", unused, p));
+                        }
+                        Ok(b0)
+                    })
+                    .map_or(Ok(None), |v| v.map(Some));
+                let bundle1 = match bundle {
+                    Ok(b) => b,
+                    Err(e) => {
+                        assert!(false, "error parsing bundle {}", e);
+                        return ();
+                    }
+                };
                 match tsgen(
                     false,
                     false,
                     loader_from_search_paths(&search_path),
-                    None,
+                    bundle1,
                     &ts_opts,
                     None,
                     AdlBundleRefType::Dir(DirectoryRef {

@@ -1,4 +1,4 @@
-module common {
+module common.types {
 
 import common.strings.StringNE;
 import common.db.DbColumnType;

@@ -1,17 +1,20 @@
-use std::{path::PathBuf, fmt::Display, io};
+use std::{collections::BTreeSet, fmt::Display, fs, io, path::PathBuf};
 
 use anyhow::{anyhow, Error};
 use clap::{Args, Parser};
 use log::{LevelFilter, Record};
 use std::str::FromStr;
 
-use env_logger::{Builder, Env, fmt::Formatter};
+use env_logger::{fmt::Formatter, Builder, Env};
 use std::io::Write;
 
 use crate::{
-    adlgen::adlc::workspace::{
-        GenOutput, ModuleSrc, NpmPackageRef, ReferenceableScopeOption, TsGenRuntime, TsRuntimeOpt,
-        TypescriptGenOptions, AdlBundleRefType, DirectoryRef,
+    adlgen::adlc::{
+        bundle::AdlBundle,
+        workspace::{
+            AdlBundleRefType, DirectoryRef, GenOutput, ModuleSrc, NpmPackageRef,
+            ReferenceableScopeOption, TsGenRuntime, TsRuntimeOpt, TypescriptGenOptions,
+        },
     },
     processing::loader::loader_from_search_paths,
 };
@@ -37,7 +40,6 @@ pub fn formatter(buf: &mut Formatter, record: &Record<'_>) -> io::Result<()> {
 }
 
 fn init_logger(module: Option<String>, level: Option<LevelFilter>) {
-
     // let formatter = |buf: &mut Formatter, record: &Record<'_>| {
     //     let level = buf.default_styled_level(record.level());
     //     let timestamp = buf.timestamp();
@@ -53,9 +55,18 @@ fn init_logger(module: Option<String>, level: Option<LevelFilter>) {
 
     match (&module, level) {
         (None, None) => Builder::from_env(Env::default()).format(formatter).init(),
-        (None, Some(l)) => Builder::from_env(Env::default()).format(formatter).filter_level(l).init(),
-        (Some(m), None) => Builder::from_env(Env::default()).format(formatter).filter(Some(m.as_str()), log::LevelFilter::Warn).init(),
-        (Some(m), Some(l)) => Builder::from_env(Env::default()).format(formatter).filter(Some(m.as_str()), l).init(),
+        (None, Some(l)) => Builder::from_env(Env::default())
+            .format(formatter)
+            .filter_level(l)
+            .init(),
+        (Some(m), None) => Builder::from_env(Env::default())
+            .format(formatter)
+            .filter(Some(m.as_str()), log::LevelFilter::Warn)
+            .init(),
+        (Some(m), Some(l)) => Builder::from_env(Env::default())
+            .format(formatter)
+            .filter(Some(m.as_str()), l)
+            .init(),
     }
 }
 
@@ -122,7 +133,35 @@ pub fn run_cli() -> i32 {
                 capitalize_type_names: opts.capitalize_type_names,
             };
             let empty = vec![];
-            tsgen::tsgen(false, false, loader, None, &ts_opts, None, AdlBundleRefType::Dir(DirectoryRef{ path: ".".to_string() }), empty)
+            let fname = "adl.bundle.json";
+            let bundle_path = PathBuf::from(fname);
+            let bundle = fs::read_to_string(&bundle_path).map(|content| {
+                let de = &mut serde_json::Deserializer::from_str(&content);
+                let mut unused = BTreeSet::new();
+                let b0: AdlBundle = serde_ignored::deserialize(de, |path| {
+                    unused.insert(path.to_string());
+                })
+                .map_err(|e| anyhow!("{:?}: {}", fname.clone(), e.to_string()))?;
+                if unused.len() != 0 {
+                    return Err(anyhow!("unknown fields `{:?}` {:?}", unused, fname));
+                }
+                Ok(b0)
+            }).map_or(Ok(None), |v| v.map(Some));
+            match bundle {
+                Ok(bundle) => tsgen::tsgen(
+                    false,
+                    false,
+                    loader,
+                    bundle,
+                    &ts_opts,
+                    None,
+                    AdlBundleRefType::Dir(DirectoryRef {
+                        path: ".".to_string(),
+                    }),
+                    empty,
+                ),
+                Err(e) => Err(e),
+            }
         }
         Command::WriteStdlib(opts) => crate::adlstdlib::dump_stdlib(&opts),
     };
@@ -141,13 +180,18 @@ pub fn run_cli() -> i32 {
 #[command(version = "0.1")]
 #[command(about = "ADL code generation cli tool", long_about = None)]
 struct Cli {
-    #[arg(short,long,
+    #[arg(
+        short,
+        long,
         help = "Set the loglevel. Overrides RUST_LOG if only level is specified.",
-        long_help = "Set the loglevel. Overrides RUST_LOG if only level is specified, if level and module are specified here or in RUST_LOG, then the result is a combination of the env var and cli args. Possible values [OFF, ERROR, WARN, INFO, DEBUG, TRACE]")]
+        long_help = "Set the loglevel. Overrides RUST_LOG if only level is specified, if level and module are specified here or in RUST_LOG, then the result is a combination of the env var and cli args. Possible values [OFF, ERROR, WARN, INFO, DEBUG, TRACE]"
+    )]
     loglevel: Option<log::LevelFilter>,
 
-    #[arg(short = 'm',long,
-        help = "Set the module to filter. Can be used in conjunction with the env var RUST_LOG.",
+    #[arg(
+        short = 'm',
+        long,
+        help = "Set the module to filter. Can be used in conjunction with the env var RUST_LOG."
     )]
     log_filter_module: Option<String>,
 
@@ -312,7 +356,6 @@ pub struct TsOpts {
     // /// When creating the path for output ts files delete the first part of the module name
     // #[arg(long, default_value_t = true)]
     // pub strip_first: bool,
-
     /// If set capitalizes branch (field) name in the exported interfaces (used to generate backward code).
     ///
     /// Has a risk of creating name clashes between branches with only differ in case.

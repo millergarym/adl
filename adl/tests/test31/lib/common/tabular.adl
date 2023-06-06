@@ -3,8 +3,8 @@ module common.tabular
 {
 
 import common.strings.StringNE;
-import common.Instant;
-import common.LocalDate;
+import common.types.Instant;
+import common.types.LocalDate;
 
 type FieldName = StringNE;
 

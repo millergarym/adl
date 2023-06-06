@@ -9,6 +9,9 @@ pub type TestFilesMetaData = Vec<TestFileMetaData>;
 pub struct TestFileMetaData {
   pub module_root: String,
 
+  #[serde(default="TestFileMetaData::def_bundle_file")]
+  pub bundle_file: Option<String>,
+
   #[serde(default="TestFileMetaData::def_lib_paths")]
   pub lib_paths: Vec<String>,
 
@@ -40,6 +43,7 @@ impl TestFileMetaData {
   pub fn new(module_root: String, modules: Vec<String>) -> TestFileMetaData {
     TestFileMetaData {
       module_root: module_root,
+      bundle_file: TestFileMetaData::def_bundle_file(),
       lib_paths: TestFileMetaData::def_lib_paths(),
       output_dir: TestFileMetaData::def_output_dir(),
       modules: modules,
@@ -49,6 +53,10 @@ impl TestFileMetaData {
       description: TestFileMetaData::def_description(),
       keywords: TestFileMetaData::def_keywords(),
     }
+  }
+
+  pub fn def_bundle_file() -> Option<String> {
+    None
   }
 
   pub fn def_lib_paths() -> Vec<String> {

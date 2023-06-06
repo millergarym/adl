@@ -5,7 +5,7 @@ module adlc.bundle {
 
 /// Expected to live in a file named `adl.bundle.json`
 struct AdlBundle {
-    String path;
+    BundleRefPath path;
     Nullable<String> global_alias = null;
     /// Version
     String adlc;
@@ -22,6 +22,11 @@ struct Require {
 };
 
 union BundleRef {
+    BundleRefPath path;
+    String alias;
+};
+
+struct BundleRefPath {
     String path;
     String alias;
 };

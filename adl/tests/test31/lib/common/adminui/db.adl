@@ -4,7 +4,7 @@ import sys.adlast.Decl;
 import sys.adlast.ModuleName;
 import common.db.DbTable;
 import common.db.DbColumnName;
-import common.Instant;
+import common.types.Instant;
 
 struct MetaTable {
    String name;

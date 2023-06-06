@@ -1,5 +1,5 @@
 {
-    "path" : "github.com/adl-lang/adl/adl/adlc",
+    "path" : "github.com/adl-lang/adl/tools/adlc",
     "global_alias": "adlc",
     "adlc": "0.0.0",
     "requires": [

@@ -1,5 +1,4 @@
-
-use std::collections::{HashMap, BTreeSet};
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::{env, fs};
 
@@ -7,10 +6,11 @@ use anyhow::anyhow;
 
 use serde::Deserialize;
 
-use crate::adlgen::adlc::bundle:: { AdlBundle, BundleRef }; 
+use crate::adlgen::adlc::bundle::{AdlBundle, BundleRef, BundleRefPath};
 use crate::adlgen::adlc::workspace::{
-    AdlBundleRefType, AdlWorkspace0, AdlWorkspace1, DirLoaderRef, InjectAnnotation,
-    LoaderRef, LoaderRefType, LoaderWorkspace, Payload1, EmbeddedLoaderRef, EmbeddedBundle, AdlBundleRef, TypescriptGenOptions,
+    AdlBundleRef, AdlBundleRefType, AdlWorkspace0, AdlWorkspace1, DirLoaderRef, EmbeddedBundle,
+    EmbeddedLoaderRef, InjectAnnotation, LoaderRef, LoaderRefType, LoaderWorkspace, Payload1,
+    TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::ScopedName;
 use crate::adlrt::custom::sys::types::pair::Pair;
@@ -27,23 +27,61 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
         if let Some(opts) = &pkg.p_ref.ts_opts {
             log::debug!(
                 "TsGen for pkg\n{:#?}\nIn workspace\n{:#?}\nOutput dir\n{:#?}",
-                pkg.p_ref, wrk1.0, &opts.outputs
+                pkg.p_ref,
+                wrk1.0,
+                &opts.outputs
             );
             // let pkg_root = wrk1.0.join(pkg.p_ref.path.clone()).canonicalize()?;
             let wrk_root = wrk1.0.canonicalize()?;
             std::env::set_current_dir(&wrk1.0)?;
-            let dep_paths: Vec<String> = pkg.bundle.requires.iter().filter_map(|p| if let BundleRef::Path(p1) = &p.r#ref {Some(p1.clone())} else { None } ).collect();
-            let dep_alias: Vec<String> = pkg.bundle.requires.iter().filter_map(|p| if let BundleRef::Alias(p1) = &p.r#ref {Some(p1.clone())} else { None } ).collect();
-            let deps = wrk1.1.r#use.iter().filter(|p| {
-                if dep_paths.contains(&p.bundle.path) {
-                    return true;
-                }
-                if let Some(a) = &p.bundle.global_alias {
-                    return dep_alias.contains(a);
-                }
-                return false;
-            }).collect();
-            tsgen::tsgen(!opts.generate_transitive, true, loader, Some(pkg.bundle.clone()), &opts, Some(wrk_root), pkg.p_ref.r#ref.clone(), deps)?;
+            let dep_paths: Vec<BundleRefPath> = pkg
+                .bundle
+                .requires
+                .iter()
+                .filter_map(|p| {
+                    if let BundleRef::Path(p1) = &p.r#ref {
+                        Some(p1.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            let dep_alias: Vec<String> = pkg
+                .bundle
+                .requires
+                .iter()
+                .filter_map(|p| {
+                    if let BundleRef::Alias(p1) = &p.r#ref {
+                        Some(p1.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            let deps = wrk1
+                .1
+                .r#use
+                .iter()
+                .filter(|p| {
+                    if dep_paths.contains(&p.bundle.path) {
+                        return true;
+                    }
+                    if let Some(a) = &p.bundle.global_alias {
+                        return dep_alias.contains(a);
+                    }
+                    return false;
+                })
+                .collect();
+            tsgen::tsgen(
+                !opts.generate_transitive,
+                true,
+                loader,
+                Some(pkg.bundle.clone()),
+                &opts,
+                Some(wrk_root),
+                pkg.p_ref.r#ref.clone(),
+                deps,
+            )?;
             tsgen::gen_npm_package(pkg, &wrk1.1)?;
         }
     }
@@ -57,7 +95,7 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn wrk1_to_wld(wrk1: AdlWorkspace1) ->  Result<LoaderWorkspace, anyhow::Error> {
+fn wrk1_to_wld(wrk1: AdlWorkspace1) -> Result<LoaderWorkspace, anyhow::Error> {
     let mut u2 = vec![];
     for u in wrk1.r#use {
         u2.push(payload1_to_loader_ref(&u)?);
@@ -71,27 +109,33 @@ fn wrk1_to_wld(wrk1: AdlWorkspace1) ->  Result<LoaderWorkspace, anyhow::Error> {
 }
 
 fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Error> {
-    let mut loader_ref = LoaderRef {
-        r#ref: match payload1.p_ref.r#ref.clone() {
-            AdlBundleRefType::Dir(d) => LoaderRefType::Dir(DirLoaderRef {
-                path: d.path,
-                global_alias: payload1.bundle.global_alias.clone(),
-            }),
-            AdlBundleRefType::Embedded(_e) => LoaderRefType::Embedded(EmbeddedLoaderRef {
-                alias:  match payload1.bundle.global_alias.clone() {
-                    Some(s) => match s.as_str() {
-                        "sys" => EmbeddedBundle::Sys,
-                        "adlc" => EmbeddedBundle::Adlc,
-                        _ => return Err(anyhow!("Embedded package not found. Must be 'sys' or 'adlc'. Provided {}", s)),
+    let mut loader_ref =
+        LoaderRef {
+            r#ref: match payload1.p_ref.r#ref.clone() {
+                AdlBundleRefType::Dir(d) => LoaderRefType::Dir(DirLoaderRef {
+                    path: d.path,
+                    global_alias: payload1.bundle.global_alias.clone(),
+                }),
+                AdlBundleRefType::Embedded(_e) => LoaderRefType::Embedded(EmbeddedLoaderRef {
+                    alias: match payload1.bundle.global_alias.clone() {
+                        Some(s) => match s.as_str() {
+                            "sys" => EmbeddedBundle::Sys,
+                            "adlc" => EmbeddedBundle::Adlc,
+                            _ => return Err(anyhow!(
+                                "Embedded package not found. Must be 'sys' or 'adlc'. Provided {}",
+                                s
+                            )),
+                        },
+                        None => return Err(anyhow!(
+                            "Embedded package not found. Must be 'sys' or 'adlc'. Nothing Provided"
+                        )),
                     },
-                    None => return Err(anyhow!("Embedded package not found. Must be 'sys' or 'adlc'. Nothing Provided")),
-                },
-            }),
-        },
-        loader_inject_annotate: vec![],
-        resolver_inject_annotate: vec![],
-        bundle: payload1.bundle.clone(),
-    };
+                }),
+            },
+            loader_inject_annotate: vec![],
+            resolver_inject_annotate: vec![],
+            bundle: payload1.bundle.clone(),
+        };
 
     if let Some(ts_opts) = &payload1.p_ref.ts_opts {
         loader_ref
@@ -137,7 +181,8 @@ fn collection_to_workspace(
                 let mut unused = BTreeSet::new();
                 let wrk0: AdlWorkspace0 = serde_ignored::deserialize(de, |path| {
                     unused.insert(path.to_string());
-                }).map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
+                })
+                .map_err(|e| anyhow!("{:?}: {}", porw_path, e.to_string()))?;
                 if unused.len() != 0 {
                     return Err(anyhow!("unknown fields `{:?}` {:?}", unused, porw_path));
                 }
@@ -156,7 +201,10 @@ fn collection_to_workspace(
                         if let Some(opts) = named_opts.get(name) {
                             if let Some(tsopt) = &mut p2.ts_opts {
                                 if let Some(rt) = &opts.ts_opts.runtime_opts {
-                                    if !tsopt.runtime_opts.eq(&TypescriptGenOptions::def_runtime_opts()) {
+                                    if !tsopt
+                                        .runtime_opts
+                                        .eq(&TypescriptGenOptions::def_runtime_opts())
+                                    {
                                         tsopt.runtime_opts = rt.to_owned();
                                     }
                                 };
@@ -166,24 +214,34 @@ fn collection_to_workspace(
                                     }
                                 }
                                 if let Some(hm) = &opts.ts_opts.dependencies {
-                                    for (k,v) in hm {
-                                        tsopt.extra_dependencies.entry(k.clone()).or_insert(v.clone());
+                                    for (k, v) in hm {
+                                        tsopt
+                                            .extra_dependencies
+                                            .entry(k.clone())
+                                            .or_insert(v.clone());
                                     }
                                 }
                                 if let Some(hm) = &opts.ts_opts.dev_dependencies {
-                                    for (k,v) in hm {
-                                        tsopt.extra_dev_dependencies.entry(k.clone()).or_insert(v.clone());
+                                    for (k, v) in hm {
+                                        tsopt
+                                            .extra_dev_dependencies
+                                            .entry(k.clone())
+                                            .or_insert(v.clone());
                                     }
                                 }
                                 if let Some(hm) = &opts.ts_opts.scripts {
-                                    for (k,v) in hm {
+                                    for (k, v) in hm {
                                         tsopt.scripts.entry(k.clone()).or_insert(v.clone());
                                     }
                                 }
                                 p2.ts_opts = Some(tsopt.to_owned());
                             }
                         } else {
-                            log::warn!("Named option set specified but not found. Name: {} Package: {}", name, aprt_to_name(&p.r#ref));
+                            log::warn!(
+                                "Named option set specified but not found. Name: {} Package: {}",
+                                name,
+                                aprt_to_name(&p.r#ref)
+                            );
                         }
                     }
                     wrk1.r#use.push(Payload1::new(p2, pkg));

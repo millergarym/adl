@@ -115,7 +115,7 @@ pub fn tsgen(
     strip_first: bool,
     packageable: bool,
     loader: Box<dyn AdlLoader>,
-    pkg: Option<AdlBundle>,
+    bundle: Option<AdlBundle>,
     opts: &TypescriptGenOptions,
     wrk_root: Option<PathBuf>,
     r#ref: AdlBundleRefType,
@@ -160,7 +160,7 @@ pub fn tsgen(
         if opts.generate_transitive || does_contain {
             let path = path_from_module_name(strip_first, m.name.to_owned());
 
-            if pkg2.eq(&pkg.as_ref()) {
+            if pkg2.eq(&bundle.as_ref()) {
                 utils::collect_indexes(path.clone(), index_map);
             }
 
@@ -317,7 +317,7 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
                             ))
                             }
                         },
-                        None => return Err(anyhow!("no package is workspace with path '{}'", p0)),
+                        None => return Err(anyhow!("no package is workspace with path '{:?}'", p0)),
                     }
                 }
                 crate::adlgen::adlc::bundle::BundleRef::Alias(a) => {
