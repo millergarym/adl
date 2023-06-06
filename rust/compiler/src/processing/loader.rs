@@ -6,8 +6,9 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::PathBuf;
 
-use crate::adlgen::adlc::packaging::{
-    EmbeddedPkg, InjectAnnotation, InjectAnnotations, LoaderRefType, LoaderWorkspace, AdlPackage,
+use crate::adlgen::adlc::bundle::AdlPackage;
+use crate::adlgen::adlc::workspace::{
+    EmbeddedPkg, InjectAnnotation, InjectAnnotations, LoaderRefType, LoaderWorkspace,
 };
 use crate::adlgen::sys::adlast2::{self as adlast, Module0};
 use crate::parser::{convert_error, raw_module};

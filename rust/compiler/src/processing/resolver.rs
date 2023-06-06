@@ -2,9 +2,9 @@ use anyhow::anyhow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::adlgen::adlc::packaging::AdlPackage;
-use crate::adlgen::adlc::packaging::InjectAnnotation;
-use crate::adlgen::adlc::packaging::InjectAnnotations;
+use crate::adlgen::adlc::bundle::AdlPackage;
+use crate::adlgen::adlc::workspace::InjectAnnotation;
+use crate::adlgen::adlc::workspace::InjectAnnotations;
 use crate::adlgen::sys::adlast2::{self as adlast, ScopedName};
 use crate::adlrt::custom::sys::types::map::Map;
 

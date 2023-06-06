@@ -14,9 +14,10 @@ use anyhow::anyhow;
 use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
-use crate::adlgen::adlc::packaging::{
+use crate::adlgen::adlc::bundle::AdlPackage;
+use crate::adlgen::adlc::workspace::{
     AdlPackageRefType, AdlWorkspace, ModuleSrc, NpmPackage, Payload1, TsRuntimeOpt, TsStyle,
-    TsWriteRuntime, TypescriptGenOptions, AdlPackage,
+    TsWriteRuntime, TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::Module1;
 use crate::adlgen::sys::adlast2::{self as adlast};
@@ -126,7 +127,7 @@ pub fn tsgen(
     }
     let outputs = opts.outputs.as_ref().unwrap();
     let (manifest, outputdir) = match outputs {
-        crate::adlgen::adlc::packaging::OutputOpts::Gen(gen) => (
+        crate::adlgen::adlc::workspace::OutputOpts::Gen(gen) => (
             gen.manifest.as_ref().map(|m| PathBuf::from(m)),
             PathBuf::from(gen.output_dir.clone()),
         ),
@@ -264,7 +265,7 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
     }
     let outputs = opts.outputs.as_ref().unwrap();
     let outputdir = match outputs {
-        crate::adlgen::adlc::packaging::OutputOpts::Gen(gen) => {
+        crate::adlgen::adlc::workspace::OutputOpts::Gen(gen) => {
             PathBuf::from(gen.output_dir.clone())
         }
     };
@@ -300,7 +301,7 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
     if !opts.generate_transitive {
         for r in payload.pkg.requires.iter() {
             match &r.r#ref {
-                crate::adlgen::adlc::packaging::PkgRef::Path(p0) => {
+                crate::adlgen::adlc::bundle::PkgRef::Path(p0) => {
                     match wrk1.r#use.iter().find(|p| p.pkg.path == *p0) {
                         Some(p1) => match &p1.p_ref.ts_opts {
                             Some(ts_opts) => {
@@ -319,7 +320,7 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
                         None => return Err(anyhow!("no package is workspace with path '{}'", p0)),
                     }
                 }
-                crate::adlgen::adlc::packaging::PkgRef::Alias(a) => {
+                crate::adlgen::adlc::bundle::PkgRef::Alias(a) => {
                     match wrk1
                         .r#use
                         .iter()

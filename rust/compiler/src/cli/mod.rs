@@ -9,7 +9,7 @@ use env_logger::{Builder, Env, fmt::Formatter};
 use std::io::Write;
 
 use crate::{
-    adlgen::adlc::packaging::{
+    adlgen::adlc::workspace::{
         GenOutput, ModuleSrc, NpmPackageRef, ReferenceableScopeOption, TsGenRuntime, TsRuntimeOpt,
         TypescriptGenOptions, AdlPackageRefType, DirectoryRef,
     },
@@ -84,7 +84,7 @@ pub fn run_cli() -> i32 {
                 extra_dev_dependencies: TypescriptGenOptions::def_extra_dev_dependencies(),
                 tsconfig: TypescriptGenOptions::def_tsconfig(),
                 scripts: TypescriptGenOptions::def_scripts(),
-                outputs: Some(crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput {
+                outputs: Some(crate::adlgen::adlc::workspace::OutputOpts::Gen(GenOutput {
                     referenceable: ReferenceableScopeOption::Local,
                     output_dir: opts.output.outputdir.to_str().unwrap().to_string(),
                     manifest: opts
@@ -112,10 +112,10 @@ pub fn run_cli() -> i32 {
                 include_resolver: opts.include_resolver,
                 ts_style: match opts.ts_style {
                     Some(style) => match style {
-                        TsStyle::Tsc => crate::adlgen::adlc::packaging::TsStyle::Tsc,
-                        TsStyle::Deno => crate::adlgen::adlc::packaging::TsStyle::Deno,
+                        TsStyle::Tsc => crate::adlgen::adlc::workspace::TsStyle::Tsc,
+                        TsStyle::Deno => crate::adlgen::adlc::workspace::TsStyle::Deno,
                     },
-                    None => crate::adlgen::adlc::packaging::TsStyle::Tsc,
+                    None => crate::adlgen::adlc::workspace::TsStyle::Tsc,
                 },
                 modules: ModuleSrc::Modules(opts.modules),
                 capitalize_branch_names_in_types: opts.capitalize_branch_names_in_types,

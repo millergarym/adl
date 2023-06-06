@@ -1,0 +1,44 @@
+// This is based on Golang's modules.
+// e.g. see https://go.dev/ref/mod#go-mod-file
+
+module adlc.bundle {
+
+/// Expected to live in a file named `adl.pkg.json`
+struct AdlPackage {
+    String path;
+    Nullable<String> global_alias = null;
+    /// Version
+    String adlc;
+    Vector<Require> requires = [];
+    Vector<Exclude> excludes = [];
+    Vector<Replace> replaces = [];
+    Vector<Retract> retracts = [];
+};
+
+struct Require {
+    PkgRef ref;
+    Nullable<String> version = null;
+    Bool indirect = false;
+};
+
+union PkgRef {
+    String path;
+    String alias;
+};
+
+struct Exclude {
+    String path;
+    String version;
+};
+
+struct Replace {
+    String path;
+    Nullable<String> version;
+};
+
+struct Retract {
+    String version;
+    Nullable<String> comment = null;
+};
+
+};

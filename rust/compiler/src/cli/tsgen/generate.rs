@@ -7,7 +7,7 @@ use genco::prelude::js::Import as JsImport;
 use genco::prelude::*;
 use genco::tokens::{Item, ItemStr};
 
-use crate::adlgen::adlc::packaging::TypescriptGenOptions;
+use crate::adlgen::adlc::workspace::TypescriptGenOptions;
 use crate::adlgen::sys::adlast2::{
     Annotations, Decl1, DeclType, Module1, NewType, PrimitiveType, ScopedName, Struct1, TypeDef,
     TypeExpr, TypeRef, Union1,

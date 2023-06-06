@@ -87,7 +87,7 @@ fn generate_ts_from_test_files() {
                     tsconfig: TypescriptGenOptions::def_tsconfig(),
                     extra_dependencies: TypescriptGenOptions::def_extra_dependencies(),
                     extra_dev_dependencies: TypescriptGenOptions::def_extra_dev_dependencies(),
-                    outputs: Some(crate::adlgen::adlc::packaging::OutputOpts::Gen(GenOutput {
+                    outputs: Some(crate::adlgen::adlc::workspace::OutputOpts::Gen(GenOutput {
                         referenceable: ReferenceableScopeOption::Local,
                         output_dir: outdir.clone(),
                         manifest: Some(manifest),
@@ -95,7 +95,7 @@ fn generate_ts_from_test_files() {
                     runtime_opts: TsRuntimeOpt::Generate(TsGenRuntime {}),
                     generate_transitive: true,
                     include_resolver: true,
-                    ts_style: crate::adlgen::adlc::packaging::TsStyle::Tsc,
+                    ts_style: crate::adlgen::adlc::workspace::TsStyle::Tsc,
                     modules: ModuleSrc::Modules(t.modules.clone()),
                     capitalize_branch_names_in_types: true,
                     capitalize_type_names: true,

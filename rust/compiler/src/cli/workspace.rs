@@ -7,9 +7,10 @@ use anyhow::anyhow;
 
 use serde::Deserialize;
 
-use crate::adlgen::adlc::packaging::{
-    AdlPackage, AdlPackageRefType, AdlWorkspace0, AdlWorkspace1, DirLoaderRef, InjectAnnotation,
-    LoaderRef, LoaderRefType, LoaderWorkspace, Payload1, EmbeddedLoaderRef, EmbeddedPkg, AdlPackageRef, PkgRef, TypescriptGenOptions,
+use crate::adlgen::adlc::bundle:: { AdlPackage, PkgRef }; 
+use crate::adlgen::adlc::workspace::{
+    AdlPackageRefType, AdlWorkspace0, AdlWorkspace1, DirLoaderRef, InjectAnnotation,
+    LoaderRef, LoaderRefType, LoaderWorkspace, Payload1, EmbeddedLoaderRef, EmbeddedPkg, AdlPackageRef, TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::ScopedName;
 use crate::adlrt::custom::sys::types::pair::Pair;
@@ -48,7 +49,7 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
     }
     for rt in &wrk1.1.runtimes {
         match rt {
-            crate::adlgen::adlc::packaging::RuntimeOpts::TsRuntime(rt_opts) => {
+            crate::adlgen::adlc::workspace::RuntimeOpts::TsRuntime(rt_opts) => {
                 tsgen::write_runtime(true, rt_opts)?
             }
         }

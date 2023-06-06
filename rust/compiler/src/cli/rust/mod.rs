@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::anyhow;
 
-use crate::adlgen::adlc::packaging::AdlPackage;
+use crate::adlgen::adlc::bundle::AdlPackage;
 use crate::adlgen::sys::adlast2::{self as adlast};
 use crate::processing::loader::loader_from_search_paths;
 use crate::processing::resolver::{Module1, Resolver};

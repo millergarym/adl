@@ -6,7 +6,7 @@ use rust_embed::{EmbeddedFile, RustEmbed};
 use serde::Deserialize;
 
 use crate::{
-    adlgen::{adlc::packaging::{EmbeddedPkg, AdlPackage}, sys::adlast2::ModuleName},
+    adlgen::{adlc::{workspace::{EmbeddedPkg}, bundle::AdlPackage}, sys::adlast2::ModuleName},
     cli::StdlibOpt,
 };
 

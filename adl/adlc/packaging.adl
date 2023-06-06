@@ -58,7 +58,8 @@ struct TsWriteRuntime {
     ReferenceableScopeOption referenceable = "local";
     String npm_pkg_name = "@adl-lang/runtime";
     TsStyle ts_style = "tsc";
-    // Bool strip_first = true;
+    // TODO make package.json and tsconfig.json configurable.
+    // Nullable<TsConfig> tsconfig = null;
 };
 
 /// The struct in AdlWorkspace::use required by the WorkspaceLoader
