@@ -299,10 +299,10 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
     }
 
     if !opts.generate_transitive {
-        for r in payload.pkg.requires.iter() {
+        for r in payload.bundle.requires.iter() {
             match &r.r#ref {
                 crate::adlgen::adlc::bundle::BundleRef::Path(p0) => {
-                    match wrk1.r#use.iter().find(|p| p.pkg.path == *p0) {
+                    match wrk1.r#use.iter().find(|p| p.bundle.path == *p0) {
                         Some(p1) => match &p1.p_ref.ts_opts {
                             Some(ts_opts) => {
                                 npm_package.dependencies.insert(
@@ -324,7 +324,7 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
                     match wrk1
                         .r#use
                         .iter()
-                        .find(|p| p.pkg.global_alias == Some(a.to_string()))
+                        .find(|p| p.bundle.global_alias == Some(a.to_string()))
                     {
                         Some(p1) => match &p1.p_ref.ts_opts {
                             Some(ts_opts) => {

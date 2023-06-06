@@ -10,7 +10,7 @@ use serde::Deserialize;
 use crate::adlgen::adlc::bundle:: { AdlBundle, BundleRef }; 
 use crate::adlgen::adlc::workspace::{
     AdlBundleRefType, AdlWorkspace0, AdlWorkspace1, DirLoaderRef, InjectAnnotation,
-    LoaderRef, LoaderRefType, LoaderWorkspace, Payload1, EmbeddedLoaderRef, EmbeddedPkg, AdlBundleRef, TypescriptGenOptions,
+    LoaderRef, LoaderRefType, LoaderWorkspace, Payload1, EmbeddedLoaderRef, EmbeddedBundle, AdlBundleRef, TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::ScopedName;
 use crate::adlrt::custom::sys::types::pair::Pair;
@@ -32,18 +32,18 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
             // let pkg_root = wrk1.0.join(pkg.p_ref.path.clone()).canonicalize()?;
             let wrk_root = wrk1.0.canonicalize()?;
             std::env::set_current_dir(&wrk1.0)?;
-            let dep_paths: Vec<String> = pkg.pkg.requires.iter().filter_map(|p| if let BundleRef::Path(p1) = &p.r#ref {Some(p1.clone())} else { None } ).collect();
-            let dep_alias: Vec<String> = pkg.pkg.requires.iter().filter_map(|p| if let BundleRef::Alias(p1) = &p.r#ref {Some(p1.clone())} else { None } ).collect();
+            let dep_paths: Vec<String> = pkg.bundle.requires.iter().filter_map(|p| if let BundleRef::Path(p1) = &p.r#ref {Some(p1.clone())} else { None } ).collect();
+            let dep_alias: Vec<String> = pkg.bundle.requires.iter().filter_map(|p| if let BundleRef::Alias(p1) = &p.r#ref {Some(p1.clone())} else { None } ).collect();
             let deps = wrk1.1.r#use.iter().filter(|p| {
-                if dep_paths.contains(&p.pkg.path) {
+                if dep_paths.contains(&p.bundle.path) {
                     return true;
                 }
-                if let Some(a) = &p.pkg.global_alias {
+                if let Some(a) = &p.bundle.global_alias {
                     return dep_alias.contains(a);
                 }
                 return false;
             }).collect();
-            tsgen::tsgen(!opts.generate_transitive, true, loader, Some(pkg.pkg.clone()), &opts, Some(wrk_root), pkg.p_ref.r#ref.clone(), deps)?;
+            tsgen::tsgen(!opts.generate_transitive, true, loader, Some(pkg.bundle.clone()), &opts, Some(wrk_root), pkg.p_ref.r#ref.clone(), deps)?;
             tsgen::gen_npm_package(pkg, &wrk1.1)?;
         }
     }
@@ -75,13 +75,13 @@ fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Erro
         r#ref: match payload1.p_ref.r#ref.clone() {
             AdlBundleRefType::Dir(d) => LoaderRefType::Dir(DirLoaderRef {
                 path: d.path,
-                global_alias: payload1.pkg.global_alias.clone(),
+                global_alias: payload1.bundle.global_alias.clone(),
             }),
             AdlBundleRefType::Embedded(_e) => LoaderRefType::Embedded(EmbeddedLoaderRef {
-                alias:  match payload1.pkg.global_alias.clone() {
+                alias:  match payload1.bundle.global_alias.clone() {
                     Some(s) => match s.as_str() {
-                        "sys" => EmbeddedPkg::Sys,
-                        "adlc" => EmbeddedPkg::Adlc,
+                        "sys" => EmbeddedBundle::Sys,
+                        "adlc" => EmbeddedBundle::Adlc,
                         _ => return Err(anyhow!("Embedded package not found. Must be 'sys' or 'adlc'. Provided {}", s)),
                     },
                     None => return Err(anyhow!("Embedded package not found. Must be 'sys' or 'adlc'. Nothing Provided")),
@@ -90,7 +90,7 @@ fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Erro
         },
         loader_inject_annotate: vec![],
         resolver_inject_annotate: vec![],
-        pkg: payload1.pkg.clone(),
+        bundle: payload1.bundle.clone(),
     };
 
     if let Some(ts_opts) = &payload1.p_ref.ts_opts {
@@ -112,8 +112,8 @@ fn aprt_to_name(a: &AdlBundleRefType) -> String {
     match a {
         AdlBundleRefType::Dir(d) => d.path.clone(),
         AdlBundleRefType::Embedded(e) => match e.alias {
-            EmbeddedPkg::Sys => "sys".to_string(),
-            EmbeddedPkg::Adlc => "adlc".to_string(),
+            EmbeddedBundle::Sys => "sys".to_string(),
+            EmbeddedBundle::Adlc => "adlc".to_string(),
         },
     }
 }

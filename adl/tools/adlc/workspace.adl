@@ -20,12 +20,12 @@ type Payload0 = AdlBundleRef;
 
 struct Payload1 {
     AdlBundleRef p_ref;
-    AdlBundle pkg;
+    AdlBundle bundle;
 };
 
 struct Payload2 {
     AdlBundleRef p_ref;
-    AdlBundle pkg;
+    AdlBundle bundle;
     Vector<Module1> modules;
 };
 
@@ -66,7 +66,7 @@ struct TsWriteRuntime {
 /// The struct in AdlWorkspace::use required by the WorkspaceLoader
 struct LoaderRef {
     LoaderRefType ref;
-    AdlBundle pkg;
+    AdlBundle bundle;
     InjectAnnotations loader_inject_annotate = [];
     InjectAnnotations resolver_inject_annotate = [];
 };
@@ -82,7 +82,7 @@ struct DirLoaderRef {
 };
 
 struct EmbeddedLoaderRef {
-    EmbeddedPkg alias;
+    EmbeddedBundle alias;
 };
 
 type InjectAnnotations = Vector<InjectAnnotation>;
@@ -104,10 +104,10 @@ union AdlBundleRefType {
 };
 
 struct EmbeddedRef {
-    EmbeddedPkg alias;
+    EmbeddedBundle alias;
 };
 
-union EmbeddedPkg {
+union EmbeddedBundle {
     Void sys;
     Void adlc;
 };

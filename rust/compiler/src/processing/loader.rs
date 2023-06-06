@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use crate::adlgen::adlc::bundle::AdlBundle;
 use crate::adlgen::adlc::workspace::{
-    EmbeddedPkg, InjectAnnotation, InjectAnnotations, LoaderRefType, LoaderWorkspace,
+    EmbeddedBundle, InjectAnnotation, InjectAnnotations, LoaderRefType, LoaderWorkspace,
 };
 use crate::adlgen::sys::adlast2::{self as adlast, Module0};
 use crate::parser::{convert_error, raw_module};
@@ -139,7 +139,7 @@ impl AdlLoader for WorkspaceLoader {
                                 }
                             }
                         }
-                        return Ok(Some((module1, Some(pkg.pkg.clone()), Some(pkg.resolver_inject_annotate.clone()))));
+                        return Ok(Some((module1, Some(pkg.bundle.clone()), Some(pkg.resolver_inject_annotate.clone()))));
                     } else {
                         // return Ok(None);
                         // return Err(anyhow!("Module not found '{}'", module_name));
@@ -185,7 +185,7 @@ impl AdlLoader for MultiLoader {
 }
 
 pub struct EmbeddedStdlibLoader {
-    pkg: EmbeddedPkg,
+    pkg: EmbeddedBundle,
 }
 
 impl AdlLoader for EmbeddedStdlibLoader {

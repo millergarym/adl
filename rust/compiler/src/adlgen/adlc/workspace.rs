@@ -21,14 +21,14 @@ pub type Payload0 = AdlBundleRef;
 pub struct Payload1 {
   pub p_ref: AdlBundleRef,
 
-  pub pkg: AdlBundle,
+  pub bundle: AdlBundle,
 }
 
 impl Payload1 {
-  pub fn new(p_ref: AdlBundleRef, pkg: AdlBundle) -> Payload1 {
+  pub fn new(p_ref: AdlBundleRef, bundle: AdlBundle) -> Payload1 {
     Payload1 {
       p_ref: p_ref,
-      pkg: pkg,
+      bundle: bundle,
     }
   }
 }
@@ -37,16 +37,16 @@ impl Payload1 {
 pub struct Payload2 {
   pub p_ref: AdlBundleRef,
 
-  pub pkg: AdlBundle,
+  pub bundle: AdlBundle,
 
   pub modules: Vec<Module1>,
 }
 
 impl Payload2 {
-  pub fn new(p_ref: AdlBundleRef, pkg: AdlBundle, modules: Vec<Module1>) -> Payload2 {
+  pub fn new(p_ref: AdlBundleRef, bundle: AdlBundle, modules: Vec<Module1>) -> Payload2 {
     Payload2 {
       p_ref: p_ref,
-      pkg: pkg,
+      bundle: bundle,
       modules: modules,
     }
   }
@@ -207,7 +207,7 @@ pub struct LoaderRef {
   #[serde(rename="ref")]
   pub r#ref: LoaderRefType,
 
-  pub pkg: AdlBundle,
+  pub bundle: AdlBundle,
 
   #[serde(default="LoaderRef::def_loader_inject_annotate")]
   pub loader_inject_annotate: InjectAnnotations,
@@ -217,10 +217,10 @@ pub struct LoaderRef {
 }
 
 impl LoaderRef {
-  pub fn new(r#ref: LoaderRefType, pkg: AdlBundle) -> LoaderRef {
+  pub fn new(r#ref: LoaderRefType, bundle: AdlBundle) -> LoaderRef {
     LoaderRef {
       r#ref: r#ref,
-      pkg: pkg,
+      bundle: bundle,
       loader_inject_annotate: LoaderRef::def_loader_inject_annotate(),
       resolver_inject_annotate: LoaderRef::def_resolver_inject_annotate(),
     }
@@ -267,11 +267,11 @@ impl DirLoaderRef {
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct EmbeddedLoaderRef {
-  pub alias: EmbeddedPkg,
+  pub alias: EmbeddedBundle,
 }
 
 impl EmbeddedLoaderRef {
-  pub fn new(alias: EmbeddedPkg) -> EmbeddedLoaderRef {
+  pub fn new(alias: EmbeddedBundle) -> EmbeddedLoaderRef {
     EmbeddedLoaderRef {
       alias: alias,
     }
@@ -330,11 +330,11 @@ pub enum AdlBundleRefType {
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct EmbeddedRef {
-  pub alias: EmbeddedPkg,
+  pub alias: EmbeddedBundle,
 }
 
 impl EmbeddedRef {
-  pub fn new(alias: EmbeddedPkg) -> EmbeddedRef {
+  pub fn new(alias: EmbeddedBundle) -> EmbeddedRef {
     EmbeddedRef {
       alias: alias,
     }
@@ -342,7 +342,7 @@ impl EmbeddedRef {
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub enum EmbeddedPkg {
+pub enum EmbeddedBundle {
   #[serde(rename="sys")]
   Sys,
 

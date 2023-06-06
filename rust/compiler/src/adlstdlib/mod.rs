@@ -6,7 +6,7 @@ use rust_embed::{EmbeddedFile, RustEmbed};
 use serde::Deserialize;
 
 use crate::{
-    adlgen::{adlc::{workspace::{EmbeddedPkg}, bundle::AdlBundle}, sys::adlast2::ModuleName},
+    adlgen::{adlc::{workspace::{EmbeddedBundle}, bundle::AdlBundle}, sys::adlast2::ModuleName},
     cli::StdlibOpt,
 };
 
@@ -18,10 +18,10 @@ struct StdlibAsset;
 #[folder = "../../adl/tools/adlc/"]
 struct AdlcAsset;
 
-pub fn get_file_names(em: EmbeddedPkg) -> Vec<PathBuf> {
+pub fn get_file_names(em: EmbeddedBundle) -> Vec<PathBuf> {
     match em {
-        EmbeddedPkg::Sys => StdlibAsset::iter().map(String::from).map(PathBuf::from).collect(),
-        EmbeddedPkg::Adlc => AdlcAsset::iter().map(String::from).map(PathBuf::from).collect(),
+        EmbeddedBundle::Sys => StdlibAsset::iter().map(String::from).map(PathBuf::from).collect(),
+        EmbeddedBundle::Adlc => AdlcAsset::iter().map(String::from).map(PathBuf::from).collect(),
     }
 }
 
@@ -30,15 +30,15 @@ pub fn get_file_names(em: EmbeddedPkg) -> Vec<PathBuf> {
 //     path.to_str().unwrap().to_string()
 // }
 
-pub fn get_adl_bundle(em: &EmbeddedPkg) -> Option<Cow<'static, [u8]>> {
+pub fn get_adl_bundle(em: &EmbeddedBundle) -> Option<Cow<'static, [u8]>> {
     let d = match em {
-        EmbeddedPkg::Sys => StdlibAsset::get("adl.bundle.json"),
-        EmbeddedPkg::Adlc => AdlcAsset::get("adl.bundle.json"),
+        EmbeddedBundle::Sys => StdlibAsset::get("adl.bundle.json"),
+        EmbeddedBundle::Adlc => AdlcAsset::get("adl.bundle.json"),
     };
     d.map(|d| d.data)
 }
 
-pub fn get_stdlib(em: &EmbeddedPkg, mn: &ModuleName, ext: &str) -> Option<(AdlBundle, Cow<'static, [u8]>)> {
+pub fn get_stdlib(em: &EmbeddedBundle, mn: &ModuleName, ext: &str) -> Option<(AdlBundle, Cow<'static, [u8]>)> {
     let mut fname = mn.replace(".", "/");
     fname.push_str(".adl");
     if ext != "" {
@@ -50,8 +50,8 @@ pub fn get_stdlib(em: &EmbeddedPkg, mn: &ModuleName, ext: &str) -> Option<(AdlBu
     let de = &mut serde_json::Deserializer::from_str(&content);
     let pkg = AdlBundle::deserialize(de).unwrap();
     let get = match em {
-        EmbeddedPkg::Sys => StdlibAsset::get,
-        EmbeddedPkg::Adlc => AdlcAsset::get,
+        EmbeddedBundle::Sys => StdlibAsset::get,
+        EmbeddedBundle::Adlc => AdlcAsset::get,
     };
     if let Some(f) = get(fname.as_str()) {
         return Some((pkg, f.data));
