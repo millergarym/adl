@@ -1,5 +1,0 @@
-module github.com/millergarym/adl/adl/tools
-
-adlc 0.0.0
-
-alias adlc
