@@ -83,11 +83,11 @@ impl AdlLoader for WorkspaceLoader {
         for pkg in &self.workspace.r#use {
             let loader = match pkg.r#ref.clone() {
                 LoaderRefType::Dir(d) => {
-                    let pkg_path = d.path.as_str();
+                    let pkg_path = d.bundle.as_str();
                     // println!("  looking for {} in {} or {:?}", module_name, pkg_path, pkg.0.1.global_alias.clone());
                     let pkg_name = if module_name.starts_with(pkg_path) {
-                        Some(d.path.clone())
-                    } else if let Some(alias) = d.global_alias.clone() {
+                        Some(d.bundle.clone())
+                    } else if let Some(alias) = d.module_prefix.clone() {
                         if module_name.starts_with(alias.as_str()) {
                             Some(alias)
                         } else {
@@ -109,8 +109,8 @@ impl AdlLoader for WorkspaceLoader {
                 LoaderRefType::Embedded(e) => {
                     self
                     .loaders
-                    .entry(format!("{:?}", e.alias))
-                    .or_insert(Box::new(EmbeddedStdlibLoader { pkg: e.alias }))
+                    .entry(format!("{:?}", e))
+                    .or_insert(Box::new(EmbeddedStdlibLoader { pkg: e }))
                 },
             };
             let module0 = loader.load(module_name);

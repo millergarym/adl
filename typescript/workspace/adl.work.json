@@ -46,9 +46,7 @@
         {
             "named_opts": "base",
             "ref": {
-                "embedded": {
-                    "alias": "sys"
-                }
+                "embedded": "sys"
             },
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/sys",
@@ -65,9 +63,7 @@
         {
             "named_opts": "base",
             "ref": {
-                "dir": {
-                    "path": "./adl/lib"
-                }
+                "dir": "./adl/lib"
             },
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/common",
@@ -83,9 +79,7 @@
         {
             "named_opts": "base",
             "ref": {
-                "dir": {
-                    "path": "./adl/proj"
-                }
+                "dir": "./adl/proj"
             },
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/protoclient",

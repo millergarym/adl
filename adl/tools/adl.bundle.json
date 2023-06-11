@@ -1,12 +1,6 @@
 {
     "bundle" : "github.com/adl-lang/adl/tools/adlc",
-    "global_alias": "adlc",
+    "module_prefix": "adlc",
     "adlc": "0.0.0",
-    "requires": [
-        {
-            "ref": {
-                "alias": "sys"
-            }
-        }
-    ]
+    "local_requires": ["sys"]
 }

@@ -132,7 +132,7 @@ pub fn run_cli() -> i32 {
                 capitalize_branch_names_in_types: opts.capitalize_branch_names_in_types,
                 capitalize_type_names: opts.capitalize_type_names,
             };
-            let empty = vec![];
+            // let empty = vec![];
             let fname = "adl.bundle.json";
             let bundle_path = PathBuf::from(fname);
             let bundle = fs::read_to_string(&bundle_path).map(|content| {
@@ -155,10 +155,8 @@ pub fn run_cli() -> i32 {
                     bundle,
                     &ts_opts,
                     None,
-                    AdlBundleRefType::Dir(DirectoryRef {
-                        path: ".".to_string(),
-                    }),
-                    empty,
+                    AdlBundleRefType::Dir(".".to_string()),
+                    // empty,
                 ),
                 Err(e) => Err(e),
             }

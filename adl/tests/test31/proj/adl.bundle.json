@@ -1,17 +1,12 @@
 {
-    "path": "github.com/adl-lang/adl/adl/tests/test31/proj",
-    "global_alias": "protoclient",
+    "bundle": "github.com/adl-lang/adl/adl/tests/test31/proj",
+    "module_prefix": "protoclient",
     "adlc": "0.0.0",
+    "local_requires": ["sys"],
     "requires": [
         {
-            "ref": {
-                "alias": "sys"
-            }
-        },
-        {
-            "ref": {
-                "alias": "common"
-            }
+            "bundle": "github.com/gmhta/adl_common",
+            "version": "v2.0.0"
         }
     ]
 }

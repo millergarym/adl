@@ -1,12 +1,6 @@
 {
-    "path" : "github.com/adl-lang/adl/adl/tests/test31/lib",
-    "global_alias": "common",
+    "bundle" : "github.com/adl-lang/adl/adl/tests/test31/lib",
+    "module_prefix": "common",
     "adlc": "0.0.0",
-    "requires": [
-        {
-            "ref": {
-                "alias": "sys"
-            }
-        }
-    ]
+    "local_requires": ["sys"]
 }

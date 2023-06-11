@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "commonjs",
   "author": "Helix",
-  "license": "CLOSED",
-  "private": true,
+  "license": "MIT",
+  "private": false,
   "scripts": {
     "tsc": "tsc"
   },

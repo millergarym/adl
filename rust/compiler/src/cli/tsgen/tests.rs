@@ -145,7 +145,7 @@ fn generate_ts_from_test_files() {
 
                 // TODO consider failed.
                 // t.fail
-                let dep_adl_bundles = vec![];
+                // let dep_adl_bundles = vec![];
                 let bundle = t
                     .bundle_file.clone()
                     .map(|p| {
@@ -185,10 +185,8 @@ fn generate_ts_from_test_files() {
                     bundle1,
                     &ts_opts,
                     None,
-                    AdlBundleRefType::Dir(DirectoryRef {
-                        path: ".".to_string(),
-                    }),
-                    dep_adl_bundles,
+                    AdlBundleRefType::Dir(".".to_string()),
+                    // dep_adl_bundles,
                 ) {
                     Ok(_) => {
                         println!(

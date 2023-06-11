@@ -5,30 +5,22 @@ module adlc.bundle {
 
 /// Expected to live in a file named `adl.bundle.json`
 struct AdlBundle {
-    BundleRefPath path;
-    Nullable<String> global_alias = null;
+    String bundle;
+    Nullable<String> module_prefix;
+    // Vector<String> module_prefixes = [];
     /// Version
     String adlc;
-    Vector<Require> requires = [];
+    Vector<RequireBundle> requires = [];
+    Vector<String> local_requires = [];
     Vector<Exclude> excludes = [];
     Vector<Replace> replaces = [];
     Vector<Retract> retracts = [];
 };
 
-struct Require {
-    BundleRef ref;
+struct RequireBundle {
+    String bundle;
     Nullable<String> version = null;
     Bool indirect = false;
-};
-
-union BundleRef {
-    BundleRefPath path;
-    String alias;
-};
-
-struct BundleRefPath {
-    String path;
-    String alias;
 };
 
 struct Exclude {

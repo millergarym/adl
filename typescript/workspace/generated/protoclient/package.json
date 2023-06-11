@@ -2,13 +2,12 @@
   "name": "@adl-lang/protoclient",
   "version": "1.0.0",
   "scripts": {
-    "tsc": "tsc",
-    "clean": "rm -rf dist && rm -rf node_modules"
+    "clean": "rm -rf dist && rm -rf node_modules",
+    "tsc": "tsc"
   },
   "dependencies": {
-    "@adl-lang/sys": "workspace:*",
-    "@adl-lang/common": "workspace:*",
-    "@adl-lang/runtime": "^1.0.0"
+    "@adl-lang/runtime": "^1.0.0",
+    "@adl-lang/common": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^4.9.3",

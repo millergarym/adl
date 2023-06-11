@@ -11,9 +11,7 @@
     "use": [
         {
             "ref": {
-                "dir": {
-                    "path": "./tools"
-                }
+                "dir": "./tools"
             },
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/adlc",
@@ -35,9 +33,7 @@
         },
         {
             "ref": {
-                "dir": {
-                    "path": "./tests/test31/lib"
-                }
+                "dir": "./tests/test31/lib"
             },
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/common",
@@ -59,9 +55,7 @@
         },
         {
             "ref": {
-                "dir": {
-                    "path": "./stdlib"
-                }
+                "dir": "./stdlib"
             },
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/sys",
@@ -83,9 +77,7 @@
         },
         {
             "ref": {
-                "dir": {
-                    "path": "./tests/test31/proj"
-                }
+                "dir": "./tests/test31/proj"
             },
             "ts_opts": {
                 "npm_pkg_name": "@adl-lang/protoclient",

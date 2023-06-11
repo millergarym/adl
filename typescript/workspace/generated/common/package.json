@@ -2,11 +2,10 @@
   "name": "@adl-lang/common",
   "version": "1.0.0",
   "scripts": {
-    "clean": "rm -rf dist && rm -rf node_modules",
-    "tsc": "tsc"
+    "tsc": "tsc",
+    "clean": "rm -rf dist && rm -rf node_modules"
   },
   "dependencies": {
-    "@adl-lang/sys": "workspace:*",
     "@adl-lang/runtime": "^1.0.0"
   },
   "devDependencies": {

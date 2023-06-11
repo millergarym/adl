@@ -54,7 +54,7 @@ fn get_modules(
                 if wrk_root == None {
                     return Err(anyhow!("wrk_root needed when module src all specified"));
                 }
-                let pkg_root = wrk_root.unwrap().join(d.path.clone()).canonicalize()?;
+                let pkg_root = wrk_root.unwrap().join(d.clone()).canonicalize()?;
                 if let Some(pkg_root_str) = pkg_root.as_os_str().to_str() {
                     Ok(walk_and_collect_adl_modules(pkg_root_str, &pkg_root))
                 } else {
@@ -65,7 +65,7 @@ fn get_modules(
         },
         AdlBundleRefType::Embedded(e) => match &opts.modules {
             ModuleSrc::Modules(ms) => Ok(ms.clone()),
-            ModuleSrc::All => Ok(get_file_names(e.alias)
+            ModuleSrc::All => Ok(get_file_names(e)
                 .iter()
                 .filter(|f| {
                     if let Some(ext) = f.extension() {
@@ -119,7 +119,7 @@ pub fn tsgen(
     opts: &TypescriptGenOptions,
     wrk_root: Option<PathBuf>,
     r#ref: AdlBundleRefType,
-    dep_adl_bundles: Vec<&Payload1>,
+    // dep_adl_bundles: Vec<&Payload1>,
 ) -> anyhow::Result<()> {
     if opts.outputs == None {
         // not gen for this pkg
@@ -177,10 +177,10 @@ pub fn tsgen(
 
     {
         let tokens = &mut js::Tokens::new();
-        let dep_adl_resolvers = dep_adl_bundles
-            .iter()
-            .filter_map(|d| d.p_ref.ts_opts.as_ref().map(|t| t.npm_pkg_name.clone()))
-            .collect();
+        // let dep_adl_resolvers = dep_adl_bundles
+        //     .iter()
+        //     .filter_map(|d| d.p_ref.ts_opts.as_ref().map(|t| t.npm_pkg_name.clone()))
+        //     .collect();
 
         if opts.include_resolver {
             gen_resolver(
@@ -190,7 +190,7 @@ pub fn tsgen(
                 &opts.runtime_opts,
                 &resolver,
                 &modules,
-                dep_adl_resolvers,
+                // dep_adl_resolvers,
             )?;
             let config = js::Config::default();
             // let config = js::Config{
@@ -300,58 +300,23 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
 
     if !opts.generate_transitive {
         for r in payload.bundle.requires.iter() {
-            match &r.r#ref {
-                crate::adlgen::adlc::bundle::BundleRef::Path(p0) => {
-                    match wrk1.r#use.iter().find(|p| p.bundle.path == *p0) {
-                        Some(p1) => match &p1.p_ref.ts_opts {
-                            Some(ts_opts) => {
-                                npm_package.dependencies.insert(
-                                    ts_opts.npm_pkg_name.clone(),
-                                    "workspace:*".to_string(),
-                                );
-                            }
-                            None => {
-                                return Err(anyhow!(
-                                "pkg_ref::path - no ts_opts in workspace file for package '{:?}'",
-                                p1.p_ref
-                            ))
-                            }
-                        },
-                        None => return Err(anyhow!("no package is workspace with path '{:?}'", p0)),
+            match wrk1.r#use.iter().find(|p| p.bundle.bundle == r.bundle) {
+                Some(p1) => match &p1.p_ref.ts_opts {
+                    Some(ts_opts) => {
+                        npm_package.dependencies.insert(
+                            ts_opts.npm_pkg_name.clone(),
+                            "workspace:*".to_string(),
+                        );
                     }
-                }
-                crate::adlgen::adlc::bundle::BundleRef::Alias(a) => {
-                    match wrk1
-                        .r#use
-                        .iter()
-                        .find(|p| p.bundle.global_alias == Some(a.to_string()))
-                    {
-                        Some(p1) => match &p1.p_ref.ts_opts {
-                            Some(ts_opts) => {
-                                npm_package.dependencies.insert(
-                                    ts_opts.npm_pkg_name.clone(),
-                                    "workspace:*".to_string(),
-                                );
-                            }
-                            None => {
-                                return Err(anyhow!(
-                                "pkg_ref::alias - no ts_opts in workspace file for package '{:?}'",
-                                p1.p_ref
-                            ))
-                            }
-                        },
-                        None => {
-                            if *a == "sys".to_string() {
-                                npm_package
-                                    .dependencies
-                                    .insert("@adl-lang/sys".to_string(), "1.0.0".to_string());
-                            } else {
-                                return Err(anyhow!("no package is workspace with alias '{}'", a));
-                            }
-                        }
+                    None => {
+                        return Err(anyhow!(
+                        "pkg_ref::path - no ts_opts in workspace file for package '{:?}'",
+                        p1.p_ref
+                    ))
                     }
-                }
-            };
+                },
+                None => return Err(anyhow!("no package is workspace with path '{:?}'", r.bundle)),
+            }
         }
     }
     let content = serde_json::to_string_pretty(&npm_package)?;
@@ -443,7 +408,7 @@ fn gen_resolver(
     runtime_opts: &TsRuntimeOpt,
     resolver: &Resolver,
     modules: &Vec<(Module1, Option<&AdlBundle>)>,
-    adl_bundle_resolvers: HashSet<String>,
+    // adl_bundle_resolvers: HashSet<String>,
 ) -> anyhow::Result<()> {
     let mut local_keys = vec![];
     let m_imports: Vec<js::Import> = modules
@@ -455,18 +420,18 @@ fn gen_resolver(
                 None
             };
 
-            if !generate_transitive {
-                if let Some(npm_pkg2) = &npm_pkg2 {
-                    if adl_bundle_resolvers.contains(npm_pkg2) {
-                        let alias = npm_pkg2
-                            .replace("@", "")
-                            .replace("-", "_")
-                            .replace("/", "_");
-                        return js::import(format!("{}/resolver", npm_pkg2), "ADL_local")
-                            .with_alias(alias);
-                    }
-                }
-            }
+            // if !generate_transitive {
+            //     if let Some(npm_pkg2) = &npm_pkg2 {
+            //         if adl_bundle_resolvers.contains(npm_pkg2) {
+            //             let alias = npm_pkg2
+            //                 .replace("@", "")
+            //                 .replace("-", "_")
+            //                 .replace("/", "_");
+            //             return js::import(format!("{}/resolver", npm_pkg2), "ADL_local")
+            //                 .with_alias(alias);
+            //         }
+            //     }
+            // }
             if !generate_transitive && npm_pkg2 != None {
                 let npm_pkg2 = npm_pkg2.unwrap();
                 if npm_pkg2 != npm_pkg.clone() {
@@ -512,11 +477,12 @@ fn gen_resolver(
     };
     let gened = "/* @generated from adl */";
 
-    let mut dep_keys: Vec<&String> = if !generate_transitive {
-        adl_bundle_resolvers.iter().collect()
-    } else {
-        vec![]
-    };
+    let mut dep_keys: Vec<&String> = vec![];
+    // let mut dep_keys: Vec<&String> = if !generate_transitive {
+    //     adl_bundle_resolvers.iter().collect()
+    // } else {
+    //     vec![]
+    // };
     dep_keys.sort();
     local_keys.sort();
     quote_in! { *t =>

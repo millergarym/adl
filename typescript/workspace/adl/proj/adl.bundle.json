@@ -1,17 +1,12 @@
 {
-    "path" : "github.com/adl-lang/adl/typescript/workspace/adl/proj",
-    "global_alias": "protoclient",
+    "bundle" : "github.com/adl-lang/adl/typescript/workspace/adl/proj",
+    "module_prefix": "protoclient",
     "adlc": "0.0.0",
+    "local_requires": ["sys"],
     "requires": [
         {
-            "ref": {
-                "alias": "sys"
-            }
-        },
-        {
-            "ref": {
-                "alias": "common"
-            }
+            "bundle": "github.com/adl-lang/adl/typescript/workspace/adl/lib",
+            "version": "v2.0.0"
         }
     ]
 }

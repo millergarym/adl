@@ -1,12 +1,5 @@
 {
-    "path" : "github.com/adl-lang/adl/typescript/workspace/adl/lib",
-    "global_alias": "common",
-    "adlc": "0.0.0",
-    "requires": [
-        {
-            "ref": {
-                "alias": "sys"
-            }
-        }
-    ]
+    "bundle" : "github.com/adl-lang/adl/typescript/workspace/adl/lib",
+    "module_prefix": "common",
+    "adlc": "0.0.0"
 }

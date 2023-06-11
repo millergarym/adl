@@ -73,16 +73,15 @@ struct LoaderRef {
 
 union LoaderRefType {
     DirLoaderRef dir;
-    EmbeddedLoaderRef embedded;
+    EmbeddedBundle embedded;
 };
 
 struct DirLoaderRef {
     String path;
-    Nullable<String> global_alias = null;
-};
-
-struct EmbeddedLoaderRef {
-    EmbeddedBundle alias;
+    String bundle;
+    Nullable<String> module_prefix;
+    // Vector<String> module_prefixes = [];
+    // Nullable<String> global_alias = null;
 };
 
 type InjectAnnotations = Vector<InjectAnnotation>;
@@ -98,13 +97,9 @@ struct AdlBundleRef {
 };
 
 union AdlBundleRefType {
-    DirectoryRef dir;
+    String dir;
     /// An ADL module embed in the ADL compiler
-    EmbeddedRef embedded;
-};
-
-struct EmbeddedRef {
-    EmbeddedBundle alias;
+    EmbeddedBundle embedded;
 };
 
 union EmbeddedBundle {
@@ -154,11 +149,7 @@ struct TsGenRuntime {
 
 union OutputOpts {
     GenOutput gen;
-    // BundleRef ref;
 };
-
-// struct BundleRef {
-// };
 
 struct GenOutput {
     ReferenceableScopeOption referenceable = "local";

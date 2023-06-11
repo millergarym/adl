@@ -22,7 +22,9 @@ import {_AST_MAP as common_strings} from "./strings";
 import {_AST_MAP as common_tabular} from "./tabular";
 import {_AST_MAP as common_ui} from "./ui";
 import {ScopedDecl, declResolver} from "@adl-lang/runtime/adl";
-import {ADL_local as adl_lang_sys} from "@adl-lang/sys/resolver";
+import {_AST_MAP as sys_adlast} from "@adl-lang/sys/adlast";
+import {_AST_MAP as sys_annotations} from "@adl-lang/sys/annotations";
+import {_AST_MAP as sys_types} from "@adl-lang/sys/types";
 
 /* @generated from adl */
 
@@ -50,11 +52,13 @@ export const ADL_local: { [key: string]: ScopedDecl } = {
   ...common_strings,
   ...common_tabular,
   ...common_ui,
+  ...sys_adlast,
+  ...sys_annotations,
+  ...sys_types,
 };
 
 export const ADL: { [key: string]: ScopedDecl } = {
   ...ADL_local,
-  ...adl_lang_sys,
 };
 
 export const RESOLVER = declResolver(ADL);

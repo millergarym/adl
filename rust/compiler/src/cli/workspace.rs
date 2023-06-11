@@ -6,11 +6,10 @@ use anyhow::anyhow;
 
 use serde::Deserialize;
 
-use crate::adlgen::adlc::bundle::{AdlBundle, BundleRef, BundleRefPath};
+use crate::adlgen::adlc::bundle::AdlBundle;
 use crate::adlgen::adlc::workspace::{
     AdlBundleRef, AdlBundleRefType, AdlWorkspace0, AdlWorkspace1, DirLoaderRef, EmbeddedBundle,
-    EmbeddedLoaderRef, InjectAnnotation, LoaderRef, LoaderRefType, LoaderWorkspace, Payload1,
-    TypescriptGenOptions,
+    InjectAnnotation, LoaderRef, LoaderRefType, LoaderWorkspace, Payload1, TypescriptGenOptions,
 };
 use crate::adlgen::sys::adlast2::ScopedName;
 use crate::adlrt::custom::sys::types::pair::Pair;
@@ -34,44 +33,22 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
             // let pkg_root = wrk1.0.join(pkg.p_ref.path.clone()).canonicalize()?;
             let wrk_root = wrk1.0.canonicalize()?;
             std::env::set_current_dir(&wrk1.0)?;
-            let dep_paths: Vec<BundleRefPath> = pkg
-                .bundle
-                .requires
-                .iter()
-                .filter_map(|p| {
-                    if let BundleRef::Path(p1) = &p.r#ref {
-                        Some(p1.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            let dep_alias: Vec<String> = pkg
-                .bundle
-                .requires
-                .iter()
-                .filter_map(|p| {
-                    if let BundleRef::Alias(p1) = &p.r#ref {
-                        Some(p1.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            let deps = wrk1
-                .1
-                .r#use
-                .iter()
-                .filter(|p| {
-                    if dep_paths.contains(&p.bundle.path) {
-                        return true;
-                    }
-                    if let Some(a) = &p.bundle.global_alias {
-                        return dep_alias.contains(a);
-                    }
-                    return false;
-                })
-                .collect();
+
+            // let deps = wrk1
+            //     .1
+            //     .r#use
+            //     .iter()
+            //     .filter(|p| {
+            //         p.bundle.bundle
+            //         if dep_paths.contains(&p.bundle.path) {
+            //             return true;
+            //         }
+            //         if let Some(a) = &p.bundle.global_alias {
+            //             return dep_alias.contains(a);
+            //         }
+            //         return false;
+            //     })
+            //     .collect();
             tsgen::tsgen(
                 !opts.generate_transitive,
                 true,
@@ -80,7 +57,7 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
                 &opts,
                 Some(wrk_root),
                 pkg.p_ref.r#ref.clone(),
-                deps,
+                // deps,
             )?;
             tsgen::gen_npm_package(pkg, &wrk1.1)?;
         }
@@ -109,33 +86,19 @@ fn wrk1_to_wld(wrk1: AdlWorkspace1) -> Result<LoaderWorkspace, anyhow::Error> {
 }
 
 fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Error> {
-    let mut loader_ref =
-        LoaderRef {
-            r#ref: match payload1.p_ref.r#ref.clone() {
-                AdlBundleRefType::Dir(d) => LoaderRefType::Dir(DirLoaderRef {
-                    path: d.path,
-                    global_alias: payload1.bundle.global_alias.clone(),
-                }),
-                AdlBundleRefType::Embedded(_e) => LoaderRefType::Embedded(EmbeddedLoaderRef {
-                    alias: match payload1.bundle.global_alias.clone() {
-                        Some(s) => match s.as_str() {
-                            "sys" => EmbeddedBundle::Sys,
-                            "adlc" => EmbeddedBundle::Adlc,
-                            _ => return Err(anyhow!(
-                                "Embedded package not found. Must be 'sys' or 'adlc'. Provided {}",
-                                s
-                            )),
-                        },
-                        None => return Err(anyhow!(
-                            "Embedded package not found. Must be 'sys' or 'adlc'. Nothing Provided"
-                        )),
-                    },
-                }),
-            },
-            loader_inject_annotate: vec![],
-            resolver_inject_annotate: vec![],
-            bundle: payload1.bundle.clone(),
-        };
+    let mut loader_ref = LoaderRef {
+        r#ref: match payload1.p_ref.r#ref.clone() {
+            AdlBundleRefType::Dir(d) => LoaderRefType::Dir(DirLoaderRef {
+                path: d,
+                bundle: payload1.bundle.bundle.clone(),
+                module_prefix: payload1.bundle.module_prefix.clone(),
+            }),
+            AdlBundleRefType::Embedded(e) => LoaderRefType::Embedded(e),
+        },
+        loader_inject_annotate: vec![],
+        resolver_inject_annotate: vec![],
+        bundle: payload1.bundle.clone(),
+    };
 
     if let Some(ts_opts) = &payload1.p_ref.ts_opts {
         loader_ref
@@ -154,8 +117,8 @@ fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Erro
 
 fn aprt_to_name(a: &AdlBundleRefType) -> String {
     match a {
-        AdlBundleRefType::Dir(d) => d.path.clone(),
-        AdlBundleRefType::Embedded(e) => match e.alias {
+        AdlBundleRefType::Dir(d) => d.to_string(),
+        AdlBundleRefType::Embedded(e) => match e {
             EmbeddedBundle::Sys => "sys".to_string(),
             EmbeddedBundle::Adlc => "adlc".to_string(),
         },
@@ -298,24 +261,24 @@ impl AdlBundler for AdlBundleRef {
     fn pkg_content(&self, wrk_dir: PathBuf) -> Result<AdlBundle, anyhow::Error> {
         let (p_path, content) = match &self.r#ref {
             AdlBundleRefType::Dir(p) => {
-                let p_path = wrk_dir.join(&p.path).join("adl.bundle.json");
+                let p_path = wrk_dir.join(&p).join("adl.bundle.json");
                 let content = fs::read_to_string(&p_path).map_err(|e| anyhow!("Can't read pkg specified in workspace.\n\tworkspace {:?}\n\t package {:?}\n\t error: {}", wrk_dir, p_path, e.to_string()))?;
                 (format!("{:?}", p_path), content)
             }
             AdlBundleRefType::Embedded(e) => {
-                if let Some(c) = get_adl_bundle(&e.alias) {
+                if let Some(c) = get_adl_bundle(&e) {
                     let x = std::str::from_utf8(c.as_ref()).map_err(|err| {
                         anyhow!(
                             "Error converting adl.bundle.json from embedded pkg {:?}. err: {}",
-                            e.alias,
+                            e,
                             err.to_string()
                         )
                     })?;
-                    (format!("{:?}", e.alias), String::from(x))
+                    (format!("{:?}", e), String::from(x))
                 } else {
                     return Err(anyhow!(
                         "Cannot file 'adl.bundle.json' in embedded pkg {:?}",
-                        e.alias
+                        e
                     ));
                 }
             }

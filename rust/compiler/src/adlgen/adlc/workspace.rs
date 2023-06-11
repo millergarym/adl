@@ -241,39 +241,24 @@ pub enum LoaderRefType {
   Dir(DirLoaderRef),
 
   #[serde(rename="embedded")]
-  Embedded(EmbeddedLoaderRef),
+  Embedded(EmbeddedBundle),
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct DirLoaderRef {
   pub path: String,
 
-  #[serde(default="DirLoaderRef::def_global_alias")]
-  pub global_alias: Option<String>,
+  pub bundle: String,
+
+  pub module_prefix: Option<String>,
 }
 
 impl DirLoaderRef {
-  pub fn new(path: String) -> DirLoaderRef {
+  pub fn new(path: String, bundle: String, module_prefix: Option<String>) -> DirLoaderRef {
     DirLoaderRef {
       path: path,
-      global_alias: DirLoaderRef::def_global_alias(),
-    }
-  }
-
-  pub fn def_global_alias() -> Option<String> {
-    None
-  }
-}
-
-#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub struct EmbeddedLoaderRef {
-  pub alias: EmbeddedBundle,
-}
-
-impl EmbeddedLoaderRef {
-  pub fn new(alias: EmbeddedBundle) -> EmbeddedLoaderRef {
-    EmbeddedLoaderRef {
-      alias: alias,
+      bundle: bundle,
+      module_prefix: module_prefix,
     }
   }
 }
@@ -319,26 +304,13 @@ impl AdlBundleRef {
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub enum AdlBundleRefType {
   #[serde(rename="dir")]
-  Dir(DirectoryRef),
+  Dir(String),
 
   /**
    * An ADL module embed in the ADL compiler
    */
   #[serde(rename="embedded")]
-  Embedded(EmbeddedRef),
-}
-
-#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub struct EmbeddedRef {
-  pub alias: EmbeddedBundle,
-}
-
-impl EmbeddedRef {
-  pub fn new(alias: EmbeddedBundle) -> EmbeddedRef {
-    EmbeddedRef {
-      alias: alias,
-    }
-  }
+  Embedded(EmbeddedBundle),
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]

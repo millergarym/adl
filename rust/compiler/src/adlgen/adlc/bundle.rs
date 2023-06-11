@@ -8,10 +8,9 @@ use serde::Serialize;
  */
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
 pub struct AdlBundle {
-  pub path: BundleRefPath,
+  pub bundle: String,
 
-  #[serde(default="AdlBundle::def_global_alias")]
-  pub global_alias: Option<String>,
+  pub module_prefix: Option<String>,
 
   /**
    * Version
@@ -19,7 +18,10 @@ pub struct AdlBundle {
   pub adlc: String,
 
   #[serde(default="AdlBundle::def_requires")]
-  pub requires: Vec<Require>,
+  pub requires: Vec<RequireBundle>,
+
+  #[serde(default="AdlBundle::def_local_requires")]
+  pub local_requires: Vec<String>,
 
   #[serde(default="AdlBundle::def_excludes")]
   pub excludes: Vec<Exclude>,
@@ -32,23 +34,24 @@ pub struct AdlBundle {
 }
 
 impl AdlBundle {
-  pub fn new(path: BundleRefPath, adlc: String) -> AdlBundle {
+  pub fn new(bundle: String, module_prefix: Option<String>, adlc: String) -> AdlBundle {
     AdlBundle {
-      path: path,
-      global_alias: AdlBundle::def_global_alias(),
+      bundle: bundle,
+      module_prefix: module_prefix,
       adlc: adlc,
       requires: AdlBundle::def_requires(),
+      local_requires: AdlBundle::def_local_requires(),
       excludes: AdlBundle::def_excludes(),
       replaces: AdlBundle::def_replaces(),
       retracts: AdlBundle::def_retracts(),
     }
   }
 
-  pub fn def_global_alias() -> Option<String> {
-    None
+  pub fn def_requires() -> Vec<RequireBundle> {
+    vec![]
   }
 
-  pub fn def_requires() -> Vec<Require> {
+  pub fn def_local_requires() -> Vec<String> {
     vec![]
   }
 
@@ -66,23 +69,22 @@ impl AdlBundle {
 }
 
 #[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub struct Require {
-  #[serde(rename="ref")]
-  pub r#ref: BundleRef,
+pub struct RequireBundle {
+  pub bundle: String,
 
-  #[serde(default="Require::def_version")]
+  #[serde(default="RequireBundle::def_version")]
   pub version: Option<String>,
 
-  #[serde(default="Require::def_indirect")]
+  #[serde(default="RequireBundle::def_indirect")]
   pub indirect: bool,
 }
 
-impl Require {
-  pub fn new(r#ref: BundleRef) -> Require {
-    Require {
-      r#ref: r#ref,
-      version: Require::def_version(),
-      indirect: Require::def_indirect(),
+impl RequireBundle {
+  pub fn new(bundle: String) -> RequireBundle {
+    RequireBundle {
+      bundle: bundle,
+      version: RequireBundle::def_version(),
+      indirect: RequireBundle::def_indirect(),
     }
   }
 
@@ -92,31 +94,6 @@ impl Require {
 
   pub fn def_indirect() -> bool {
     false
-  }
-}
-
-#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub enum BundleRef {
-  #[serde(rename="path")]
-  Path(BundleRefPath),
-
-  #[serde(rename="alias")]
-  Alias(String),
-}
-
-#[derive(Clone,Debug,Deserialize,Eq,Hash,PartialEq,Serialize)]
-pub struct BundleRefPath {
-  pub path: String,
-
-  pub alias: String,
-}
-
-impl BundleRefPath {
-  pub fn new(path: String, alias: String) -> BundleRefPath {
-    BundleRefPath {
-      path: path,
-      alias: alias,
-    }
   }
 }
 
