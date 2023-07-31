@@ -378,7 +378,17 @@ impl TsGenVisitor<'_> {
         let npm_pkg = get_npm_pkg(self.module);
         let imp = self.map.entry(scoped_name.clone()).or_insert_with(|| {
             let path = if !self.opts.generate_transitive && npm_pkg2 != None && npm_pkg2 != npm_pkg {
-                npm_pkg_import(npm_pkg2.unwrap(), scoped_name.module_name.clone())
+                let mut path = npm_pkg2.unwrap();
+                let module_name = scoped_name.module_name.clone();
+                let mn_parts: Vec<&str> = module_name.split(".").collect();
+                let mut mn = mn_parts.iter().peekable();
+                mn.next(); // skip first
+                while let Some(p) = mn.next() {
+                    path.push_str("/");
+                    path.push_str(p);
+                }
+                path
+                // npm_pkg_import(npm_pkg2.unwrap(), scoped_name.module_name.clone())
             } else {
                 let same_pkg = npm_pkg2 == self.npm_pkg.clone();
                 rel_import(!self.opts.generate_transitive, same_pkg, &self.module.name, &scoped_name.module_name)

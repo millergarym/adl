@@ -469,6 +469,7 @@ fn gen_resolver(
             if !generate_transitive && npm_pkg2 != None {
                 let npm_pkg2 = npm_pkg2.unwrap();
                 if npm_pkg2 != npm_pkg.clone() {
+                    todo!("restructure import path construction");
                     let alias = m.name.replace(".", "_");
                     local_keys.push(alias.clone());
                     return js::import(npm_pkg_import(npm_pkg2, m.name.clone()), "_AST_MAP")
