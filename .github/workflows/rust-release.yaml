@@ -23,13 +23,12 @@ jobs:
       # This can result in the CI failure, see: https://github.com/rust-lang/rustup/issues/3029
       - run: |
           rustup set auto-self-update disable
-          rustup toolchain install nightly --profile minimal
 
       # caching doesn't work across tags
       # https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#restrictions-for-accessing-a-cache
       # - uses: Swatinem/rust-cache@v2
 
-      - run: cargo +nightly build --release
+      - run: cargo build --release
 
       - uses: actions/upload-artifact@v3
         with:
