@@ -1,5 +1,9 @@
 {
     "bundle" : "github.com/adl-lang/adl/adl/stdlib/sys",
     "module_prefix": "sys",
-    "adlc": "0.0.0"
+    "adlc": "0.0.0",
+    "npm_opts": {
+        "pkg_name": "@adl-lang/sys",
+        "version": "1.0.0"
+    }
 }

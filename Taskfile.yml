@@ -1,0 +1,50 @@
+# https://taskfile.dev
+
+version: '3'
+
+tasks:
+  rust:genadl:
+    desc: Using the Haskell adlc generate for rust compiler
+    dir: rust/compiler
+    env:
+      ADL_STDLIB_DIR: ../../adl/stdlib
+      ADL_ADLC_DIR: ../../adl/tools
+    cmds:
+      - adlc rust
+        --no-overwrite
+        --verbose
+        --generate-transitive
+        --outputdir ./src
+        --module adlgen
+        --runtime-module adlrt
+        --include-rt
+        --searchdir $ADL_STDLIB_DIR
+        --searchdir $ADL_ADLC_DIR
+        $ADL_STDLIB_DIR/sys/adlast2.adl
+        $ADL_ADLC_DIR/adlc/workspace.adl
+        $ADL_ADLC_DIR/adlc/bundle.adl
+        $ADL_ADLC_DIR/adlc/testing_table.adl
+
+  rust:install:
+    desc: compile and install radlc into ~/.cargo/bin
+    dir: rust/compiler
+    cmds:
+      - cargo +nightly install  --path .
+
+  rust:table_test:
+    desc: effectly runs `radlc typescript` as specified in testing_table.json
+    dir: rust/compiler
+    cmds:
+      - cargo +nightly test
+        --package compiler
+        --lib
+        -- 
+          cli::tsgen::tests::generate_ts_from_test_files
+            --exact
+            --nocapture
+
+  rust:typescript_workspace:
+    desc: effectly run `radlc gen` as specified in testing_table.json
+    dir: rust/compiler
+    cmds:
+      - cargo +nightly run -- -l info gen ../../typescript/workspace

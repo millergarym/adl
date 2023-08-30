@@ -80,87 +80,7 @@ pub fn run_cli() -> i32 {
         Command::Verify(opts) => verify::verify(&opts),
         Command::Ast(opts) => ast::ast(&opts),
         Command::Rust(opts) => rust::rust(&opts),
-        Command::Tsgen(opts) => {
-            if let Some(d) = opts.runtime_dir {
-                if d != "./runtime" {
-                    eprintln!("only value for runtime_dir which is supported in './runtime'");
-                    return 1;
-                }
-            }
-            let loader = loader_from_search_paths(&opts.search.path);
-            let ts_opts = TypescriptGenOptions {
-                npm_pkg_name: opts.npm_pkg_name,
-                npm_version: TypescriptGenOptions::def_npm_version(),
-                extra_dependencies: TypescriptGenOptions::def_extra_dependencies(),
-                extra_dev_dependencies: TypescriptGenOptions::def_extra_dev_dependencies(),
-                tsconfig: TypescriptGenOptions::def_tsconfig(),
-                scripts: TypescriptGenOptions::def_scripts(),
-                outputs: Some(crate::adlgen::adlc::workspace::OutputOpts::Gen(GenOutput {
-                    referenceable: ReferenceableScopeOption::Local,
-                    output_dir: opts.output.outputdir.to_str().unwrap().to_string(),
-                    manifest: opts
-                        .output
-                        .manifest
-                        .map(|m| m.to_str().unwrap().to_string()),
-                })),
-                runtime_opts: if opts.include_rt {
-                    TsRuntimeOpt::Generate(TsGenRuntime{
-                        // runtime_dir: match opts.runtime_dir {
-                        //     Some(d) => d,
-                        //     None => "runtime".to_string(),
-                        // },
-                    })
-                } else {
-                    match opts.runtime_pkg {
-                        Some(d) => TsRuntimeOpt::PackageRef(NpmPackageRef {
-                            name: d,
-                            version: "^1.0.0".to_string(),
-                        }),
-                        None => TypescriptGenOptions::def_runtime_opts(),
-                    }
-                },
-                generate_transitive: opts.generate_transitive,
-                include_resolver: opts.include_resolver,
-                ts_style: match opts.ts_style {
-                    Some(style) => match style {
-                        TsStyle::Tsc => crate::adlgen::adlc::workspace::TsStyle::Tsc,
-                        TsStyle::Deno => crate::adlgen::adlc::workspace::TsStyle::Deno,
-                    },
-                    None => crate::adlgen::adlc::workspace::TsStyle::Tsc,
-                },
-                modules: ModuleSrc::Modules(opts.modules),
-                capitalize_branch_names_in_types: opts.capitalize_branch_names_in_types,
-                capitalize_type_names: opts.capitalize_type_names,
-            };
-            // let empty = vec![];
-            let fname = "adl.bundle.json";
-            let bundle_path = PathBuf::from(fname);
-            let bundle = fs::read_to_string(&bundle_path).map(|content| {
-                let de = &mut serde_json::Deserializer::from_str(&content);
-                let mut unused = BTreeSet::new();
-                let b0: AdlBundle = serde_ignored::deserialize(de, |path| {
-                    unused.insert(path.to_string());
-                })
-                .map_err(|e| anyhow!("{:?}: {}", fname.clone(), e.to_string()))?;
-                if unused.len() != 0 {
-                    return Err(anyhow!("unknown fields `{:?}` {:?}", unused, fname));
-                }
-                Ok(b0)
-            }).map_or(Ok(None), |v| v.map(Some));
-            match bundle {
-                Ok(bundle) => tsgen::tsgen(
-                    false,
-                    false,
-                    loader,
-                    bundle,
-                    &ts_opts,
-                    None,
-                    AdlBundleRefType::Dir(".".to_string()),
-                    // empty,
-                ),
-                Err(e) => Err(e),
-            }
-        }
+        Command::Tsgen(opts) => cmd_tsgen(opts),
         Command::WriteStdlib(opts) => crate::adlstdlib::dump_stdlib(&opts),
     };
     match r {
@@ -170,6 +90,86 @@ pub fn run_cli() -> i32 {
             1
         }
     }
+}
+
+fn cmd_tsgen(opts: TsOpts) -> Result<(), anyhow::Error> {
+    if let Some(d) = opts.runtime_dir {
+        if d != "./runtime" {
+            return Err(anyhow!(
+                "only value for runtime_dir which is supported in './runtime'"
+            ));
+        }
+    }
+    let loader = loader_from_search_paths(&opts.search.path)?;
+    let ts_opts = TypescriptGenOptions {
+        // npm_pkg_name: opts.npm_pkg_name,
+        // npm_version: TypescriptGenOptions::def_npm_version(),
+        extra_dependencies: TypescriptGenOptions::def_extra_dependencies(),
+        extra_dev_dependencies: TypescriptGenOptions::def_extra_dev_dependencies(),
+        tsconfig: TypescriptGenOptions::def_tsconfig(),
+        scripts: TypescriptGenOptions::def_scripts(),
+        outputs: Some(crate::adlgen::adlc::workspace::OutputOpts::Gen(GenOutput {
+            referenceable: ReferenceableScopeOption::Local,
+            output_dir: opts.output.outputdir.to_str().unwrap().to_string(),
+            manifest: opts
+                .output
+                .manifest
+                .map(|m| m.to_str().unwrap().to_string()),
+        })),
+        runtime_opts: if opts.include_rt {
+            TsRuntimeOpt::Generate(TsGenRuntime{
+                // runtime_dir: match opts.runtime_dir {
+                //     Some(d) => d,
+                //     None => "runtime".to_string(),
+                // },
+            })
+        } else {
+            match opts.runtime_pkg {
+                Some(d) => TsRuntimeOpt::PackageRef(NpmPackageRef {
+                    name: d,
+                    version: "^1.0.0".to_string(),
+                }),
+                None => TypescriptGenOptions::def_runtime_opts(),
+            }
+        },
+        generate_transitive: opts.generate_transitive,
+        include_resolver: opts.include_resolver,
+        ts_style: match opts.ts_style {
+            Some(style) => match style {
+                TsStyle::Tsc => crate::adlgen::adlc::workspace::TsStyle::Tsc,
+                TsStyle::Deno => crate::adlgen::adlc::workspace::TsStyle::Deno,
+            },
+            None => crate::adlgen::adlc::workspace::TsStyle::Tsc,
+        },
+        modules: ModuleSrc::Modules(opts.modules),
+        capitalize_branch_names_in_types: opts.capitalize_branch_names_in_types,
+        capitalize_type_names: opts.capitalize_type_names,
+    };
+    let empty = vec![];
+    let fname = "adl.bundle.json";
+    let bundle_path = PathBuf::from(fname);
+    let content = fs::read_to_string(&bundle_path)
+        .map_err(|e| anyhow!("Error reading bundle `{:?}` {:?}", fname, e))?;
+
+    let de = &mut serde_json::Deserializer::from_str(&content);
+    let mut unused = BTreeSet::new();
+    let bundle: AdlBundle = serde_ignored::deserialize(de, |path| {
+        unused.insert(path.to_string());
+    })
+    .map_err(|e| anyhow!("{:?}: {}", fname.clone(), e.to_string()))?;
+    if unused.len() != 0 {
+        return Err(anyhow!("unknown fields `{:?}` {:?}", unused, fname));
+    }
+    tsgen::tsgen(
+        false,
+        false,
+        loader,
+        bundle,
+        &ts_opts,
+        None,
+        AdlBundleRefType::Dir(".".to_string()),
+        empty,
+    )
 }
 
 #[derive(Parser, Debug)]

@@ -10,11 +10,17 @@ struct AdlBundle {
     // Vector<String> module_prefixes = [];
     /// Version
     String adlc;
+    Nullable<NpmOptions> npm_opts = null; 
     Vector<RequireBundle> requires = [];
     Vector<String> local_requires = [];
     Vector<Exclude> excludes = [];
     Vector<Replace> replaces = [];
     Vector<Retract> retracts = [];
+};
+
+struct NpmOptions {
+    String pkg_name;
+    String version = "1.0.0";
 };
 
 struct RequireBundle {

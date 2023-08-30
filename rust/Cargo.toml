@@ -1,0 +1,8 @@
+[workspace]
+members = [
+  "compiler",
+  "adl_cli",
+  "adl_tsgen",
+  "adl_rustgen",
+  "adl_core"
+]

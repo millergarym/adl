@@ -81,8 +81,8 @@ fn generate_ts_from_test_files() {
                 }
                 let modules = t.modules.clone();
                 let ts_opts = TypescriptGenOptions {
-                    npm_pkg_name: "testing".to_string(),
-                    npm_version: "0.0.0".to_string(),
+                    // npm_pkg_name: "testing".to_string(),
+                    // npm_version: "0.0.0".to_string(),
                     scripts: TypescriptGenOptions::def_scripts(),
                     tsconfig: TypescriptGenOptions::def_tsconfig(),
                     extra_dependencies: TypescriptGenOptions::def_extra_dependencies(),
@@ -145,7 +145,7 @@ fn generate_ts_from_test_files() {
 
                 // TODO consider failed.
                 // t.fail
-                // let dep_adl_bundles = vec![];
+                let dep_adl_bundles = vec![];
                 let bundle = t
                     .bundle_file.clone()
                     .map(|p| {
@@ -170,7 +170,20 @@ fn generate_ts_from_test_files() {
                         }
                         Ok(b0)
                     })
-                    .map_or(Ok(None), |v| v.map(Some));
+                    .map_or(Ok(AdlBundle{
+                        bundle: format!("github.com/adl-lang/adl/test/{}", t.module_root),
+                        module_prefix: Some(t.modules[0].clone()),
+                        adlc: "0.0.0".to_string(),
+                        npm_opts: Some(NpmOptions {
+                            pkg_name: format!("@adl-lang/test/{}", t.modules[0]),
+                            version: "1.0.0".to_string(),
+                        }),
+                        requires: vec![],
+                        local_requires: vec![],
+                        excludes: vec![],
+                        replaces: vec![],
+                        retracts: vec![],
+                    }), |v| v);
                 let bundle1 = match bundle {
                     Ok(b) => b,
                     Err(e) => {
@@ -178,15 +191,22 @@ fn generate_ts_from_test_files() {
                         return ();
                     }
                 };
+                let loader = match loader_from_search_paths(&search_path) {
+                    Ok(l) => l,
+                    Err(e) => {
+                        assert!(false, "error loader_from_search_paths {}", e);
+                        return ();
+                    }
+                };
                 match tsgen(
                     false,
                     false,
-                    loader_from_search_paths(&search_path),
+                    loader,
                     bundle1,
                     &ts_opts,
                     None,
                     AdlBundleRefType::Dir(".".to_string()),
-                    // dep_adl_bundles,
+                    dep_adl_bundles,
                 ) {
                     Ok(_) => {
                         println!(

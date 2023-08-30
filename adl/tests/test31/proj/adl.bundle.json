@@ -5,7 +5,7 @@
     "local_requires": ["sys"],
     "requires": [
         {
-            "bundle": "github.com/gmhta/adl_common",
+            "bundle": "github.com/adl-lang/adl/adl/tests/test31/lib",
             "version": "v2.0.0"
         }
     ]

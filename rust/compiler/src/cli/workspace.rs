@@ -34,30 +34,50 @@ pub(crate) fn workspace(opts: &super::GenOpts) -> Result<(), anyhow::Error> {
             let wrk_root = wrk1.0.canonicalize()?;
             std::env::set_current_dir(&wrk1.0)?;
 
-            // let deps = wrk1
-            //     .1
-            //     .r#use
+            // let dep_paths: Vec<String> = pkg
+            //     .bundle
+            //     .requires
             //     .iter()
-            //     .filter(|p| {
-            //         p.bundle.bundle
-            //         if dep_paths.contains(&p.bundle.path) {
-            //             return true;
-            //         }
-            //         if let Some(a) = &p.bundle.global_alias {
-            //             return dep_alias.contains(a);
-            //         }
-            //         return false;
+            //     .filter_map(|p| {                    p.bundle
             //     })
             //     .collect();
-            tsgen::tsgen(
+            // let dep_alias: Vec<String> = pkg
+            //     .bundle
+            //     .requires
+            //     .iter()
+            //     .filter_map(|p| {
+            //         if let BundleRef::Alias(p1) = &p.r#ref {
+            //             Some(p1.clone())
+            //         } else {
+            //             None
+            //         }
+            //     })
+            //     .collect();
+
+//             let deps = wrk1
+//                 .1
+//                 .r#use
+//                 .iter()
+//                 .filter(|p| {
+// \                    if dep_paths.contains(&p.bundle.path) {
+//                         return true;
+//                     }
+//                     if let Some(a) = &p.bundle.module_prefix {
+//                         return dep_alias.contains(a);
+//                     }
+//                     return false;
+//                 })
+//                 .collect();
+            let deps = vec![]
+;            tsgen::tsgen(
                 !opts.generate_transitive,
                 true,
                 loader,
-                Some(pkg.bundle.clone()),
+                pkg.bundle.clone(),
                 &opts,
                 Some(wrk_root),
                 pkg.p_ref.r#ref.clone(),
-                // deps,
+                deps,
             )?;
             tsgen::gen_npm_package(pkg, &wrk1.1)?;
         }
@@ -100,7 +120,7 @@ fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Erro
         bundle: payload1.bundle.clone(),
     };
 
-    if let Some(ts_opts) = &payload1.p_ref.ts_opts {
+    if let Some(npm_opts) = &payload1.bundle.npm_opts {
         loader_ref
             .resolver_inject_annotate
             .push(InjectAnnotation::Module(Pair((
@@ -108,7 +128,7 @@ fn payload1_to_loader_ref(payload1: &Payload1) -> Result<LoaderRef, anyhow::Erro
                     module_name: "adlc.config.typescript".to_string(),
                     name: "NpmPackage".to_string(),
                 },
-                serde_json::json!(&ts_opts.npm_pkg_name),
+                serde_json::json!(&npm_opts.pkg_name),
             ))));
     }
 

@@ -10,17 +10,22 @@ import * as sys_types from "@adl-lang/sys/types";
 
 /* @generated from adl module protoclient.protoapp.api */
 
-export interface X<_A> {
+export interface X<A> {
+  x: A;
 }
 
-export function makeX<_A>(
-  _input: {}
-): X<_A> {
-  return {};
+export function makeX<A>(
+  input: {
+    x: A,
+  }
+): X<A> {
+  return {
+    x: input.x,
+  };
 }
 
 const X_AST : ADL.ScopedDecl =
-  {"moduleName":"protoclient.protoapp.api","decl":{"annotations":[],"type_":{"kind":"struct_","value":{"typeParams":["A"],"fields":[]}},"name":"X","version":{"kind":"nothing"}}};
+  {"moduleName":"protoclient.protoapp.api","decl":{"annotations":[],"type_":{"kind":"struct_","value":{"typeParams":["A"],"fields":[{"annotations":[],"serializedName":"x","default":{"kind":"nothing"},"name":"x","typeExpr":{"typeRef":{"kind":"typeParam","value":"A"},"parameters":[]}}]}},"name":"X","version":{"kind":"nothing"}}};
 
 export const snX: ADL.ScopedName = {moduleName:"protoclient.protoapp.api", name:"X"};
 

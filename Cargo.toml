@@ -1,4 +1,8 @@
 [workspace]
 members = [
   "rust/compiler",
+  "rust/adl_cli",
+  "rust/adl_tsgen",
+  "rust/adl_rustgen",
+  "rust/adl_core"
 ]

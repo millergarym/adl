@@ -49,8 +49,6 @@
                 "embedded": "sys"
             },
             "ts_opts": {
-                "npm_pkg_name": "@adl-lang/sys",
-                "npm_version": "1.0.0",
                 "outputs": {
                     "gen": {
                         "output_dir": "./generated/sys",
@@ -66,7 +64,6 @@
                 "dir": "./adl/lib"
             },
             "ts_opts": {
-                "npm_pkg_name": "@adl-lang/common",
                 "outputs": {
                     "gen": {
                         "output_dir": "./generated/common",
@@ -82,7 +79,6 @@
                 "dir": "./adl/proj"
             },
             "ts_opts": {
-                "npm_pkg_name": "@adl-lang/protoclient",
                 "generate_transitive": false,
                 "outputs": {
                     "gen": {

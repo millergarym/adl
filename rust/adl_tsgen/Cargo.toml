@@ -1,0 +1,21 @@
+[package]
+name = "adl_tsgen"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dev-dependencies]
+env_logger = "0.10.0"
+serde_ignored = "0.1.7"
+
+[dependencies]
+adl_core = { path = "../adl_core" }
+log = "0.4.17"
+convert_case = "0.6.0"
+serde = { version = "1.0.130", features=["derive"] }
+serde_json = "1.0.68"
+genco = "0.17.3"
+regex = "1.7.3"
+anyhow = "1.0.61"
+rust-embed = "6.6.1"

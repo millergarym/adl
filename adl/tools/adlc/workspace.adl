@@ -113,8 +113,6 @@ struct DirectoryRef {
 };
 
 struct TypescriptGenOptions {
-    String npm_pkg_name;
-    String npm_version = "1.0.0";
     StringMap<VersionSpec> extra_dependencies = {};
     StringMap<VersionSpec> extra_dev_dependencies = {};
     Nullable<OutputOpts> outputs = null;

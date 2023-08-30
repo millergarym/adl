@@ -1,5 +1,9 @@
 {
     "bundle" : "github.com/adl-lang/adl/typescript/workspace/adl/lib",
     "module_prefix": "common",
-    "adlc": "0.0.0"
+    "adlc": "0.0.0",
+    "npm_opts": {
+        "pkg_name": "@adl-lang/common",
+        "version": "1.0.0"
+    }
 }

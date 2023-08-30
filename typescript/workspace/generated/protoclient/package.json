@@ -7,10 +7,10 @@
   },
   "dependencies": {
     "@adl-lang/runtime": "^1.0.0",
-    "@adl-lang/common": "workspace:*"
+    "@adl-lang/protoclient": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^4.9.3",
-    "tsconfig": "workspace:*"
+    "tsconfig": "workspace:*",
+    "typescript": "^4.9.3"
   }
 }

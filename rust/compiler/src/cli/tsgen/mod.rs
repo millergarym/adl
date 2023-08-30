@@ -14,7 +14,7 @@ use anyhow::anyhow;
 use genco::fmt::{self, Indentation};
 use genco::prelude::*;
 
-use crate::adlgen::adlc::bundle::AdlBundle;
+use crate::adlgen::adlc::bundle::{AdlBundle, NpmOptions};
 use crate::adlgen::adlc::workspace::{
     AdlBundleRefType, AdlWorkspace, ModuleSrc, NpmPackage, Payload1, TsRuntimeOpt, TsStyle,
     TsWriteRuntime, TypescriptGenOptions,
@@ -115,16 +115,24 @@ pub fn tsgen(
     strip_first: bool,
     packageable: bool,
     loader: Box<dyn AdlLoader>,
-    bundle: Option<AdlBundle>,
+    bundle: AdlBundle,
     opts: &TypescriptGenOptions,
     wrk_root: Option<PathBuf>,
     r#ref: AdlBundleRefType,
-    // dep_adl_bundles: Vec<&Payload1>,
+    dep_adl_bundles: Vec<&Payload1>,
 ) -> anyhow::Result<()> {
     if opts.outputs == None {
         // not gen for this pkg
         return Ok(());
     }
+
+    if bundle.npm_opts == None {
+        return Err(anyhow!("npm_opts required to generate typescript code"));
+    }
+    let npm_opts = bundle.npm_opts.as_ref().unwrap();
+    let npm_pkg_name = npm_opts.pkg_name.clone();
+    let npm_version = npm_opts.version.clone();
+
     let outputs = opts.outputs.as_ref().unwrap();
     let (manifest, outputdir) = match outputs {
         crate::adlgen::adlc::workspace::OutputOpts::Gen(gen) => (
@@ -147,7 +155,7 @@ pub fn tsgen(
 
     let _parent = outputdir.file_name().unwrap().to_str().unwrap().to_string();
 
-    let modules: Vec<(Module1,Option<&AdlBundle>)> = resolver
+    let modules: Vec<(Module1, AdlBundle)> = resolver
         .get_module_names()
         .into_iter()
         .map(|mn| resolver.get_module(&mn).unwrap())
@@ -155,12 +163,12 @@ pub fn tsgen(
 
     let index_map = &mut HashMap::new();
 
-    for (m,pkg2) in &modules {
+    for (m, pkg2) in &modules {
         let does_contain = module_names.contains(&m.name);
         if opts.generate_transitive || does_contain {
             let path = path_from_module_name(strip_first, m.name.to_owned());
 
-            if pkg2.eq(&bundle.as_ref()) {
+            if pkg2.eq(&bundle) {
                 utils::collect_indexes(path.clone(), index_map);
             }
 
@@ -168,7 +176,7 @@ pub fn tsgen(
             // if None == path.components().next() {
             //     return Err(anyhow!("Output module name was empty. Potential config issue 'strip_first' might need to be false. Module: '{}'. strip_first: '{}'", m.name, strip_first));
             // }
-            let code = gen_ts_module(m, &resolver, opts)?;
+            let code = gen_ts_module(m, &resolver, opts, &npm_opts)?;
             writer
                 .write(path, code)
                 .map_err(|e| anyhow!("Error write to path {:?}. Error: {}", path, e.to_string()))?;
@@ -177,20 +185,20 @@ pub fn tsgen(
 
     {
         let tokens = &mut js::Tokens::new();
-        // let dep_adl_resolvers = dep_adl_bundles
-        //     .iter()
-        //     .filter_map(|d| d.p_ref.ts_opts.as_ref().map(|t| t.npm_pkg_name.clone()))
-        //     .collect();
+        let dep_adl_resolvers = dep_adl_bundles
+            .iter()
+            .filter_map(|d| d.bundle.npm_opts.as_ref().map(|t| t.pkg_name.clone()))
+            .collect();
 
         if opts.include_resolver {
             gen_resolver(
                 tokens,
-                opts.npm_pkg_name.clone(),
+                npm_pkg_name.clone(),
                 opts.generate_transitive,
                 &opts.runtime_opts,
                 &resolver,
                 &modules,
-                // dep_adl_resolvers,
+                dep_adl_resolvers,
             )?;
             let config = js::Config::default();
             // let config = js::Config{
@@ -238,8 +246,7 @@ pub fn tsgen(
                         let mut pat = String::from("/");
                         pat.push_str(iep[0]);
                         if k.eq(&PathBuf::from("_"))
-                            && (opts.npm_pkg_name.eq(iep[0])
-                                || opts.npm_pkg_name.ends_with(pat.as_str()))
+                            && (npm_pkg_name.eq(iep[0]) || npm_pkg_name.ends_with(pat.as_str()))
                         {
                             write!(&mut out, "export * from './{}';\n", iep[0])?;
                         } else {
@@ -263,6 +270,26 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
         // not gen for this pkg
         return Ok(());
     }
+
+    if payload.bundle.npm_opts == None {
+        return Err(anyhow!("npm_opts required to generate typescript code"));
+    }
+    let npm_opts = payload.bundle.npm_opts.as_ref().unwrap();
+    let npm_pkg_name = npm_opts.pkg_name.clone();
+    let npm_version = npm_opts.version.clone();
+
+    // let npm_opts = match payload.bundle.npm_opts {
+    //     None => return Err(anyhow!("npm_opts required to generate ts code")),
+    //     Some(b) => b,
+    // };
+    // // if payload.bundle.npm_opts == None {
+    // //     return Err(anyhow!("npm_opts required to generate ts code"))
+    // // }
+    // // let npm_opts = payload.bundle.npm_opts.unwrap();
+
+    // let npm_pkg_name = npm_opts.pkg_name;
+    // let npm_version = npm_opts.version;
+
     let outputs = opts.outputs.as_ref().unwrap();
     let outputdir = match outputs {
         crate::adlgen::adlc::workspace::OutputOpts::Gen(gen) => {
@@ -271,7 +298,7 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
     };
     let mut writer = TreeWriter::new(outputdir.clone(), None)?;
 
-    let mut npm_package = NpmPackage::new(opts.npm_pkg_name.clone(), opts.npm_version.clone());
+    let mut npm_package = NpmPackage::new(npm_pkg_name.clone(), npm_version.clone());
     match &opts.runtime_opts {
         TsRuntimeOpt::WorkspaceRef(rt) => {
             npm_package
@@ -300,22 +327,27 @@ pub fn gen_npm_package(payload: &Payload1, wrk1: &AdlWorkspace<Payload1>) -> any
 
     if !opts.generate_transitive {
         for r in payload.bundle.requires.iter() {
+            // TODO look at removing the need for workspace here
             match wrk1.r#use.iter().find(|p| p.bundle.bundle == r.bundle) {
                 Some(p1) => match &p1.p_ref.ts_opts {
                     Some(ts_opts) => {
-                        npm_package.dependencies.insert(
-                            ts_opts.npm_pkg_name.clone(),
-                            "workspace:*".to_string(),
-                        );
+                        npm_package
+                            .dependencies
+                            .insert(npm_pkg_name.clone(), "workspace:*".to_string());
                     }
                     None => {
                         return Err(anyhow!(
-                        "pkg_ref::path - no ts_opts in workspace file for package '{:?}'",
-                        p1.p_ref
-                    ))
+                            "pkg_ref::path - no ts_opts in workspace file for package '{:?}'",
+                            p1.p_ref
+                        ))
                     }
                 },
-                None => return Err(anyhow!("no package is workspace with path '{:?}'", r.bundle)),
+                None => {
+                    return Err(anyhow!(
+                        "no package is workspace with path '{:?}'",
+                        r.bundle
+                    ))
+                }
             }
         }
     }
@@ -336,6 +368,7 @@ fn gen_ts_module(
     m: &Module1,
     resolver: &Resolver,
     opts: &TypescriptGenOptions,
+    npm_opts: &NpmOptions,
 ) -> anyhow::Result<String> {
     // TODO sys.annotations::SerializedName needs to be embedded
     let tokens = &mut js::Tokens::new();
@@ -360,7 +393,7 @@ fn gen_ts_module(
     };
     let mut mgen = generate::TsGenVisitor {
         module: m,
-        npm_pkg: &Some(opts.npm_pkg_name.clone()),
+        npm_pkg: &Some(npm_opts.pkg_name.clone()),
         resolver: resolver,
         adlr,
         map: &mut HashMap::new(),
@@ -407,31 +440,31 @@ fn gen_resolver(
     generate_transitive: bool,
     runtime_opts: &TsRuntimeOpt,
     resolver: &Resolver,
-    modules: &Vec<(Module1, Option<&AdlBundle>)>,
-    // adl_bundle_resolvers: HashSet<String>,
+    modules: &Vec<(Module1, AdlBundle)>,
+    npm_pkg_deps: HashSet<String>,
 ) -> anyhow::Result<()> {
     let mut local_keys = vec![];
     let m_imports: Vec<js::Import> = modules
         .iter()
         .map(|(m, _)| {
-            let npm_pkg2 = if let Some((m2,_)) = resolver.get_module(&m.name) {
+            let npm_pkg2 = if let Some((m2, _)) = resolver.get_module(&m.name) {
                 get_npm_pkg(&m2)
             } else {
                 None
             };
 
-            // if !generate_transitive {
-            //     if let Some(npm_pkg2) = &npm_pkg2 {
-            //         if adl_bundle_resolvers.contains(npm_pkg2) {
-            //             let alias = npm_pkg2
-            //                 .replace("@", "")
-            //                 .replace("-", "_")
-            //                 .replace("/", "_");
-            //             return js::import(format!("{}/resolver", npm_pkg2), "ADL_local")
-            //                 .with_alias(alias);
-            //         }
-            //     }
-            // }
+            if !generate_transitive {
+                if let Some(npm_pkg2) = &npm_pkg2 {
+                    if npm_pkg_deps.contains(npm_pkg2) {
+                        let alias = npm_pkg2
+                            .replace("@", "")
+                            .replace("-", "_")
+                            .replace("/", "_");
+                        return js::import(format!("{}/resolver", npm_pkg2), "ADL_local")
+                            .with_alias(alias);
+                    }
+                }
+            }
             if !generate_transitive && npm_pkg2 != None {
                 let npm_pkg2 = npm_pkg2.unwrap();
                 if npm_pkg2 != npm_pkg.clone() {
@@ -507,7 +540,10 @@ fn gen_resolver(
     Ok(())
 }
 
-fn rel_import_in_resolver(strip_first: bool, m: &adlast::Module<adlast::TypeExpr<adlast::TypeRef>>) -> String {
+fn rel_import_in_resolver(
+    strip_first: bool,
+    m: &adlast::Module<adlast::TypeExpr<adlast::TypeRef>>,
+) -> String {
     let mut it = m.name.split(".").into_iter().peekable();
     if strip_first {
         it.next();

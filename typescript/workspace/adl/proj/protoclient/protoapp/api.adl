@@ -19,7 +19,7 @@ import protoclient.protoapp.db.AppUserId;
 import protoclient.protoapp.db.MessageId;
 
 struct X<A> {
-
+  A x;
 };
 
 /// The app API

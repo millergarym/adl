@@ -3,6 +3,9 @@
     "module_prefix": "protoclient",
     "adlc": "0.0.0",
     "local_requires": ["sys"],
+    "npm_opts": {
+        "pkg_name": "@adl-lang/protoclient"
+    },
     "requires": [
         {
             "bundle": "github.com/adl-lang/adl/typescript/workspace/adl/lib",

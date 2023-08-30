@@ -12,6 +12,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "adl_cli"
+version = "0.1.0"
+
+[[package]]
+name = "adl_core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "nom",
+ "nom_locate",
+ "rust-embed",
+ "serde",
+ "serde_ignored",
+ "serde_json",
+]
+
+[[package]]
+name = "adl_rustgen"
+version = "0.1.0"
+
+[[package]]
+name = "adl_tsgen"
+version = "0.1.0"
+dependencies = [
+ "adl_core",
+ "anyhow",
+ "convert_case",
+ "env_logger",
+ "genco",
+ "log",
+ "regex",
+ "rust-embed",
+ "serde",
+ "serde_ignored",
+ "serde_json",
+]
+
+[[package]]
 name = "adler"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

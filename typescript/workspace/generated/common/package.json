@@ -2,8 +2,8 @@
   "name": "@adl-lang/common",
   "version": "1.0.0",
   "scripts": {
-    "tsc": "tsc",
-    "clean": "rm -rf dist && rm -rf node_modules"
+    "clean": "rm -rf dist && rm -rf node_modules",
+    "tsc": "tsc"
   },
   "dependencies": {
     "@adl-lang/runtime": "^1.0.0"

@@ -1,0 +1,16 @@
+{
+  "name": "@adl-lang/runtime",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "author": "Helix",
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "tsc": "tsc"
+  },
+  "dependencies": {
+  },
+  "devDependencies": {
+    "typescript": "^4.9.3"
+  }
+}
