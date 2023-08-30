@@ -106,15 +106,15 @@ impl TsGenVisitor<'_> {
                     let rt = self.rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
                     has_make = has_make && rt.0;
                     quote_in! { *t =>
-                        $SP$SP$(&f.name): $(rt.1);$['\r']
+                        $SP$SP$(&f.name)$(if rt.2 => ?): $(rt.1);$['\r']
                     }
                 })
             )}$['\r']$['\n']
         }
         if has_make {
             quote_in! { *t =>
-                export function make$(cap_or__(name, self.opts))$(gen_type_params_(&fnames, &m.type_params))(
-                  $(if m.fields.len() == 0 => _)input: {
+                export function make$(cap_or__(name, self.opts))$(gen_type_params_(&fnames, &m.type_params))($['\r']
+                  $(if m.fields.len() == 0 => _)input: {$['\r']
                     $(for f in &m.fields => $(ref t => {
                         let rt = self.rust_type(&f.type_expr).map_err(|s| anyhow!(s))?;
                         let mut has_default = false;
@@ -123,9 +123,9 @@ impl TsGenVisitor<'_> {
                         }
                         quote_in! { *t => $(&f.name)$(if has_default => ?): $(rt.1),$['\r']}
                     }))
-                  }
-                ): $(cap_opt(name, self.opts))$(gen_type_params_(&fnames, &m.type_params)) {
-                  return {
+                  }$['\r']
+                ): $(cap_opt(name, self.opts))$(gen_type_params_(&fnames, &m.type_params)) {$['\r']
+                  return {$['\r']
                     $(for f in &m.fields => $(ref t => {
                         if let Some(_) = f.default.0 {
                             quote_in! { *t => $(&f.name): input.$(&f.name) === undefined ?$[' '] }
@@ -197,15 +197,15 @@ impl TsGenVisitor<'_> {
                 };
                 if is_void {
                     quote_in! { *t =>
-                        export interface $(cap_opt(name, self.opts))_$(type_suffix(&bname.clone()))$(gen_type_params_(&used, &m.type_params)) {
-                            kind: $SQ$(bname.clone())$SQ;
+                        export interface $(cap_opt(name, self.opts))_$(type_suffix(&bname.clone()))$(gen_type_params_(&used, &m.type_params)) {$['\r']
+                            kind: $SQ$(bname.clone())$SQ;$['\r']
                         }$['\r']
                     }
                 } else {
                     quote_in! { *t =>
-                        export interface $(cap_opt(name, self.opts))_$(type_suffix(&bname.clone()))$(gen_type_params_(&used, &m.type_params)) {
-                            kind: $SQ$(bname.clone())$SQ;
-                            value: $(rtype.1.clone());
+                        export interface $(cap_opt(name, self.opts))_$(type_suffix(&bname.clone()))$(gen_type_params_(&used, &m.type_params)) {$['\r']
+                            kind: $SQ$(bname.clone())$SQ;$['\r']
+                            value: $(rtype.1.clone());$['\r']
                         }$['\r']
                     }
                 }
@@ -218,9 +218,9 @@ impl TsGenVisitor<'_> {
             quote_in! { *t =>
                 export type $(cap_opt(name, self.opts))$(gen_type_params_(&tp_names, &m.type_params)) = $(for n in m.fields.iter().map(|b| &b.name) join ( | ) =>
                         $(cap_opt(name, self.opts))_$(type_suffix(n))$(gen_type_params_(&tp_names, &m.type_params))
-                    );
+                    );$['\r']
 
-                export interface $(cap_opt(name, self.opts))Opts$(gen_type_params_(&tp_names, &m.type_params)) {
+                export interface $(cap_opt(name, self.opts))Opts$(gen_type_params_(&tp_names, &m.type_params)) {$['\r']
                   $(for opt in opts => $(ref t => {
                     self.gen_doc_comment(t, &opt.2.annotations)?;
                     quote_in! { *t => $(opt.0): $(opt.1);$['\r'] }
@@ -315,8 +315,8 @@ impl TsGenVisitor<'_> {
         Ok(())
     }
 
-    /// returns (has_make_function,ts type)
-    fn rust_type(&mut self, te: &TypeExpr<TypeRef>) -> Result<(bool, String), String> {
+    /// returns (has_make_function,ts type,optional)
+    fn rust_type(&mut self, te: &TypeExpr<TypeRef>) -> Result<(bool, String, bool), String> {
         match &te.type_ref {
             TypeRef::ScopedName(n) => {
                 self.check_type_params_len(n, &te.parameters)?;
@@ -335,7 +335,7 @@ impl TsGenVisitor<'_> {
                 if te.parameters.len() != 0 {
                     return Err(format!("Type parameters take argument(s) provided. Type parameters cannot be parameterized. Type {}", n.clone()))
                 }
-                Ok((true, n.clone()))
+                Ok((true, n.clone(), false))
             },
         }
     }
@@ -369,7 +369,7 @@ impl TsGenVisitor<'_> {
         &mut self,
         scoped_name: &ScopedName,
         params: &Vec<TypeExpr<TypeRef>>,
-    ) -> Result<(bool, String), String> {
+    ) -> Result<(bool, String, bool), String> {
         let npm_pkg2 = if let Some((m2,_)) = self.resolver.get_module(&scoped_name.module_name) {
             get_npm_pkg(&m2)
         } else {
@@ -408,15 +408,15 @@ impl TsGenVisitor<'_> {
         &mut self,
         local_name: &String,
         params: &Vec<TypeExpr<TypeRef>>,
-    ) -> Result<(bool, String), String> {
+    ) -> Result<(bool, String, bool), String> {
         if params.len() > 0 {
             let mut tperr = vec![];
-            let tps: Vec<String> = params
+            let tps: Vec<(String)> = params
                 .iter()
                 .filter_map(|p| {
                     let r = self.rust_type(p);
                     match r {
-                        Ok((_, t)) => Some(t),
+                        Ok((_, t, _)) => Some(t),
                         Err(e) => {
                             tperr.push(e);
                             return None;
@@ -429,32 +429,32 @@ impl TsGenVisitor<'_> {
                 return Err(format!("Error constructing type param: {}", msg));
             }
             let tpstr = format!("{}<{}>", local_name.clone(), tps.join(", "));
-            return Ok((true, tpstr));
+            return Ok((true, tpstr, false));
         }
-        Ok((true, local_name.clone()))
+        Ok((true, local_name.clone(), false))
     }
 
     fn tstype_from_prim(
         &mut self,
         prim: &PrimitiveType,
         params: &Vec<TypeExpr<TypeRef>>,
-    ) -> Result<(bool, String), String> {
+    ) -> Result<(bool, String, bool), String> {
         match prim {
-            PrimitiveType::Void => Ok((true, "null".to_string())),
-            PrimitiveType::Bool => Ok((true, "boolean".to_string())),
-            PrimitiveType::Int8 => Ok((true, "number".to_string())),
-            PrimitiveType::Int16 => Ok((true, "number".to_string())),
-            PrimitiveType::Int32 => Ok((true, "number".to_string())),
-            PrimitiveType::Int64 => Ok((true, "number".to_string())),
-            PrimitiveType::Word8 => Ok((true, "number".to_string())),
-            PrimitiveType::Word16 => Ok((true, "number".to_string())),
-            PrimitiveType::Word32 => Ok((true, "number".to_string())),
-            PrimitiveType::Word64 => Ok((true, "number".to_string())),
-            PrimitiveType::Float => Ok((true, "number".to_string())),
-            PrimitiveType::Double => Ok((true, "number".to_string())),
-            PrimitiveType::Json => Ok((true, "{}|null".to_string())),
-            PrimitiveType::ByteVector => Ok((true, "Uint8Array".to_string())),
-            PrimitiveType::String => Ok((true, "string".to_string())),
+            PrimitiveType::Void => Ok((true, "null".to_string(), false)),
+            PrimitiveType::Bool => Ok((true, "boolean".to_string(), false)),
+            PrimitiveType::Int8 => Ok((true, "number".to_string(), false)),
+            PrimitiveType::Int16 => Ok((true, "number".to_string(), false)),
+            PrimitiveType::Int32 => Ok((true, "number".to_string(), false)),
+            PrimitiveType::Int64 => Ok((true, "number".to_string(), false)),
+            PrimitiveType::Word8 => Ok((true, "number".to_string(), false)),
+            PrimitiveType::Word16 => Ok((true, "number".to_string(), false)),
+            PrimitiveType::Word32 => Ok((true, "number".to_string(), false)),
+            PrimitiveType::Word64 => Ok((true, "number".to_string(), false)),
+            PrimitiveType::Float => Ok((true, "number".to_string(), false)),
+            PrimitiveType::Double => Ok((true, "number".to_string(), false)),
+            PrimitiveType::Json => Ok((true, "{}|null".to_string(), false)),
+            PrimitiveType::ByteVector => Ok((true, "Uint8Array".to_string(), false)),
+            PrimitiveType::String => Ok((true, "string".to_string(), false)),
             _ => {
                 if params.len() != 1 {
                     return Err(format!( "Primitive parameterized type require 1 and only one param. Type {:?} provided with {}", prim, params.len() ));
@@ -462,17 +462,18 @@ impl TsGenVisitor<'_> {
                 let param_type = self.rust_type(&params[0])?;
                 match prim {
                     PrimitiveType::Vector => {
-                        return Ok((param_type.0, format!("{}[]", param_type.1)));
+                        return Ok((param_type.0, format!("{}[]", param_type.1), false));
                     }
                     PrimitiveType::StringMap => Ok((
                         param_type.0,
                         format!("{}[key: string]: {}{}", "{", param_type.1, "}"),
+                        false,
                     )),
                     PrimitiveType::Nullable => {
-                        Ok((param_type.0, format!("({}|null)", param_type.1)))
+                        Ok((param_type.0, param_type.1, true))
                     }
                     PrimitiveType::TypeToken => {
-                        Ok((false, format!("ADL.ATypeExpr<{}>", param_type.1)))
+                        Ok((false, format!("ADL.ATypeExpr<{}>", param_type.1), false))
                     }
                     _ => Err(format!("unknown primitive {:?}", prim)),
                 }
@@ -501,9 +502,9 @@ impl TsGenVisitor<'_> {
 
             export const sn$(cap_or__(name, self.opts)): $(&self.adlr).ScopedName = {moduleName:$("\"")$mname$("\""), name:$("\"")$name$("\"")};$['\n']
 
-            export function texpr$(cap_or__(name, self.opts))$(gen_type_params(payload.type_params))($(ref t => texpr_args(t, &payload.type_params))): ADL.ATypeExpr<$(cap_opt(name, self.opts))$(gen_type_params(payload.type_params))> {
-                return {value:{typeRef:{kind:"reference",value:sn$(cap_or__(name, self.opts))},parameters:[$(ref t => texpr_params(t, &payload.type_params))]}};
-            }
+            export function texpr$(cap_or__(name, self.opts))$(gen_type_params(payload.type_params))($(ref t => texpr_args(t, &payload.type_params))): ADL.ATypeExpr<$(cap_opt(name, self.opts))$(gen_type_params(payload.type_params))> {$['\r']
+                return {value:{typeRef:{kind:"reference",value:sn$(cap_or__(name, self.opts))},parameters:[$(ref t => texpr_params(t, &payload.type_params))]}};$['\r']
+            }$['\r']
             $['\n']
         }
         Ok(())

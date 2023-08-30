@@ -574,7 +574,7 @@ impl TsDefaultValue<'_> {
             }
             PrimitiveType::Nullable => {
                 if val.is_null() {
-                    quote_in! { *t => null }
+                    quote_in! { *t => undefined }
                 } else {
                     self.gen_type_expr(t, f_name, type_params.get(0).unwrap(), val)?;
                 }
