@@ -20,6 +20,12 @@ annotation Map RustCustomType {
   "stdTraits": ["Eq", "PartialEq", "Serialize", "Deserialize", "Clone"]
   };
 
+annotation IndexMap RustCustomType {
+  "rustname" : "{{STDLIBMODULE}}::custom::sys::types::indexmap::IndexMap",
+  "helpers" : "{{STDLIBMODULE}}::custom::sys::types::indexmap::IndexMap",
+  "stdTraits": ["Eq", "PartialEq", "Serialize", "Deserialize", "Clone"]
+  };
+
 annotation Set RustCustomType {
   "rustname" : "{{STDLIBMODULE}}::custom::sys::types::set::Set",
   "helpers" : "{{STDLIBMODULE}}::custom::sys::types::set::Set",

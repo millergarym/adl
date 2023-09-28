@@ -36,6 +36,8 @@ struct MapEntry<K,V>
 
 newtype Map<K,V> = Vector<MapEntry<K,V>>;
 
+newtype IndexMap<K,V> = Vector<MapEntry<K,V>>;
+
 newtype Set<T> = Vector<T>;
 
 };

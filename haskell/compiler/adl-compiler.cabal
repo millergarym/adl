@@ -57,6 +57,7 @@ data-files:           lib/adl/adlc/config/cpp.adl
                     , lib/rust/runtime/custom/mod.rs
                     , lib/rust/runtime/custom/sys/mod.rs
                     , lib/rust/runtime/custom/sys/types/map.rs
+                    , lib/rust/runtime/custom/sys/types/indexmap.rs
                     , lib/rust/runtime/custom/sys/types/maybe.rs
                     , lib/rust/runtime/custom/sys/types/mod.rs
                     , lib/rust/runtime/custom/sys/types/pair.rs
