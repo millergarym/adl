@@ -197,15 +197,25 @@ importP = token "import" *> (P.try importAll <|> import1 )
 
     import1  = Import_ScopedName <$> scopedName
 
-moduleP :: P.Parser (Module0 Decl0)
-moduleP = do
+moduleP0 :: P.Parser (Module0 Decl0)
+moduleP0 = do
   anns0 <- annotations
   token "module" *> (
     Module0 <$> ( moduleName <* ctoken '{' )
             <*> P.many (importP <* ctoken ';')
             <*> P.many (decl0 <* ctoken ';')
             <*> (pure anns0)
-    ) <* ctoken '}'
+    ) <* ctoken '}' <* ctoken ';'
+
+moduleP1 :: P.Parser (Module0 Decl0)
+moduleP1 = do
+  anns0 <- annotations
+  token "package" *> (
+    Module0 <$> moduleName
+            <*> P.many (importP <* ctoken ';')
+            <*> P.many (decl0 <* ctoken ';')
+            <*> (pure anns0)
+    )
 
 ----------------------------------------------------------------------
 jsonValue :: P.Parser JSON.Value
@@ -270,7 +280,7 @@ parseScopedNameList = (P.sepBy scopedName (ctoken ','))
 
 
 moduleFile :: P.Parser (Module0 Decl0)
-moduleFile = whiteSpace *> moduleP <* ctoken ';' <* P.eof
+moduleFile = whiteSpace *> ( P.try moduleP0 <|> moduleP1 ) <* P.eof
 
 
 fromFile :: P.Parser a -> FilePath -> IO (Either P.ParseError a)
